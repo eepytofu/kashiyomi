@@ -1,0 +1,12 @@
+node_modules/
+dist/
+references/
+assets/dict/
+native/target/
+*.plugin
+.env
+*.log
+
+# Local-only docs: contain machine paths and personal environment details
+AGENTS.md
+docs/

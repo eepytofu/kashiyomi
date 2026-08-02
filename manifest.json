@@ -1,0 +1,18 @@
+{
+    "manifest_version": 1,
+    "name": "Kashiyomi",
+    "slug": "kashiyomi",
+    "version": "0.1.0",
+    "author": "eepytofu",
+    "author_links": ["https://github.com/eepytofu"],
+    "description": "Local readings on the native lyrics page: furigana and romaji via Sudachi, Mandarin pinyin, and AI translation.",
+    "betterncm_version": ">=1.0.0",
+    "ncm3-compatible": true,
+    "injects": {
+        "Main": [
+            {
+                "file": "dist/main.js"
+            }
+        ]
+    }
+}
