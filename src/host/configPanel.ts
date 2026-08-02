@@ -106,10 +106,18 @@ function render(root: HTMLElement): void {
   left.appendChild(sectionTitle(t("sectionAi")));
   const ai = card();
   ai.appendChild(toggleRow("aiAutoTranslate", t("aiAuto"), t("aiAutoDesc"), resetTranslation));
-  ai.appendChild(providerRow());
-  ai.appendChild(textRow("aiBaseUrl", "aiBaseUrl", "aiBaseUrlDesc", { placeholder: "https://api.openai.com/v1" }));
+  ai.appendChild(providerRow(root));
+  // Gemini has a fixed Google endpoint; the base URL only applies to
+  // OpenAI-compatible providers.
+  if (getSettings().aiProvider === "openai") {
+    ai.appendChild(textRow("aiBaseUrl", "aiBaseUrl", "aiBaseUrlDesc", { placeholder: "https://api.openai.com/v1" }));
+  }
   ai.appendChild(textRow("aiApiKey", "aiApiKey", "aiApiKeyDesc", { password: true }));
-  ai.appendChild(textRow("aiModel", "aiModel", "aiModelDesc", { placeholder: "gpt-4o-mini / gemini-2.0-flash" }));
+  ai.appendChild(
+    textRow("aiModel", "aiModel", "aiModelDesc", {
+      placeholder: getSettings().aiProvider === "gemini" ? "gemini-3.5-flash-lite" : "gpt-4o-mini",
+    }),
+  );
   ai.appendChild(textRow("aiTargetLang", "aiTargetLang", "aiTargetLangDesc", { placeholder: "English / 简体中文 / Bahasa Indonesia" }));
   ai.appendChild(textRow("aiCustomPrompt", "aiCustomPrompt", "aiCustomPromptDesc", {}));
   left.appendChild(ai);
@@ -447,7 +455,7 @@ function textRow(
   return row;
 }
 
-function providerRow(): HTMLElement {
+function providerRow(root: HTMLElement): HTMLElement {
   const row = document.createElement("div");
   row.className = "kc-row";
   row.appendChild(rowText(t("aiProvider"), t("aiProviderDesc")));
@@ -468,6 +476,8 @@ function providerRow(): HTMLElement {
   select.onchange = () => {
     updateSettings({ aiProvider: select.value as Settings["aiProvider"] });
     resetTranslation();
+    // Provider choice changes which rows exist (base URL, placeholders).
+    render(root);
   };
   row.appendChild(select);
   return row;
