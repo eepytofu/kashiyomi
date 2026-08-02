@@ -12,7 +12,8 @@ import { log } from "./log.ts";
 import { getSettings } from "./settings.ts";
 
 const CACHE_KEY = "kashiyomi:txcache";
-const CACHE_CAP = 40;
+const CACHE_CAP = 80;
+const CACHE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 type CacheEnvelope = {
   v: 1;
@@ -33,8 +34,13 @@ function readCache(): CacheEnvelope {
 }
 
 function writeCache(cache: CacheEnvelope): void {
+  const cutoff = Date.now() - CACHE_TTL_MS;
+  for (const [key, entry] of Object.entries(cache.entries)) {
+    if (entry.at < cutoff) delete cache.entries[key];
+  }
   const keys = Object.keys(cache.entries);
   if (keys.length > CACHE_CAP) {
+    // Evict least recently used first.
     keys
       .sort((a, b) => cache.entries[a]!.at - cache.entries[b]!.at)
       .slice(0, keys.length - CACHE_CAP)
@@ -43,7 +49,16 @@ function writeCache(cache: CacheEnvelope): void {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
   } catch {
-    // cache is best-effort
+    // Storage full: drop the oldest half and try once more before giving up.
+    const remaining = Object.keys(cache.entries).sort(
+      (a, b) => cache.entries[a]!.at - cache.entries[b]!.at,
+    );
+    remaining.slice(0, Math.ceil(remaining.length / 2)).forEach((key) => delete cache.entries[key]);
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+    } catch {
+      // cache is best-effort
+    }
   }
 }
 

@@ -50,6 +50,34 @@ const PANEL_CSS = `
 .kashiyomi-config .kc-switch input:checked + .kc-track::after { transform: translateX(16px); }
 .kashiyomi-config .kc-button { padding: 6px 14px; border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.1); color: inherit; font-size: 12.5px; cursor: pointer; }
 .kashiyomi-config .kc-button:hover { background: rgba(255, 255, 255, 0.16); }
+.kashiyomi-config .kc-select {
+  position: relative; flex: none; display: inline-flex; align-items: center;
+}
+.kashiyomi-config .kc-select select {
+  appearance: none; -webkit-appearance: none;
+  padding: 7px 30px 7px 12px; border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px; background: rgba(255, 255, 255, 0.08); color: inherit;
+  font-size: 12.5px; font-family: inherit; cursor: pointer; outline: none;
+  min-width: 160px;
+}
+.kashiyomi-config .kc-select select:hover { background: rgba(255, 255, 255, 0.14); }
+.kashiyomi-config .kc-select select:focus { border-color: rgba(236, 65, 65, 0.7); }
+/* The native popup list is drawn by the OS, so its items only take solid
+   colors; keep them readable instead of inheriting the panel's light text. */
+.kashiyomi-config .kc-select option { background: #2b2b2b; color: #f2f2f2; }
+.kashiyomi-config .kc-select::after {
+  content: ""; position: absolute; right: 12px; pointer-events: none;
+  width: 6px; height: 6px; border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor; transform: translateY(-2px) rotate(45deg);
+  opacity: 0.6;
+}
+.kashiyomi-config .kc-input {
+  padding: 7px 12px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08); color: inherit; font-size: 12.5px;
+  font-family: inherit; outline: none;
+}
+.kashiyomi-config .kc-input:focus { border-color: rgba(236, 65, 65, 0.7); }
+.kashiyomi-config input[type="range"] { accent-color: #ec4141; }
 .kashiyomi-config .kc-lang { display: flex; border-radius: 8px; overflow: hidden; }
 .kashiyomi-config .kc-lang button { padding: 6px 10px; border: none; background: rgba(255, 255, 255, 0.08); color: inherit; font-size: 12px; cursor: pointer; }
 .kashiyomi-config .kc-lang button.kc-active { background: #ec4141; }
@@ -209,16 +237,15 @@ function buildPreviewCard(column: HTMLElement): () => void {
     jpLine.className = "kc-preview-line";
     renderJapaneseLine(
       jpLine,
-      "春風薫る錦の袖に",
+      "夢見てる 何も見てない",
       {
         furigana: [
-          { start: 0, end: 2, reading: "しゅんぷう", origin: "inferred" },
-          { start: 2, end: 3, reading: "かお", origin: "inferred" },
-          { start: 4, end: 5, reading: "にしき", origin: "inferred" },
-          { start: 6, end: 7, reading: "そで", origin: "inferred" },
+          { start: 0, end: 2, reading: "ゆめみ", origin: "inferred" },
+          { start: 6, end: 7, reading: "なに", origin: "inferred" },
+          { start: 8, end: 9, reading: "み", origin: "inferred" },
         ],
-        romaji: "shunpuu kaoru nishiki no sode ni",
-        romajiSegments: [{ text: "shunpuu kaoru nishiki no sode ni", origin: "inferred" }],
+        romaji: "yume miteru nani mo mitenai",
+        romajiSegments: [{ text: "yume miteru nani mo mitenai", origin: "inferred" }],
       },
       { furigana: settings.furigana, romaji: settings.romaji },
     );
@@ -459,9 +486,7 @@ function providerRow(root: HTMLElement): HTMLElement {
   const row = document.createElement("div");
   row.className = "kc-row";
   row.appendChild(rowText(t("aiProvider"), t("aiProviderDesc")));
-  const select = document.createElement("select");
-  select.style.cssText =
-    "padding:6px 10px;border:none;border-radius:6px;background:rgba(255,255,255,0.1);color:inherit;font-size:12.5px;";
+  const { wrap, select } = styledSelect();
   for (const [value, label] of [
     ["openai", "OpenAI-compatible"],
     ["gemini", "Gemini"],
@@ -469,7 +494,6 @@ function providerRow(root: HTMLElement): HTMLElement {
     const option = document.createElement("option");
     option.value = value;
     option.textContent = label;
-    option.style.color = "#000";
     if (getSettings().aiProvider === value) option.selected = true;
     select.appendChild(option);
   }
@@ -479,7 +503,7 @@ function providerRow(root: HTMLElement): HTMLElement {
     // Provider choice changes which rows exist (base URL, placeholders).
     render(root);
   };
-  row.appendChild(select);
+  row.appendChild(wrap);
   return row;
 }
 
@@ -510,21 +534,17 @@ function targetLangRow(): HTMLElement {
   const current = getSettings().aiTargetLang;
   const isListed = COMMON_TARGET_LANGS.includes(current);
 
-  const select = document.createElement("select");
-  select.style.cssText =
-    "padding:6px 10px;border:none;border-radius:6px;background:rgba(255,255,255,0.1);color:inherit;font-size:12.5px;";
+  const { wrap, select } = styledSelect();
   for (const lang of COMMON_TARGET_LANGS) {
     const option = document.createElement("option");
     option.value = lang;
     option.textContent = lang;
-    option.style.color = "#000";
     if (lang === current) option.selected = true;
     select.appendChild(option);
   }
   const customOption = document.createElement("option");
   customOption.value = CUSTOM;
   customOption.textContent = t("customOption");
-  customOption.style.color = "#000";
   if (!isListed) customOption.selected = true;
   select.appendChild(customOption);
 
@@ -550,7 +570,7 @@ function targetLangRow(): HTMLElement {
     }
   };
 
-  row.appendChild(select);
+  row.appendChild(wrap);
   row.appendChild(input);
   return row;
 }
@@ -572,7 +592,16 @@ function textInput(value: string): HTMLInputElement {
   const input = document.createElement("input");
   input.type = "text";
   input.value = value;
-  input.style.cssText =
-    "flex:1;padding:6px 10px;border:none;border-radius:6px;background:rgba(255,255,255,0.1);color:inherit;font-size:12.5px;";
+  input.className = "kc-input";
+  input.style.flex = "1";
   return input;
+}
+
+/** Wraps a select so the custom chevron and popup colors apply. */
+function styledSelect(): { wrap: HTMLElement; select: HTMLSelectElement } {
+  const wrap = document.createElement("span");
+  wrap.className = "kc-select";
+  const select = document.createElement("select");
+  wrap.appendChild(select);
+  return { wrap, select };
 }

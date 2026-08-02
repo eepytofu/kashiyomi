@@ -42,3 +42,22 @@ test("han-only lines follow the document branch", () => {
 test("latin-only lines route nowhere", () => {
   assert.equal(resolveLineRoute("It's hard to say goodbye", "japanese"), undefined);
 });
+
+test("chinese lines inside a japanese song are not read as japanese", () => {
+  // 無 mixes Japanese verses with Chinese ones; the Chinese lines are
+  // Han-only, so without a per-line signal they inherit the document branch.
+  for (const line of [
+    "但我愛的人都会一個一個死去",
+    "但我的生活還会一遍一遍継続",
+    "就求你不要孑然一身地老去",
+    "我不想五味雜陳地",
+  ]) {
+    assert.equal(resolveLineRoute(line, "japanese"), "chinese", line);
+  }
+});
+
+test("kanji-only japanese lines still follow the japanese document", () => {
+  for (const line of ["夢見", "花鳥風月", "君想"]) {
+    assert.equal(resolveLineRoute(line, "japanese"), "japanese", line);
+  }
+});

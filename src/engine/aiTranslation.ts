@@ -72,7 +72,9 @@ export function parseTranslationResponse(text: string, expected: number): string
   const lines: string[] = [];
   for (const entry of parsed) {
     if (typeof entry !== "string") return undefined;
-    lines.push(entry.trim());
+    // Input lines are numbered for alignment; a model that returns a line
+    // "unchanged" often echoes that numbering back, so strip it.
+    lines.push(entry.trim().replace(/^\d{1,3}[.．、)]\s*/u, ""));
   }
   return lines;
 }

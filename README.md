@@ -4,14 +4,19 @@ English | [简体中文](README.zh-CN.md)
 
 A [BetterNCM](https://github.com/std-microblock/BetterNCM) plugin for NetEase Cloud Music that adds readings on top of the normal lyrics page. It annotates the lyrics NCM already shows instead of replacing them with its own player.
 
+![Japanese lyrics with furigana and romaji](previews/lyrics-japanese.webp)
+
+![A song that mixes Japanese and Chinese lines, each routed to its own readings](previews/lyrics-mixed-cjk.webp)
+
 ## What it does
 
-Everything runs locally. Lyrics are never sent to a reading or translation API you didn't configure yourself.
+Readings are generated on your machine. No account, no reading service, nothing leaves the app. AI translation is the one exception, and it is off until you add your own API key: when it runs, the lyrics of the current song go to the endpoint you configured.
 
 - Furigana above kanji and a romaji line under Japanese lyrics, analyzed locally with [Sudachi](https://github.com/WorksApplications/sudachi.rs) and its full dictionary.
 - Japanese lyrics can include reading hints such as 天(そら). The そら in parentheses is hidden from the main line, then used as the furigana and as the basis for romaji. Source-provided readings use a different color from inferred ones.
 - Pinyin under Chinese lyrics with [Pinyin Pro](https://github.com/zh-lx/pinyin-pro)'s complete dictionary, with optional tone marks and word-based Pinyin spacing (syllables that belong to one detected Mandarin word stay together).
 - Kanji repair for Japanese lyrics that were stored with Chinese glyph forms, so 梦见ては displays as 夢見ては.
+- Songs that mix Japanese and Chinese are handled line by line, so a Chinese line inside a Japanese song gets pinyin instead of being read as kanji.
 - AI translation below the original line, like the built-in translation. Works with an OpenAI-compatible endpoint or Gemini and needs your own API key.
 
 ## Status

@@ -33,6 +33,13 @@ test("parses arrays wrapped in code fences or prose", () => {
   assert.deepEqual(parseTranslationResponse('Here you go: ["one", "two"]', 2), ["one", "two"]);
 });
 
+test("strips echoed line numbering", () => {
+  assert.deepEqual(parseTranslationResponse('["9. 导唱协力：小缘", "10. 出品：拜年纪"]', 2), [
+    "导唱协力：小缘",
+    "出品：拜年纪",
+  ]);
+});
+
 test("rejects wrong counts and non-strings", () => {
   assert.equal(parseTranslationResponse('["one"]', 2), undefined);
   assert.equal(parseTranslationResponse('["one", 2]', 2), undefined);
