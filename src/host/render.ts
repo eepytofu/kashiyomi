@@ -115,7 +115,7 @@ export function applyStyles(): void {
   padding-top: ${headroom}em;
 }
 ruby.kashiyomi-ruby {
-  display: inline-block;
+  display: inline;
   position: relative;
 }
 ruby.kashiyomi-ruby > rt {
