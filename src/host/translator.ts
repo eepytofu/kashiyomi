@@ -8,6 +8,7 @@ import {
   translationCacheKey,
   type TranslationMeta,
 } from "../engine/aiTranslation.ts";
+import { isKeyExhaustedStatus, KEY_COOLDOWN_MS, orderApiKeys, parseApiKeys } from "../engine/apiKeys.ts";
 import { log } from "./log.ts";
 import { getSettings } from "./settings.ts";
 
@@ -35,7 +36,55 @@ export function clearTranslationCache(): void {
 
 export function translationConfigured(): boolean {
   const s = getSettings();
-  return s.aiApiKey.trim() !== "" && s.aiModel.trim() !== "";
+  return parseApiKeys(s.aiApiKey).length > 0 && s.aiModel.trim() !== "";
+}
+
+/** Keys that recently hit a limit, mapped to when they may be reused. */
+const keyCooldown = new Map<string, number>();
+let keyCursor = 0;
+
+class KeyExhausted extends Error {
+  constructor(readonly status: number) {
+    super(`HTTP ${status}`);
+  }
+}
+
+/**
+ * Try each configured key in turn until one answers. A key that reports a
+ * rate limit, exhausted quota, or rejection is put on cooldown and the next
+ * key is tried for the same song.
+ */
+async function requestWithKeys(
+  keys: readonly string[],
+  attempt: (key: string) => Promise<string>,
+  signal: AbortSignal,
+): Promise<string> {
+  const ordered = orderApiKeys(keys, keyCursor, keyCooldown, Date.now());
+  let lastError: unknown;
+  for (const key of ordered) {
+    if (signal.aborted) throw new Error("aborted");
+    try {
+      const result = await attempt(key);
+      keyCursor = keys.indexOf(key);
+      keyCooldown.delete(key);
+      return result;
+    } catch (err) {
+      if (err instanceof KeyExhausted) {
+        keyCooldown.set(key, Date.now() + KEY_COOLDOWN_MS);
+        if (keys.length > 1) {
+          log.warn(`API key ${maskKey(key)} unavailable (${err.status}); trying the next key`);
+        }
+        lastError = err;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError ?? new Error("no usable API key");
+}
+
+function maskKey(key: string): string {
+  return key.length <= 8 ? "…" : `${key.slice(0, 4)}…${key.slice(-4)}`;
 }
 
 /**
@@ -58,13 +107,21 @@ export async function translateSong(
   }
 
   const prompt = buildTranslationPrompt(lines, s.aiTargetLang, meta, s.aiCustomPrompt);
-  log.info(`translating ${lines.length} lines via ${s.aiProvider}/${s.aiModel}`);
+  const keys = parseApiKeys(s.aiApiKey);
+  log.info(
+    `translating ${lines.length} lines via ${s.aiProvider}/${s.aiModel}` +
+      (keys.length > 1 ? ` (${keys.length} keys available)` : ""),
+  );
   let raw: string;
   try {
-    raw =
-      s.aiProvider === "gemini"
-        ? await callGemini(s.aiApiKey, s.aiModel, prompt.system, prompt.user, signal)
-        : await callOpenAi(s.aiBaseUrl, s.aiApiKey, s.aiModel, prompt.system, prompt.user, signal);
+    raw = await requestWithKeys(
+      keys,
+      (key) =>
+        s.aiProvider === "gemini"
+          ? callGemini(key, s.aiModel, prompt.system, prompt.user, signal)
+          : callOpenAi(s.aiBaseUrl, key, s.aiModel, prompt.system, prompt.user, signal),
+      signal,
+    );
   } catch (err) {
     if (!signal.aborted) log.warn("translation request failed", err);
     return undefined;
@@ -102,7 +159,10 @@ async function callOpenAi(
       ],
     }),
   });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  if (!response.ok) {
+    if (isKeyExhaustedStatus(response.status)) throw new KeyExhausted(response.status);
+    throw new Error(`HTTP ${response.status}`);
+  }
   const data = (await response.json()) as { choices?: { message?: { content?: string } }[] };
   const content = data.choices?.[0]?.message?.content;
   if (typeof content !== "string") throw new Error("no content in response");
@@ -127,7 +187,10 @@ async function callGemini(
       generationConfig: { temperature: 0.3 },
     }),
   });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  if (!response.ok) {
+    if (isKeyExhaustedStatus(response.status)) throw new KeyExhausted(response.status);
+    throw new Error(`HTTP ${response.status}`);
+  }
   const data = (await response.json()) as {
     candidates?: { content?: { parts?: { text?: string }[] } }[];
   };

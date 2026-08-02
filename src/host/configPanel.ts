@@ -141,7 +141,7 @@ function render(root: HTMLElement): void {
   if (getSettings().aiProvider === "openai") {
     ai.appendChild(textRow("aiBaseUrl", "aiBaseUrl", "aiBaseUrlDesc", { placeholder: "https://api.openai.com/v1" }));
   }
-  ai.appendChild(textRow("aiApiKey", "aiApiKey", "aiApiKeyDesc", { password: true }));
+  ai.appendChild(apiKeysRow());
   ai.appendChild(
     textRow("aiModel", "aiModel", "aiModelDesc", {
       placeholder: getSettings().aiProvider === "gemini" ? "gemini-3.5-flash-lite" : "gpt-5.6-sol",
@@ -575,6 +575,36 @@ function targetLangRow(): HTMLElement {
 
   row.appendChild(wrap);
   row.appendChild(input);
+  return row;
+}
+
+function apiKeysRow(): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "kc-row";
+  row.style.flexWrap = "wrap";
+  row.appendChild(rowText(t("aiApiKey"), t("aiApiKeyDesc")));
+
+  const area = document.createElement("textarea");
+  area.className = "kc-input";
+  area.rows = 2;
+  area.spellcheck = false;
+  area.style.cssText += "flex:1 1 100%;resize:vertical;min-height:52px;";
+  area.value = getSettings().aiApiKey;
+  area.placeholder = "sk-...";
+  // Keys are secrets: show them masked until the field is focused.
+  // -webkit-text-security is not in the CSSStyleDeclaration typings but is
+  // supported by the CEF build NCM ships.
+  const setMasked = (masked: boolean) => {
+    area.style.setProperty("-webkit-text-security", masked ? "disc" : "none");
+  };
+  setMasked(true);
+  area.onfocus = () => setMasked(false);
+  area.onblur = () => {
+    updateSettings({ aiApiKey: area.value });
+    resetTranslation();
+    setMasked(true);
+  };
+  row.appendChild(area);
   return row;
 }
 
