@@ -210,6 +210,7 @@ function buildPreviewCard(column: HTMLElement): () => void {
           { start: 6, end: 7, reading: "そで", origin: "inferred" },
         ],
         romaji: "shunpuu kaoru nishiki no sode ni",
+        romajiSegments: [{ text: "shunpuu kaoru nishiki no sode ni", origin: "inferred" }],
       },
       { furigana: settings.furigana, romaji: settings.romaji },
     );
@@ -226,6 +227,13 @@ function buildPreviewCard(column: HTMLElement): () => void {
           { start: 5, end: 6, reading: "あか", origin: "inferred" },
         ],
         romaji: settings.readingHints ? "koyoi mo sora wa akaruku" : "koyoi mo ten wa akaruku",
+        romajiSegments: settings.readingHints
+          ? [
+              { text: "koyoi mo", origin: "inferred" },
+              { text: " sora", origin: "authored" },
+              { text: " wa akaruku", origin: "inferred" },
+            ]
+          : [{ text: "koyoi mo ten wa akaruku", origin: "inferred" }],
       },
       { furigana: settings.furigana, romaji: settings.romaji },
     );

@@ -18,9 +18,17 @@ export type LineFuriganaSegment = {
   readonly origin: "inferred" | "authored";
 };
 
+export type RomajiSegment = {
+  /** Includes its own leading space when one separates it from the left. */
+  readonly text: string;
+  readonly origin: "inferred" | "authored";
+};
+
 export type JapaneseLineAnnotation = {
   readonly furigana: readonly LineFuriganaSegment[];
   readonly romaji: string;
+  /** Same content as `romaji`, split where provenance changes. */
+  readonly romajiSegments: readonly RomajiSegment[];
 };
 
 const NO_SPACE_BEFORE = /^[、。，．！？!?…・：;；:）)」』ー~〜]/u;
@@ -39,7 +47,7 @@ export function annotateJapaneseLine(
   assertAnalyzerTokens(displayText, tokens);
 
   const furigana: LineFuriganaSegment[] = [];
-  const romajiParts: string[] = [];
+  const romajiParts: RomajiSegment[] = [];
   // A token-final っ geminates the next token's first consonant (回っ + て is
   // mawatte, not "mawat te"), so the sokuon carries across the boundary and
   // the two parts join without a space.
@@ -75,11 +83,11 @@ export function annotateJapaneseLine(
       const special = particleSpecial(token);
       if (special !== undefined) {
         sokuonCarry = false;
-        appendRomaji(romajiParts, special, token.surface, false);
+        appendRomaji(romajiParts, special, token.surface, false, "inferred");
       } else {
         const kana = token.readingKana !== "" ? token.readingKana : token.surface;
         const { romaji, joined } = voice(kana, i === tokens.length - 1);
-        appendRomaji(romajiParts, romaji, token.surface, joined);
+        appendRomaji(romajiParts, romaji, token.surface, joined, "inferred");
       }
       i += 1;
       continue;
@@ -123,12 +131,16 @@ export function annotateJapaneseLine(
     const suffixOk = suffix === "" || KANA_ONLY.test(suffix);
     const voicedKana = prefixOk && suffixOk ? prefix + hint.reading + suffix : hint.reading;
     const { romaji, joined } = voice(voicedKana, last === tokens.length - 1);
-    appendRomaji(romajiParts, romaji, displayText.slice(runStart, runEnd), joined);
+    appendRomaji(romajiParts, romaji, displayText.slice(runStart, runEnd), joined, "authored");
     i = last + 1;
   }
 
   furigana.sort((a, b) => a.start - b.start);
-  return { furigana, romaji: romajiParts.join("") };
+  return {
+    furigana,
+    romaji: romajiParts.map((part) => part.text).join(""),
+    romajiSegments: romajiParts,
+  };
 }
 
 // Hepburn particle spellings; everything else voices from its reading.
@@ -141,12 +153,18 @@ function particleSpecial(token: AnalyzerToken): string | undefined {
   return undefined;
 }
 
-function appendRomaji(parts: string[], romaji: string, surface: string, joinPrevious: boolean): void {
+function appendRomaji(
+  parts: RomajiSegment[],
+  romaji: string,
+  surface: string,
+  joinPrevious: boolean,
+  origin: RomajiSegment["origin"],
+): void {
   if (romaji === "") return;
   const needsNoSpace =
     joinPrevious ||
     parts.length === 0 ||
     NO_SPACE_BEFORE.test(surface) ||
-    NO_SPACE_AFTER.test(parts[parts.length - 1] ?? "");
-  parts.push(needsNoSpace ? romaji : ` ${romaji}`);
+    NO_SPACE_AFTER.test(parts[parts.length - 1]?.text ?? "");
+  parts.push({ text: needsNoSpace ? romaji : ` ${romaji}`, origin });
 }

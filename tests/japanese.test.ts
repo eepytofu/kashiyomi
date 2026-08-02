@@ -48,11 +48,15 @@ test("furigana and romaji for a plain line", () => {
 test("authored hint overrides reading and romaji", () => {
   const line = "天へ";
   const tokens = [token("天", 0, "テン"), token("へ", 1, "ヘ", "particle")];
-  const { furigana, romaji } = annotateJapaneseLine(line, tokens, [
+  const { furigana, romaji, romajiSegments } = annotateJapaneseLine(line, tokens, [
     { start: 0, end: 1, reading: "そら" },
   ]);
   assert.deepEqual(furigana, [{ start: 0, end: 1, reading: "そら", origin: "authored" }]);
   assert.equal(romaji, "sora e");
+  assert.deepEqual(romajiSegments, [
+    { text: "sora", origin: "authored" },
+    { text: " e", origin: "inferred" },
+  ]);
 });
 
 test("hint over kanji keeps token okurigana sound", () => {

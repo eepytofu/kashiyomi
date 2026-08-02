@@ -35,8 +35,30 @@ export function renderJapaneseLine(
     el.appendChild(document.createTextNode(displayText.slice(cursor)));
   }
   if (options.romaji && annotation.romaji !== "") {
-    el.appendChild(readingRow(annotation.romaji));
+    el.appendChild(romajiRow(annotation));
   }
+}
+
+// Authored (source-provided) readings color their romaji too, matching the
+// amber furigana, so both derived layers show the same provenance.
+function romajiRow(annotation: JapaneseLineAnnotation): HTMLElement {
+  const row = document.createElement("div");
+  row.className = ROW_CLASS;
+  if (!annotation.romajiSegments.some((segment) => segment.origin === "authored")) {
+    row.textContent = annotation.romaji;
+    return row;
+  }
+  for (const segment of annotation.romajiSegments) {
+    if (segment.origin === "authored") {
+      const span = document.createElement("span");
+      span.className = "kashiyomi-authored-romaji";
+      span.textContent = segment.text;
+      row.appendChild(span);
+    } else {
+      row.appendChild(document.createTextNode(segment.text));
+    }
+  }
+  return row;
 }
 
 export function renderPinyinRow(el: HTMLElement, pinyinText: string): void {
@@ -87,6 +109,9 @@ ruby.kashiyomi-ruby > rt {
 }
 ruby.kashiyomi-authored > rt {
   color: rgb(255, 207, 128);
+}
+.${ROW_CLASS} .kashiyomi-authored-romaji {
+  color: rgba(255, 207, 128, 0.9);
 }
 ${fontRule}
 `;
