@@ -5,7 +5,9 @@ import { cp, mkdir, rm, writeFile, access } from "node:fs/promises";
 import path from "node:path";
 
 const repo = path.resolve(import.meta.dirname, "..");
-const target = process.argv[2] ?? "C:/betterncm/plugins_runtime/Kashiyomi";
+// plugins_dev is BetterNCM's folder for unpacked development plugins; it is
+// loaded directly and survives restarts (plugins_runtime gets rebuilt).
+const target = process.argv[2] ?? "C:/betterncm/plugins_dev/Kashiyomi";
 
 async function exists(p) {
   try {

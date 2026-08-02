@@ -3,6 +3,7 @@
 declare const betterncm: {
   fs: {
     readFileText(path: string): Promise<string>;
+    writeFileText(path: string, content: string): Promise<boolean>;
     exists(path: string): Promise<boolean>;
   };
   app: {
