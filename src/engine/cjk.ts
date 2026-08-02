@@ -44,6 +44,15 @@ const CHINESE_BIGRAMS = [
  */
 const HAN_RUN_CHINESE_LENGTH = 5;
 
+// Zero-width and bidi marks travel with lyric text from some providers and
+// would otherwise break character tests and offsets.
+const INVISIBLE = /[​-‏‪-‮⁠-⁤﻿]/gu;
+
+/** Normalize a line before any script test, so width variants agree. */
+export function normalizeForDetection(line: string): string {
+  return line.normalize("NFKC").replace(INVISIBLE, "");
+}
+
 function hanCount(line: string): number {
   let count = 0;
   for (const ch of line) {
@@ -57,7 +66,8 @@ function hanCount(line: string): number {
  * modern lyrics, but classical or literary lines (無可奈何花落去) contain
  * none, which is why the document context matters too.
  */
-function hasChineseVocabulary(line: string): boolean {
+function hasChineseVocabulary(rawLine: string): boolean {
+  const line = normalizeForDetection(rawLine);
   for (const ch of line) {
     if (CHINESE_MARKERS.has(ch)) return true;
   }
@@ -108,11 +118,12 @@ export function resolveDocumentContext(lines: readonly string[]): CjkDocumentCon
  * otherwise it follows the document branch.
  */
 export function resolveLineRoute(
-  line: string,
+  rawLine: string,
   doc: CjkDocumentBranch | CjkDocumentContext,
 ): CjkLineRoute {
   const context: CjkDocumentContext =
     typeof doc === "object" && doc !== null ? doc : { branch: doc, bilingual: false };
+  const line = normalizeForDetection(rawLine);
   const kana = hasKana(line);
   const han = hasHan(line);
   if (!kana && !han) return undefined;

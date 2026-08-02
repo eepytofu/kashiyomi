@@ -2,7 +2,7 @@
 // settings cards on the left, a live preview (rendered with the production
 // line renderer) and an about card on the right.
 
-import { rescan, resetTranslation } from "./annotator.ts";
+import { resetAnalysisCache, rescan, resetTranslation } from "./annotator.ts";
 import { panelLang, setPanelLang, t, tSongsCached, type PanelLang, type StringKey } from "./i18n.ts";
 import { nativeState } from "./native.ts";
 import { cachedTranslationCount, clearTranslationCache } from "./translator.ts";
@@ -376,6 +376,8 @@ function toggleRow(
   box.checked = getSettings()[key];
   box.onchange = () => {
     updateSettings({ [key]: box.checked });
+    // Reading-affecting settings invalidate cached analysis.
+    if (key === "hanRepair" || key === "readingHints") resetAnalysisCache();
     applyStyles();
     if (triggersRescan) rescan();
     if (onExtra) onExtra();

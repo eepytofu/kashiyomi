@@ -6,7 +6,7 @@
 import { resolveDocumentContext, resolveLineRoute } from "../engine/cjk.ts";
 import { repairJapaneseHan } from "../engine/hanRepair.ts";
 import { projectReadingHints } from "../engine/hints.ts";
-import { annotateJapaneseLine } from "../engine/japanese.ts";
+import { annotateJapaneseLine, type JapaneseLineAnnotation } from "../engine/japanese.ts";
 import { romanizeMandarin } from "../engine/pinyin.ts";
 import { hasHan, hasKana } from "../engine/kana.ts";
 import { isCreditLine } from "../engine/metadata.ts";
@@ -90,6 +90,41 @@ function isOriginalLyricElement(el: HTMLElement): boolean {
     sibling = sibling.previousElementSibling;
   }
   return true;
+}
+
+// ---- analysis cache ----------------------------------------------------
+
+// Analysis is deterministic for a given display text, and NCM recycles line
+// elements constantly while scrolling, so the same lines would otherwise be
+// re-analyzed many times per song. An in-memory map is enough: the expensive
+// part is the one-off dictionary load, not tokenizing a line, and keeping
+// this out of storage avoids competing with the translation cache for quota
+// and avoids stale results when the dictionary or engine changes.
+const ANALYSIS_CACHE_CAP = 600;
+const analysisCache = new Map<string, JapaneseLineAnnotation>();
+
+function cachedAnnotation(text: string): JapaneseLineAnnotation | undefined {
+  const hit = analysisCache.get(text);
+  if (hit) {
+    // Refresh insertion order so active songs survive eviction.
+    analysisCache.delete(text);
+    analysisCache.set(text, hit);
+  }
+  return hit;
+}
+
+function rememberAnnotation(text: string, annotation: JapaneseLineAnnotation): void {
+  analysisCache.set(text, annotation);
+  while (analysisCache.size > ANALYSIS_CACHE_CAP) {
+    const oldest = analysisCache.keys().next();
+    if (oldest.done) break;
+    analysisCache.delete(oldest.value);
+  }
+}
+
+/** Drop cached analysis (settings that change readings invalidate it). */
+export function resetAnalysisCache(): void {
+  analysisCache.clear();
 }
 
 // ---- AI translation ----------------------------------------------------
@@ -276,7 +311,20 @@ function annotateJapanese(
   lines: readonly { line: PendingLine; displayText: string; hints: ReturnType<typeof projectReadingHints>["hints"] }[],
 ): void {
   const settings = getSettings();
-  const result = nativeAnalyze(lines.map((entry) => entry.displayText));
+
+  // Render anything already analyzed, and only ask the backend for the rest.
+  const pendingAnalysis: { line: PendingLine; displayText: string; hints: ReturnType<typeof projectReadingHints>["hints"] }[] = [];
+  for (const entry of lines) {
+    const hit = cachedAnnotation(entry.displayText);
+    if (hit) {
+      applyAnnotation(entry.line, entry.displayText, hit, settings);
+    } else {
+      pendingAnalysis.push(entry);
+    }
+  }
+  if (pendingAnalysis.length === 0) return;
+
+  const result = nativeAnalyze(pendingAnalysis.map((entry) => entry.displayText));
   if (result.kind === "pending") {
     log.debug("analyzer still loading; retrying soon");
     if (pendingRetry === undefined) {
@@ -289,25 +337,38 @@ function annotateJapanese(
   }
   if (result.kind === "unavailable") {
     log.warn("native analyzer unavailable", result.error ?? "");
-    for (const { line } of lines) line.el.setAttribute(MARK_ATTR, line.original);
+    for (const { line } of pendingAnalysis) line.el.setAttribute(MARK_ATTR, line.original);
     return;
   }
-  for (let i = 0; i < lines.length; i++) {
-    const { line, displayText, hints } = lines[i]!;
+  log.debug(`analyzed ${pendingAnalysis.length} lines (${lines.length - pendingAnalysis.length} cached)`);
+  for (let i = 0; i < pendingAnalysis.length; i++) {
+    const { line, displayText, hints } = pendingAnalysis[i]!;
     const tokens = result.lines[i] ?? [];
     try {
       const annotation = annotateJapaneseLine(displayText, tokens, hints);
-      renderJapaneseLine(line.el, displayText, annotation, {
-        furigana: settings.furigana,
-        romaji: settings.romaji,
-      });
-      // After rendering, lineText(el) recovers displayText, so that is the
-      // value that must be stored for the annotated-already comparison.
-      line.el.setAttribute(MARK_ATTR, displayText);
+      // Hints come from the line itself, so the annotation is a pure function
+      // of the display text and safe to reuse.
+      rememberAnnotation(displayText, annotation);
+      applyAnnotation(line, displayText, annotation, settings);
     } catch (err) {
       // Fail closed: tokens did not match the text; leave the line alone.
       log.debug("annotation failed for line, leaving as-is", displayText, err);
       line.el.setAttribute(MARK_ATTR, line.original);
     }
   }
+}
+
+function applyAnnotation(
+  line: PendingLine,
+  displayText: string,
+  annotation: JapaneseLineAnnotation,
+  settings: ReturnType<typeof getSettings>,
+): void {
+  renderJapaneseLine(line.el, displayText, annotation, {
+    furigana: settings.furigana,
+    romaji: settings.romaji,
+  });
+  // After rendering, lineText(el) recovers displayText, so that is the value
+  // that must be stored for the annotated-already comparison.
+  line.el.setAttribute(MARK_ATTR, displayText);
 }
