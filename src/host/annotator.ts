@@ -3,7 +3,7 @@
 // "no annotation" instead of breaking. Elements NCM recycles are detected by
 // comparing the stored original text and re-annotated.
 
-import { resolveDocumentBranch, resolveLineRoute } from "../engine/cjk.ts";
+import { resolveDocumentContext, resolveLineRoute } from "../engine/cjk.ts";
 import { repairJapaneseHan } from "../engine/hanRepair.ts";
 import { projectReadingHints } from "../engine/hints.ts";
 import { annotateJapaneseLine } from "../engine/japanese.ts";
@@ -205,13 +205,16 @@ async function scan(): Promise<void> {
     return;
   }
 
-  const branch = resolveDocumentBranch(allTexts);
-  log.debug(`scan: ${pending.length} new lines, document branch: ${branch ?? "none"}`);
+  const docContext = resolveDocumentContext(allTexts);
+  log.debug(
+    `scan: ${pending.length} new lines, document branch: ${docContext.branch ?? "none"}` +
+      (docContext.bilingual ? " (bilingual)" : ""),
+  );
 
   const japanese: { line: PendingLine; displayText: string; hints: ReturnType<typeof projectReadingHints>["hints"] }[] = [];
   const chinese: PendingLine[] = [];
   for (const line of pending) {
-    const route = resolveLineRoute(line.original, branch);
+    const route = resolveLineRoute(line.original, docContext);
     if (route === "japanese") {
       line.el.setAttribute("lang", "ja");
       let display = settings.hanRepair ? repairJapaneseHan(line.original) : line.original;
@@ -227,6 +230,20 @@ async function scan(): Promise<void> {
       chinese.push(line);
     } else {
       line.el.setAttribute(MARK_ATTR, line.original);
+    }
+  }
+
+  // Han-only lines routed to Japanese are the cases most likely to be wrong,
+  // so name them in the log to make misrouting diagnosable.
+  if (settings.debug) {
+    const hanOnlyJapanese = japanese
+      .filter((entry) => !hasKana(entry.line.original))
+      .map((entry) => entry.line.original);
+    if (hanOnlyJapanese.length > 0) {
+      log.debug(`han-only lines routed japanese: ${JSON.stringify(hanOnlyJapanese)}`);
+    }
+    if (chinese.length > 0) {
+      log.debug(`lines routed chinese: ${chinese.length}`);
     }
   }
 

@@ -4,10 +4,19 @@
 // bilingual songs mix both, so a Han-only line that looks Chinese wins over
 // the document branch. Pure; no host imports.
 
-import { hasHan, hasKana } from "./kana.ts";
+import { HAN_CHAR, hasHan, hasKana } from "./kana.ts";
 
 export type CjkDocumentBranch = "japanese" | "chinese" | undefined;
 export type CjkLineRoute = "japanese" | "chinese" | undefined;
+
+export type CjkDocumentContext = {
+  readonly branch: CjkDocumentBranch;
+  /**
+   * The song pairs kana-bearing Japanese lines with long kana-free Han lines,
+   * so those Han lines are Chinese rather than kanji-only Japanese.
+   */
+  readonly bilingual: boolean;
+};
 
 // Characters that are ordinary Chinese function words and essentially never
 // appear in Japanese lyric text.
@@ -26,7 +35,29 @@ const CHINESE_BIGRAMS = [
   "起來", "出来", "出來", "下去", "过去", "過去", "现在", "現在",
 ];
 
-function chineseSignal(line: string): boolean {
+/**
+ * Japanese lyric lines almost always carry kana, because particles and
+ * inflection are written in kana. A run of this many Han characters with no
+ * kana at all is therefore very likely Chinese, but only in a document that
+ * already looks bilingual: an all-Japanese song may still contain a set
+ * phrase such as 天上天下唯我独尊, and it must not be mistaken for Chinese.
+ */
+const HAN_RUN_CHINESE_LENGTH = 5;
+
+function hanCount(line: string): number {
+  let count = 0;
+  for (const ch of line) {
+    if (HAN_CHAR.test(ch)) count += 1;
+  }
+  return count;
+}
+
+/**
+ * Vocabulary signal: Chinese function words or word patterns. Reliable on
+ * modern lyrics, but classical or literary lines (無可奈何花落去) contain
+ * none, which is why the document context matters too.
+ */
+function hasChineseVocabulary(line: string): boolean {
   for (const ch of line) {
     if (CHINESE_MARKERS.has(ch)) return true;
   }
@@ -41,29 +72,52 @@ function chineseSignal(line: string): boolean {
  * needs both an absolute floor and a 2:1 advantage.
  */
 export function resolveDocumentBranch(lines: readonly string[]): CjkDocumentBranch {
+  return resolveDocumentContext(lines).branch;
+}
+
+export function resolveDocumentContext(lines: readonly string[]): CjkDocumentContext {
   let kanaLines = 0;
   let hanOnlyLines = 0;
+  let longHanOnlyLines = 0;
   for (const line of lines) {
-    if (hasKana(line)) kanaLines += 1;
-    else if (hasHan(line)) hanOnlyLines += 1;
+    if (hasKana(line)) {
+      kanaLines += 1;
+    } else if (hasHan(line)) {
+      hanOnlyLines += 1;
+      if (hasChineseVocabulary(line) || hanCount(line) >= HAN_RUN_CHINESE_LENGTH) {
+        longHanOnlyLines += 1;
+      }
+    }
   }
-  if (kanaLines === 0 && hanOnlyLines === 0) return undefined;
-  if (hanOnlyLines >= 2 && hanOnlyLines >= kanaLines * 2) return "chinese";
-  if (kanaLines >= 1) return "japanese";
-  return "chinese";
+
+  let branch: CjkDocumentBranch;
+  if (kanaLines === 0 && hanOnlyLines === 0) branch = undefined;
+  else if (hanOnlyLines >= 2 && hanOnlyLines >= kanaLines * 2) branch = "chinese";
+  else if (kanaLines >= 1) branch = "japanese";
+  else branch = "chinese";
+
+  // One stray set phrase is not a second language; a recurring pattern is.
+  const bilingual = kanaLines >= 2 && longHanOnlyLines >= 2;
+  return { branch, bilingual };
 }
 
 /**
  * Route one line given the document context. Kana in the line forces
- * Japanese. A Han-only line that carries Chinese function words is Chinese
- * even inside a Japanese song (bilingual lyrics are common); otherwise it
- * follows the document branch.
+ * Japanese. A Han-only line is Chinese when it carries Chinese vocabulary, or
+ * when the song is bilingual and the line is a long kana-free Han run;
+ * otherwise it follows the document branch.
  */
-export function resolveLineRoute(line: string, doc: CjkDocumentBranch): CjkLineRoute {
+export function resolveLineRoute(
+  line: string,
+  doc: CjkDocumentBranch | CjkDocumentContext,
+): CjkLineRoute {
+  const context: CjkDocumentContext =
+    typeof doc === "object" && doc !== null ? doc : { branch: doc, bilingual: false };
   const kana = hasKana(line);
   const han = hasHan(line);
   if (!kana && !han) return undefined;
   if (kana) return "japanese";
-  if (chineseSignal(line)) return "chinese";
-  return doc ?? "chinese";
+  if (hasChineseVocabulary(line)) return "chinese";
+  if (context.bilingual && hanCount(line) >= HAN_RUN_CHINESE_LENGTH) return "chinese";
+  return context.branch ?? "chinese";
 }
