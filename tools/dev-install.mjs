@@ -1,0 +1,46 @@
+// Installs the plugin into the local BetterNCM plugins_runtime folder for
+// testing. Large assets (Sudachi dictionary, pinyin JSON) stay in this
+// checkout; a generated dev-paths.json points the plugin at them.
+import { cp, mkdir, rm, writeFile, access } from "node:fs/promises";
+import path from "node:path";
+
+const repo = path.resolve(import.meta.dirname, "..");
+const target = process.argv[2] ?? "C:/betterncm/plugins_runtime/Kashiyomi";
+
+async function exists(p) {
+  try {
+    await access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const dll = path.join(repo, "native", "target", "release", "kashiyomi_backend.dll");
+const bundle = path.join(repo, "dist", "main.js");
+for (const [file, hint] of [
+  [dll, "cd native && cargo build --release"],
+  [bundle, "npm run build"],
+]) {
+  if (!(await exists(file))) {
+    console.error(`Missing ${file}. Run: ${hint}`);
+    process.exit(1);
+  }
+}
+
+await rm(target, { recursive: true, force: true });
+await mkdir(target, { recursive: true });
+await cp(path.join(repo, "manifest.json"), path.join(target, "manifest.json"));
+await cp(bundle, path.join(target, "main.js"));
+await cp(dll, path.join(target, "backend.dll"));
+await cp(path.join(repo, "assets", "sudachi"), path.join(target, "assets", "sudachi"), {
+  recursive: true,
+});
+const devPaths = {
+  dictPath: path.join(repo, "assets", "dict", "system_full.dic").replaceAll("\\", "/"),
+  resourceDir: path.join(repo, "assets", "sudachi").replaceAll("\\", "/"),
+  pinyinDictPath: path.join(repo, "assets", "pinyin", "complete.json").replaceAll("\\", "/"),
+};
+await writeFile(path.join(target, "dev-paths.json"), JSON.stringify(devPaths, null, 2));
+console.log(`Installed to ${target}`);
+console.log("Restart NetEase Cloud Music completely (quit from the tray) so the native DLL loads.");

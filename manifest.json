@@ -11,8 +11,9 @@
     "injects": {
         "Main": [
             {
-                "file": "dist/main.js"
+                "file": "main.js"
             }
         ]
-    }
+    },
+    "native_plugin": "backend.dll"
 }

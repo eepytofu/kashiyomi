@@ -2,6 +2,7 @@ node_modules/
 dist/
 references/
 assets/dict/
+assets/pinyin/
 native/target/
 *.plugin
 .env
