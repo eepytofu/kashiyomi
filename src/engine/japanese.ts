@@ -1,6 +1,7 @@
 // Assembles the per-line Japanese annotation: analyzer tokens + authored
-// reading hints → furigana segments (with provenance) and a romaji line.
-// Authored hints win over analyzer readings for both. Pure; no host imports.
+// reading hints, producing furigana segments (with provenance) and a romaji
+// line. Authored hints win over analyzer readings for both. Pure; no host
+// imports.
 
 import { alignFurigana } from "./furigana.ts";
 import { kanaToRomaji, tokenRomaji } from "./romaji.ts";
@@ -40,7 +41,9 @@ export function annotateJapaneseLine(
   const furigana: LineFuriganaSegment[] = [];
   const romajiParts: string[] = [];
 
-  for (const token of tokens) {
+  let i = 0;
+  while (i < tokens.length) {
+    const token = tokens[i]!;
     const hint = hints.find((h) => h.start < token.end && h.end > token.start);
     if (!hint) {
       for (const segment of alignFurigana(token.surface, token.readingKana)) {
@@ -51,41 +54,60 @@ export function annotateJapaneseLine(
           origin: "inferred",
         });
       }
-      appendRomaji(romajiParts, tokenRomaji(token.surface, token.readingKana, token.partOfSpeech), token.surface);
-    } else {
-      // Authored ruby covers exactly the hinted range.
-      if (furigana.every((segment) => segment.start !== hint.start)) {
+      appendRomaji(
+        romajiParts,
+        tokenRomaji(token.surface, token.readingKana, token.partOfSpeech),
+        token.surface,
+      );
+      i += 1;
+      continue;
+    }
+
+    // Group every consecutive token this hint overlaps and treat the run as
+    // one authored unit, so a hint spanning multiple tokens is voiced once.
+    let last = i;
+    while (last + 1 < tokens.length && tokens[last + 1]!.start < hint.end) last += 1;
+    const runStart = token.start;
+    const runEnd = tokens[last]!.end;
+
+    // The authored reading goes through the same okurigana anchoring as
+    // inferred readings, so in 思ゆ(おぼゆ) the ruby おぼ lands on 思 only.
+    const hintSurface = displayText.slice(hint.start, hint.end);
+    const authored = alignFurigana(hintSurface, hint.reading);
+    if (authored.length > 0) {
+      for (const segment of authored) {
         furigana.push({
-          start: hint.start,
-          end: hint.end,
-          reading: kataToHira(hint.reading),
+          start: hint.start + segment.start,
+          end: hint.start + segment.end,
+          reading: segment.reading,
           origin: "authored",
         });
       }
-      appendRomaji(romajiParts, hintTokenRomaji(token, hint), token.surface);
+    } else {
+      furigana.push({
+        start: hint.start,
+        end: hint.end,
+        reading: kataToHira(hint.reading),
+        origin: "authored",
+      });
     }
+
+    // Kana the token run carries outside the hinted word keeps its own sound.
+    // If that context is not pure kana its sound cannot be reconstructed, so
+    // the authored reading alone is voiced; it outranks the analyzer.
+    const prefix = displayText.slice(runStart, Math.max(runStart, hint.start));
+    const suffix = displayText.slice(Math.min(runEnd, hint.end), runEnd);
+    const prefixOk = prefix === "" || KANA_ONLY.test(prefix);
+    const suffixOk = suffix === "" || KANA_ONLY.test(suffix);
+    const voiced = prefixOk && suffixOk
+      ? kanaToRomaji(prefix + hint.reading + suffix)
+      : kanaToRomaji(hint.reading);
+    appendRomaji(romajiParts, voiced, displayText.slice(runStart, runEnd));
+    i = last + 1;
   }
 
   furigana.sort((a, b) => a.start - b.start);
   return { furigana, romaji: romajiParts.join("") };
-}
-
-// The hint replaces the reading of the kanji it covers; kana the token carries
-// outside the hinted range (okurigana) keeps its own sound. If the outside
-// part is not pure kana we cannot reconstruct the sound, so the hint reading
-// alone drives romaji for the covered part and the analyzer reading is
-// dropped; authored evidence outranks the analyzer.
-function hintTokenRomaji(token: AnalyzerToken, hint: ReadingHint): string {
-  const overlapStart = Math.max(token.start, hint.start) - token.start;
-  const overlapEnd = Math.min(token.end, hint.end) - token.start;
-  const prefix = token.surface.slice(0, overlapStart);
-  const suffix = token.surface.slice(overlapEnd);
-  const prefixOk = prefix === "" || KANA_ONLY.test(prefix);
-  const suffixOk = suffix === "" || KANA_ONLY.test(suffix);
-  if (prefixOk && suffixOk) {
-    return kanaToRomaji(prefix + hint.reading + suffix);
-  }
-  return kanaToRomaji(hint.reading);
 }
 
 function appendRomaji(parts: string[], romaji: string, surface: string): void {

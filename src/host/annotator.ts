@@ -80,6 +80,15 @@ function lineText(el: HTMLElement): string {
 // so anything huge is a sign of something else going wrong.
 const MAX_LINE_CHARS = 800;
 
+function isOriginalLyricElement(el: HTMLElement): boolean {
+  let sibling = el.previousElementSibling;
+  while (sibling) {
+    if (sibling.tagName === "P") return false;
+    sibling = sibling.previousElementSibling;
+  }
+  return true;
+}
+
 type PendingLine = { el: HTMLElement; original: string };
 
 async function scan(): Promise<void> {
@@ -90,6 +99,10 @@ async function scan(): Promise<void> {
   const pending: PendingLine[] = [];
   const allTexts: string[] = [];
   for (const el of elements) {
+    // NCM renders the translation (译) and its own romanization (音) as
+    // additional p siblings after the original line; only the first p in a
+    // lyric entry is the lyric itself.
+    if (!isOriginalLyricElement(el)) continue;
     // Karaoke word-by-word lines carry per-word spans; not handled yet.
     if (el.querySelector("span:not(rt span)")) continue;
     const text = lineText(el);

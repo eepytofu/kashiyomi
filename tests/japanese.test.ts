@@ -65,6 +65,29 @@ test("hint over kanji keeps token okurigana sound", () => {
   assert.equal(romaji, "hikameku");
 });
 
+test("okurigana-carrying hint puts ruby only over the kanji", () => {
+  const line = "思ゆ桜";
+  const tokens = [token("思ゆ", 0, ""), token("桜", 2, "サクラ")];
+  const { furigana, romaji } = annotateJapaneseLine(line, tokens, [
+    { start: 0, end: 2, reading: "おぼゆ" },
+  ]);
+  assert.deepEqual(furigana, [
+    { start: 0, end: 1, reading: "おぼ", origin: "authored" },
+    { start: 2, end: 3, reading: "さくら", origin: "inferred" },
+  ]);
+  assert.equal(romaji, "oboyu sakura");
+});
+
+test("hint spanning two tokens is voiced once", () => {
+  const line = "大空へ";
+  const tokens = [token("大", 0, "オオ"), token("空", 1, "ソラ"), token("へ", 2, "ヘ", "particle")];
+  const { furigana, romaji } = annotateJapaneseLine(line, tokens, [
+    { start: 0, end: 2, reading: "おおぞら" },
+  ]);
+  assert.deepEqual(furigana, [{ start: 0, end: 2, reading: "おおぞら", origin: "authored" }]);
+  assert.equal(romaji, "oozora e");
+});
+
 test("unknown readings abstain from furigana but keep the line", () => {
   const line = "天へ";
   const tokens = [token("天", 0, ""), token("へ", 1, "ヘ", "particle")];

@@ -151,10 +151,15 @@ fn analyze_line(
         let (part_of_speech, morphology_features) = pos::map_pos(&raw_pos);
         let oov = morpheme.is_oov();
         let surface = morpheme.surface().to_string();
-        // An OOV "reading" is just the surface echoed back; report it as
-        // unknown so the frontend abstains instead of writing kanji as ruby.
+        // An OOV "reading" is just the surface echoed back, and the dictionary
+        // gives punctuation and Latin runs literal readings such as キゴウ for
+        // parentheses. Report those as unknown so the frontend abstains.
         let reading = morpheme.reading_form();
-        let reading_kana = if oov || !is_kana_only(reading) { String::new() } else { reading.to_string() };
+        let reading_kana = if oov || !has_cjk(&surface) || !is_kana_only(reading) {
+            String::new()
+        } else {
+            reading.to_string()
+        };
 
         tokens.push(Token {
             start,
@@ -171,6 +176,19 @@ fn analyze_line(
         });
     }
     Ok(tokens)
+}
+
+fn has_cjk(text: &str) -> bool {
+    text.chars().any(|c| {
+        matches!(c,
+            '\u{3005}' | '\u{3006}' // 々 〆
+            | '\u{3041}'..='\u{3096}' // hiragana
+            | '\u{30A1}'..='\u{30FA}' // katakana
+            | '\u{30FC}' // prolonged sound mark
+            | '\u{3400}'..='\u{9FFF}' // Han
+            | '\u{F900}'..='\u{FAFF}' // Han compatibility
+        )
+    }) || text.chars().any(|c| matches!(c as u32, 0x20000..=0x2FFFF))
 }
 
 fn is_kana_only(text: &str) -> bool {

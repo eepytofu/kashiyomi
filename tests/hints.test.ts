@@ -29,6 +29,19 @@ test("multiple hints in one line", () => {
   ]);
 });
 
+test("accepts a kanji plus okurigana hint", () => {
+  const { displayText, hints } = projectReadingHints("嘘 思ゆ(おぼゆ)桜の蜜に");
+  assert.equal(displayText, "嘘 思ゆ桜の蜜に");
+  assert.deepEqual(hints, [{ start: 2, end: 4, reading: "おぼゆ" }]);
+});
+
+test("rejects when the reading does not end with the okurigana", () => {
+  const line = "歌う(こえ)を聞け";
+  const { displayText, hints } = projectReadingHints(line);
+  assert.equal(displayText, line);
+  assert.deepEqual(hints, []);
+});
+
 test("rejects a standalone chant echo", () => {
   const line = "勝負服(はっはっ)";
   const { displayText, hints } = projectReadingHints(line);
