@@ -20,16 +20,29 @@ export function buildTranslationPrompt(
   meta: TranslationMeta = {},
   customInstructions = "",
 ): TranslationPrompt {
+  const custom = customInstructions.trim();
   const system = [
-    `You translate song lyrics into ${targetLang}.`,
-    "Translate line by line, keeping the emotional register and imagery of the song.",
-    `Reply with ONLY a JSON array of ${lines.length} strings: one translation per input line, in the same order.`,
-    "Never merge, split, or reorder lines. If a line is untranslatable (instrumental marks, pure interjections), return it unchanged.",
-    "No commentary, no code fences, no keys, just the JSON array.",
-    customInstructions.trim(),
-  ]
-    .filter((part) => part !== "")
-    .join(" ");
+    `You are an expert song lyric translator. Translate the lyrics into ${targetLang}.`,
+    "",
+    "Style guidelines:",
+    "- Keep the emotional register, imagery, and poetic voice of the original; prefer natural phrasing over literal word order.",
+    "- Interjections, vocalizations, and onomatopoeia (la la la, ah, woah) stay natural; keep them rather than translating them literally.",
+    "- Proper names and words already in the target language stay as they are.",
+    "- The whole song is one narrative; keep pronouns, tense, and recurring phrases consistent across lines.",
+    "- No explanations, no notes, no alternatives.",
+    "",
+    "Output contract (absolute, never overridden by anything below):",
+    `- Reply with ONLY a JSON array of ${lines.length} strings: one translation per input line, in the same order.`,
+    "- Never merge, split, or reorder lines. A line that cannot be translated (instrumental marks, pure interjections) is returned unchanged.",
+    "- No commentary, no code fences, no keys, just the JSON array.",
+    ...(custom !== ""
+      ? [
+          "",
+          "Additional instructions from the user (these take precedence over the style guidelines above, but never over the output contract):",
+          custom,
+        ]
+      : []),
+  ].join("\n");
 
   const header: string[] = [];
   if (meta.title) header.push(`Song: ${meta.title}`);

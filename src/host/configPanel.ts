@@ -115,10 +115,10 @@ function render(root: HTMLElement): void {
   ai.appendChild(textRow("aiApiKey", "aiApiKey", "aiApiKeyDesc", { password: true }));
   ai.appendChild(
     textRow("aiModel", "aiModel", "aiModelDesc", {
-      placeholder: getSettings().aiProvider === "gemini" ? "gemini-3.5-flash-lite" : "gpt-4o-mini",
+      placeholder: getSettings().aiProvider === "gemini" ? "gemini-3.5-flash-lite" : "gpt-5.6-sol",
     }),
   );
-  ai.appendChild(textRow("aiTargetLang", "aiTargetLang", "aiTargetLangDesc", { placeholder: "English / 简体中文 / Bahasa Indonesia" }));
+  ai.appendChild(targetLangRow());
   ai.appendChild(textRow("aiCustomPrompt", "aiCustomPrompt", "aiCustomPromptDesc", {}));
   left.appendChild(ai);
 
@@ -480,6 +480,78 @@ function providerRow(root: HTMLElement): HTMLElement {
     render(root);
   };
   row.appendChild(select);
+  return row;
+}
+
+const COMMON_TARGET_LANGS = [
+  "English",
+  "简体中文",
+  "繁體中文",
+  "Bahasa Indonesia",
+  "日本語",
+  "한국어",
+  "Español",
+  "Français",
+  "Deutsch",
+  "Português",
+  "Русский",
+  "ไทย",
+  "Tiếng Việt",
+  "العربية",
+];
+
+function targetLangRow(): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "kc-row";
+  row.style.flexWrap = "wrap";
+  row.appendChild(rowText(t("aiTargetLang"), t("aiTargetLangDesc")));
+
+  const CUSTOM = "__custom__";
+  const current = getSettings().aiTargetLang;
+  const isListed = COMMON_TARGET_LANGS.includes(current);
+
+  const select = document.createElement("select");
+  select.style.cssText =
+    "padding:6px 10px;border:none;border-radius:6px;background:rgba(255,255,255,0.1);color:inherit;font-size:12.5px;";
+  for (const lang of COMMON_TARGET_LANGS) {
+    const option = document.createElement("option");
+    option.value = lang;
+    option.textContent = lang;
+    option.style.color = "#000";
+    if (lang === current) option.selected = true;
+    select.appendChild(option);
+  }
+  const customOption = document.createElement("option");
+  customOption.value = CUSTOM;
+  customOption.textContent = t("customOption");
+  customOption.style.color = "#000";
+  if (!isListed) customOption.selected = true;
+  select.appendChild(customOption);
+
+  const input = textInput(isListed ? "" : current);
+  input.style.flex = "1 1 100%";
+  input.style.display = isListed ? "none" : "";
+  input.placeholder = "Sundanese / Jawa / ...";
+  input.onchange = () => {
+    if (input.value.trim() !== "") {
+      updateSettings({ aiTargetLang: input.value.trim() });
+      resetTranslation();
+    }
+  };
+
+  select.onchange = () => {
+    if (select.value === CUSTOM) {
+      input.style.display = "";
+      input.focus();
+    } else {
+      input.style.display = "none";
+      updateSettings({ aiTargetLang: select.value });
+      resetTranslation();
+    }
+  };
+
+  row.appendChild(select);
+  row.appendChild(input);
   return row;
 }
 
