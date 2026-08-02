@@ -7,7 +7,12 @@ description = "Kashiyomi native backend: Sudachi morphological analysis for Bett
 
 [lib]
 name = "kashiyomi_backend"
-crate-type = ["cdylib"]
+# rlib so the analyze CLI can link the same analyzer the plugin uses.
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "analyze"
+path = "src/bin/analyze.rs"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

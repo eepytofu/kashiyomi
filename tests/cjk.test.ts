@@ -123,7 +123,7 @@ test("a japanese song built on four-character compounds stays japanese", () => {
 });
 
 test("japanese orthography outranks the bilingual length rule", () => {
-  const bilingual = { branch: "japanese", bilingual: true } as const;
+  const bilingual = { branch: "japanese", bilingual: true, hasTranslations: false } as const;
   assert.equal(resolveLineRoute("磊々落々反戦国家", bilingual), "japanese");
   assert.equal(resolveLineRoute("六根清浄大革命", bilingual), "japanese");
 });
@@ -137,4 +137,28 @@ test("a set phrase in an all-japanese song stays japanese", () => {
   ]);
   assert.equal(doc.bilingual, false, "one set phrase is not a second language");
   assert.equal(resolveLineRoute("天上天下唯我独尊", doc), "japanese");
+});
+
+test("a translated line is not chinese, an untranslated one in the same song is", () => {
+  // NetEase translates foreign lyrics into Chinese and never translates
+  // Chinese, so within one song the presence of a translation separates the
+  // two languages more reliably than any character heuristic.
+  const doc = resolveDocumentContext(
+    ["三千世界 常世之闇", "磊々落々 反戦国家", "大胆不敵にハイカラ革命"],
+    ["translated", "translated", "translated"],
+  );
+  assert.equal(doc.hasTranslations, true);
+  assert.equal(resolveLineRoute("三千世界 常世之闇", doc, "translated"), "japanese");
+
+  const mixed = resolveDocumentContext(
+    ["僕らの居場所はどこなんだ", "世間無常所謂輪迴"],
+    ["translated", "untranslated"],
+  );
+  assert.equal(resolveLineRoute("世間無常所謂輪迴", mixed, "untranslated"), "chinese");
+});
+
+test("translation evidence is ignored when the song has none", () => {
+  const doc = resolveDocumentContext(["三千世界 常世之闇", "大胆不敵にハイカラ革命"], []);
+  assert.equal(doc.hasTranslations, false);
+  assert.equal(resolveLineRoute("三千世界 常世之闇", doc, "untranslated"), "japanese");
 });

@@ -9,10 +9,10 @@
 //! `dispatch` hands out a pointer into a static buffer that lives until the
 //! next call.
 
-mod analyzer;
+pub mod analyzer;
 mod api;
-mod pos;
-mod text;
+pub mod pos;
+pub mod text;
 
 use std::ffi::{c_char, c_int, c_void, CStr, CString};
 use std::panic;

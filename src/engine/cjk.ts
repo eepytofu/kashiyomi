@@ -17,7 +17,20 @@ export type CjkDocumentContext = {
    * so those Han lines are Chinese rather than kanji-only Japanese.
    */
   readonly bilingual: boolean;
+  /**
+   * The player is showing Chinese translations for at least some lines, which
+   * makes their presence per line meaningful evidence.
+   */
+  readonly hasTranslations: boolean;
 };
+
+/**
+ * Whether the player shows a Chinese translation under this particular line.
+ * NetEase translates foreign lyrics into Chinese and has no reason to
+ * translate a Chinese line, so within a song that carries translations, a
+ * translated line is not Chinese and an untranslated one very likely is.
+ */
+export type LineTranslationState = "translated" | "untranslated" | "unknown";
 
 // Characters that are ordinary Chinese function words and essentially never
 // appear in Japanese lyric text.
@@ -97,7 +110,10 @@ export function resolveDocumentBranch(lines: readonly string[]): CjkDocumentBran
   return resolveDocumentContext(lines).branch;
 }
 
-export function resolveDocumentContext(lines: readonly string[]): CjkDocumentContext {
+export function resolveDocumentContext(
+  lines: readonly string[],
+  translationStates: readonly LineTranslationState[] = [],
+): CjkDocumentContext {
   let kanaLines = 0;
   let hanOnlyLines = 0;
   let longHanOnlyLines = 0;
@@ -127,7 +143,8 @@ export function resolveDocumentContext(lines: readonly string[]): CjkDocumentCon
 
   // One stray set phrase is not a second language; a recurring pattern is.
   const bilingual = kanaLines >= 2 && longHanOnlyLines >= 2;
-  return { branch, bilingual };
+  const hasTranslations = translationStates.some((state) => state === "translated");
+  return { branch, bilingual, hasTranslations };
 }
 
 /**
@@ -146,15 +163,22 @@ export function resolveDocumentContext(lines: readonly string[]): CjkDocumentCon
 export function resolveLineRoute(
   rawLine: string,
   doc: CjkDocumentBranch | CjkDocumentContext,
+  translation: LineTranslationState = "unknown",
 ): CjkLineRoute {
   const context: CjkDocumentContext =
-    typeof doc === "object" && doc !== null ? doc : { branch: doc, bilingual: false };
+    typeof doc === "object" && doc !== null
+      ? doc
+      : { branch: doc, bilingual: false, hasTranslations: false };
   const line = normalizeForDetection(rawLine);
   const kana = hasKana(line);
   const han = hasHan(line);
   if (!kana && !han) return undefined;
   if (kana) return "japanese";
   if (looksChinese(line)) return "chinese";
+  // In a song the player is translating into Chinese, whether this line got
+  // a translation says more than any character heuristic.
+  if (context.hasTranslations && translation === "translated") return "japanese";
+  if (context.hasTranslations && translation === "untranslated") return "chinese";
   if (hasJapaneseOnlyGlyphs(line)) return "japanese";
   if (context.bilingual && hanCount(line) >= HAN_RUN_CHINESE_LENGTH) return "chinese";
   return context.branch ?? "chinese";

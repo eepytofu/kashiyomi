@@ -3,12 +3,16 @@
 // "no annotation" instead of breaking. Elements NCM recycles are detected by
 // comparing the stored original text and re-annotated.
 
-import { resolveDocumentContext, resolveLineRoute } from "../engine/cjk.ts";
+import {
+  resolveDocumentContext,
+  resolveLineRoute,
+  type LineTranslationState,
+} from "../engine/cjk.ts";
 import { repairJapaneseHan } from "../engine/hanRepair.ts";
 import { projectReadingHints } from "../engine/hints.ts";
 import { annotateJapaneseLine, type JapaneseLineAnnotation } from "../engine/japanese.ts";
 import { romanizeMandarin } from "../engine/pinyin.ts";
-import { hasHan, hasKana } from "../engine/kana.ts";
+import { hasHan, hasKana, kataToHira, usesKatakanaOkurigana } from "../engine/kana.ts";
 import { isCreditLine } from "../engine/metadata.ts";
 import { shouldDisplayTranslation } from "../engine/aiTranslation.ts";
 import { nativeAnalyze } from "./native.ts";
@@ -177,6 +181,15 @@ function hasProviderTranslationSibling(el: HTMLElement): boolean {
   return false;
 }
 
+/**
+ * Whether NetEase is showing its own Chinese translation for this line.
+ * Only meaningful when the song carries translations at all, which the
+ * document context decides.
+ */
+function translationStateFor(el: HTMLElement): LineTranslationState {
+  return hasProviderTranslationSibling(el) ? "translated" : "untranslated";
+}
+
 function attachTranslationRows(originals: readonly { el: HTMLElement; text: string }[]): void {
   if (txByText.size === 0) return;
   for (const { el, text } of originals) {
@@ -218,7 +231,16 @@ function maybeTranslate(originals: readonly { el: HTMLElement; text: string }[])
   })();
 }
 
-type PendingLine = { el: HTMLElement; original: string };
+type PendingLine = { el: HTMLElement; original: string; translation: LineTranslationState };
+
+type JapaneseWork = {
+  line: PendingLine;
+  /** Text shown on screen, after repair and hint removal. */
+  displayText: string;
+  /** Same length as displayText, adjusted so the analyzer can parse it. */
+  analysisText: string;
+  hints: ReturnType<typeof projectReadingHints>["hints"];
+};
 
 async function scan(): Promise<void> {
   const settings = getSettings();
@@ -227,6 +249,7 @@ async function scan(): Promise<void> {
 
   const pending: PendingLine[] = [];
   const allTexts: string[] = [];
+  const translationStates: LineTranslationState[] = [];
   const originals: { el: HTMLElement; text: string }[] = [];
   for (const el of elements) {
     // NCM renders the translation (译) and its own romanization (音) as
@@ -248,13 +271,14 @@ async function scan(): Promise<void> {
     if (!credit) {
       allTexts.push(text);
       originals.push({ el, text });
+      translationStates.push(translationStateFor(el));
     }
     if (credit && !settings.annotateCredits) {
       markAnnotated(el, text);
       continue;
     }
     if (el.getAttribute(SRC_ATTR) === text && el.hasAttribute(MARK_ATTR)) continue;
-    pending.push({ el, original: text });
+    pending.push({ el, original: text, translation: translationStateFor(el) });
   }
 
   if (pending.length === 0) {
@@ -264,16 +288,16 @@ async function scan(): Promise<void> {
     return;
   }
 
-  const docContext = resolveDocumentContext(allTexts);
+  const docContext = resolveDocumentContext(allTexts, translationStates);
   log.debug(
     `scan: ${pending.length} new lines, document branch: ${docContext.branch ?? "none"}` +
       (docContext.bilingual ? " (bilingual)" : ""),
   );
 
-  const japanese: { line: PendingLine; displayText: string; hints: ReturnType<typeof projectReadingHints>["hints"] }[] = [];
+  const japanese: JapaneseWork[] = [];
   const chinese: PendingLine[] = [];
   for (const line of pending) {
-    const route = resolveLineRoute(line.original, docContext);
+    const route = resolveLineRoute(line.original, docContext, line.translation);
     if (route === "japanese") {
       line.el.setAttribute("lang", "ja");
       let display = settings.hanRepair ? repairJapaneseHan(line.original) : line.original;
@@ -283,7 +307,10 @@ async function scan(): Promise<void> {
         display = projection.displayText;
         hints = projection.hints;
       }
-      japanese.push({ line, displayText: display, hints });
+      // Katakana-okurigana lines are analyzed as hiragana; the conversion is
+      // one character to one, so offsets still match what is displayed.
+      const analysisText = usesKatakanaOkurigana(display) ? kataToHira(display) : display;
+      japanese.push({ line, displayText: display, analysisText, hints });
     } else if (route === "chinese" && hasHan(line.original)) {
       line.el.setAttribute("lang", "zh");
       chinese.push(line);
@@ -332,12 +359,12 @@ async function scan(): Promise<void> {
 }
 
 function annotateJapanese(
-  lines: readonly { line: PendingLine; displayText: string; hints: ReturnType<typeof projectReadingHints>["hints"] }[],
+  lines: readonly JapaneseWork[],
 ): void {
   const settings = getSettings();
 
   // Render anything already analyzed, and only ask the backend for the rest.
-  const pendingAnalysis: { line: PendingLine; displayText: string; hints: ReturnType<typeof projectReadingHints>["hints"] }[] = [];
+  const pendingAnalysis: JapaneseWork[] = [];
   for (const entry of lines) {
     const hit = cachedAnnotation(entry.displayText);
     if (hit) {
@@ -348,7 +375,7 @@ function annotateJapanese(
   }
   if (pendingAnalysis.length === 0) return;
 
-  const result = nativeAnalyze(pendingAnalysis.map((entry) => entry.displayText));
+  const result = nativeAnalyze(pendingAnalysis.map((entry) => entry.analysisText));
   if (result.kind === "pending") {
     log.debug("analyzer still loading; retrying soon");
     if (pendingRetry === undefined) {
@@ -368,10 +395,10 @@ function annotateJapanese(
   }
   log.debug(`analyzed ${pendingAnalysis.length} lines (${lines.length - pendingAnalysis.length} cached)`);
   for (let i = 0; i < pendingAnalysis.length; i++) {
-    const { line, displayText, hints } = pendingAnalysis[i]!;
+    const { line, displayText, analysisText, hints } = pendingAnalysis[i]!;
     const tokens = result.lines[i] ?? [];
     try {
-      const annotation = annotateJapaneseLine(displayText, tokens, hints);
+      const annotation = annotateJapaneseLine(analysisText, tokens, hints);
       // Hints come from the line itself, so the annotation is a pure function
       // of the display text and safe to reuse.
       rememberAnnotation(displayText, annotation);
