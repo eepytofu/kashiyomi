@@ -1,188 +1,334 @@
-// The plugin manager settings panel. Plain DOM with card-style sections and
-// switch toggles; no framework.
+// The plugin manager settings panel. Plain DOM, no framework. Two columns:
+// settings cards on the left, a live preview (rendered with the production
+// line renderer) and an about card on the right.
 
 import { rescan } from "./annotator.ts";
+import { panelLang, setPanelLang, t, type PanelLang } from "./i18n.ts";
 import { nativeState } from "./native.ts";
-import { applyStyles } from "./render.ts";
+import { applyStyles, renderJapaneseLine, renderPinyinRow } from "./render.ts";
 import { DEFAULT_JP_FONT_STACK, getSettings, updateSettings, type Settings } from "./settings.ts";
 
+const REPO_URL = "https://github.com/eepytofu/kashiyomi";
+
 type BooleanSettingKey = {
-  [K in keyof Settings]: Settings[K] extends boolean ? K : never;
+  [K in keyof Settings]-?: Settings[K] extends boolean ? K : never;
 }[keyof Settings];
 
-type ToggleSpec = {
-  key: BooleanSettingKey;
-  label: string;
-  description?: string;
-};
-
-type SectionSpec = {
-  title: string;
-  toggles: ToggleSpec[];
-};
-
-const SECTIONS: SectionSpec[] = [
-  {
-    title: "Japanese",
-    toggles: [
-      { key: "furigana", label: "Furigana", description: "Readings above kanji" },
-      { key: "romaji", label: "Romaji line", description: "A small romaji line under the lyric" },
-      {
-        key: "readingHints",
-        label: "Reading hints",
-        description: "Use readings the lyric itself provides, like 天(そら); shown in a different color",
-      },
-      {
-        key: "hanRepair",
-        label: "Kanji repair",
-        description: "Fix Chinese glyph forms in Japanese lyrics, like 梦见ては to 夢見ては",
-      },
-    ],
-  },
-  {
-    title: "Chinese",
-    toggles: [
-      { key: "pinyin", label: "Pinyin line", description: "A small pinyin line under the lyric" },
-      { key: "pinyinTones", label: "Tone marks", description: "shī háng instead of shi hang" },
-      {
-        key: "pinyinJoinWords",
-        label: "Group Pinyin by word",
-        description: "Syllables of one detected word stay together",
-      },
-    ],
-  },
-  {
-    title: "Advanced",
-    toggles: [
-      { key: "debug", label: "Debug logging", description: "Verbose logs in the console and kashiyomi.log" },
-    ],
-  },
-];
-
 const PANEL_CSS = `
-.kashiyomi-config { display: flex; flex-direction: column; gap: 14px; padding: 4px 2px 16px; max-width: 640px; }
+.kashiyomi-config { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(250px, 0.75fr); gap: 14px; align-items: start; padding: 4px 2px 16px; max-width: 980px; }
 .kashiyomi-config * { box-sizing: border-box; }
+.kashiyomi-config .kc-full { grid-column: 1 / -1; }
+.kashiyomi-config .kc-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .kashiyomi-config .kc-status {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 10px 14px; border-radius: 10px;
   background: rgba(255, 255, 255, 0.06); font-size: 13px;
 }
-.kashiyomi-config .kc-status .kc-dot {
-  display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px;
-  background: #999;
-}
-.kashiyomi-config .kc-status.kc-ready .kc-dot { background: #52c41a; }
-.kashiyomi-config .kc-status.kc-bad .kc-dot { background: #ff4d4f; }
-.kashiyomi-config .kc-status.kc-loading .kc-dot { background: #faad14; }
-.kashiyomi-config .kc-section-title {
-  font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
-  opacity: 0.55; margin: 2px 2px -6px;
-}
-.kashiyomi-config .kc-card {
-  border-radius: 10px; background: rgba(255, 255, 255, 0.05); overflow: hidden;
-}
-.kashiyomi-config .kc-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 11px 14px; cursor: pointer;
-}
+.kashiyomi-config .kc-status-right { display: flex; align-items: center; gap: 8px; }
+.kashiyomi-config .kc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: #999; }
+.kashiyomi-config .kc-ready .kc-dot { background: #52c41a; }
+.kashiyomi-config .kc-bad .kc-dot { background: #ff4d4f; }
+.kashiyomi-config .kc-loading .kc-dot { background: #faad14; }
+.kashiyomi-config .kc-section-title { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.55; margin: 2px 2px -6px; }
+.kashiyomi-config .kc-card { border-radius: 10px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
+.kashiyomi-config .kc-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 14px; cursor: pointer; }
 .kashiyomi-config .kc-row + .kc-row { border-top: 1px solid rgba(255, 255, 255, 0.06); }
 .kashiyomi-config .kc-row:hover { background: rgba(255, 255, 255, 0.04); }
 .kashiyomi-config .kc-label { font-size: 13.5px; line-height: 1.3; }
 .kashiyomi-config .kc-desc { font-size: 12px; opacity: 0.55; margin-top: 2px; line-height: 1.35; }
 .kashiyomi-config .kc-switch { position: relative; flex: none; width: 36px; height: 20px; }
 .kashiyomi-config .kc-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
-.kashiyomi-config .kc-switch .kc-track {
-  position: absolute; inset: 0; border-radius: 999px;
-  background: rgba(255, 255, 255, 0.22); transition: background 0.15s ease;
-}
-.kashiyomi-config .kc-switch .kc-track::after {
-  content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
-  border-radius: 50%; background: #fff; transition: transform 0.15s ease;
-}
+.kashiyomi-config .kc-track { position: absolute; inset: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.22); transition: background 0.15s ease; }
+.kashiyomi-config .kc-track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.15s ease; }
 .kashiyomi-config .kc-switch input:checked + .kc-track { background: #ec4141; }
 .kashiyomi-config .kc-switch input:checked + .kc-track::after { transform: translateX(16px); }
-.kashiyomi-config .kc-button {
-  align-self: flex-start; padding: 7px 16px; border: none; border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1); color: inherit; font-size: 13px; cursor: pointer;
-}
+.kashiyomi-config .kc-button { padding: 6px 14px; border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.1); color: inherit; font-size: 12.5px; cursor: pointer; }
 .kashiyomi-config .kc-button:hover { background: rgba(255, 255, 255, 0.16); }
+.kashiyomi-config .kc-lang { display: flex; border-radius: 8px; overflow: hidden; }
+.kashiyomi-config .kc-lang button { padding: 6px 10px; border: none; background: rgba(255, 255, 255, 0.08); color: inherit; font-size: 12px; cursor: pointer; }
+.kashiyomi-config .kc-lang button.kc-active { background: #ec4141; }
+.kashiyomi-config .kc-preview { padding: 16px 14px 12px; display: flex; flex-direction: column; gap: 14px; }
+.kashiyomi-config .kc-preview-line { font-size: 19px; line-height: 1.6; }
+.kashiyomi-config .kc-preview-line .kashiyomi-row { opacity: 0.6; }
+.kashiyomi-config .kc-about { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
+.kashiyomi-config .kc-about .kc-muted { opacity: 0.55; word-break: break-all; }
+.kashiyomi-config .kc-link { color: inherit; text-decoration: underline; cursor: pointer; opacity: 0.85; }
 `;
 
 export function buildConfigPanel(): HTMLElement {
   const root = document.createElement("div");
   root.className = "kashiyomi-config";
+  render(root);
+  return root;
+}
+
+function render(root: HTMLElement): void {
+  root.textContent = "";
   const style = document.createElement("style");
   style.textContent = PANEL_CSS;
   root.appendChild(style);
 
-  const status = document.createElement("div");
-  status.className = "kc-status";
-  const statusText = document.createElement("span");
-  const refreshButton = document.createElement("button");
-  refreshButton.className = "kc-button";
-  refreshButton.textContent = "Re-annotate";
-  const refreshStatus = () => {
-    const s = nativeState();
-    status.className = "kc-status " + (s.state === "ready" ? "kc-ready" : s.state === "loading" ? "kc-loading" : "kc-bad");
-    statusText.innerHTML = "";
-    const dot = document.createElement("span");
-    dot.className = "kc-dot";
-    statusText.appendChild(dot);
-    const label =
-      s.state === "ready"
-        ? "Analyzer ready"
-        : s.state === "loading"
-          ? "Dictionary loading"
-          : s.state === "uninitialized"
-            ? "Analyzer not started"
-            : `Analyzer ${s.state}${s.error ? `: ${s.error}` : ""}`;
-    statusText.appendChild(document.createTextNode(label));
-  };
-  refreshButton.onclick = () => {
-    refreshStatus();
-    rescan();
-  };
-  refreshStatus();
-  status.appendChild(statusText);
-  status.appendChild(refreshButton);
-  root.appendChild(status);
+  root.appendChild(buildStatusBar(root));
 
-  for (const section of SECTIONS) {
-    const title = document.createElement("div");
-    title.className = "kc-section-title";
-    title.textContent = section.title;
-    root.appendChild(title);
+  const left = document.createElement("div");
+  left.className = "kc-col";
+  const right = document.createElement("div");
+  right.className = "kc-col";
 
-    const card = document.createElement("div");
-    card.className = "kc-card";
-    for (const spec of section.toggles) {
-      card.appendChild(buildToggleRow(spec));
-    }
-    if (section.title === "Japanese") {
-      card.appendChild(buildFuriganaSizeRow());
-      card.appendChild(buildToggleRow({
-        key: "useJpFont",
-        label: "Japanese font on Japanese lyrics",
-        description: "The same Han character can render with a Chinese glyph; force a Japanese font stack",
-      }, applyStyles));
-      card.appendChild(buildFontStackRow());
-    }
-    root.appendChild(card);
-  }
+  const refreshPreview = buildPreviewCard(right);
 
-  return root;
+  left.appendChild(sectionTitle(t("sectionJapanese")));
+  const jp = card();
+  jp.appendChild(toggleRow("furigana", t("furigana"), t("furiganaDesc"), refreshPreview));
+  jp.appendChild(toggleRow("romaji", t("romaji"), t("romajiDesc"), refreshPreview));
+  jp.appendChild(toggleRow("readingHints", t("hints"), t("hintsDesc"), refreshPreview));
+  jp.appendChild(toggleRow("hanRepair", t("repair"), t("repairDesc")));
+  jp.appendChild(sizeRow(refreshPreview));
+  jp.appendChild(toggleRow("useJpFont", t("jpFont"), t("jpFontDesc"), refreshPreview, false));
+  jp.appendChild(fontRow(refreshPreview));
+  left.appendChild(jp);
+
+  left.appendChild(sectionTitle(t("sectionChinese")));
+  const zh = card();
+  zh.appendChild(toggleRow("pinyin", t("pinyin"), t("pinyinDesc"), refreshPreview));
+  zh.appendChild(toggleRow("pinyinTones", t("tones"), t("tonesDesc"), refreshPreview));
+  zh.appendChild(toggleRow("pinyinJoinWords", t("groupWords"), t("groupWordsDesc"), refreshPreview));
+  left.appendChild(zh);
+
+  left.appendChild(sectionTitle(t("sectionAdvanced")));
+  const adv = card();
+  adv.appendChild(toggleRow("debug", t("debug"), t("debugDesc"), () => {}));
+  left.appendChild(adv);
+
+  buildAboutCard(right);
+
+  root.appendChild(left);
+  root.appendChild(right);
 }
 
-function buildFuriganaSizeRow(): HTMLElement {
+function buildStatusBar(root: HTMLElement): HTMLElement {
+  const bar = document.createElement("div");
+  const s = nativeState();
+  bar.className =
+    "kc-status kc-full " +
+    (s.state === "ready" ? "kc-ready" : s.state === "loading" ? "kc-loading" : "kc-bad");
+  const label = document.createElement("span");
+  const dot = document.createElement("span");
+  dot.className = "kc-dot";
+  label.appendChild(dot);
+  const text =
+    s.state === "ready"
+      ? t("analyzerReady")
+      : s.state === "loading"
+        ? t("analyzerLoading")
+        : s.state === "uninitialized"
+          ? t("analyzerNotStarted")
+          : `${t("analyzerFailed")}${s.error ? `: ${s.error}` : ""}`;
+  label.appendChild(document.createTextNode(text));
+  bar.appendChild(label);
+
+  const rightSide = document.createElement("div");
+  rightSide.className = "kc-status-right";
+  rightSide.appendChild(buildLangToggle(root));
+  const reannotate = document.createElement("button");
+  reannotate.className = "kc-button";
+  reannotate.textContent = t("reannotate");
+  reannotate.onclick = () => {
+    rescan();
+    render(root);
+  };
+  rightSide.appendChild(reannotate);
+  bar.appendChild(rightSide);
+  return bar;
+}
+
+function buildLangToggle(root: HTMLElement): HTMLElement {
+  const wrap = document.createElement("span");
+  wrap.className = "kc-lang";
+  const current = panelLang();
+  const options: [PanelLang, string][] = [
+    ["en", "EN"],
+    ["zh", "中文"],
+  ];
+  for (const [lang, label] of options) {
+    const button = document.createElement("button");
+    button.textContent = label;
+    if (lang === current) button.className = "kc-active";
+    button.onclick = () => {
+      setPanelLang(lang);
+      render(root);
+    };
+    wrap.appendChild(button);
+  }
+  return wrap;
+}
+
+/** Builds the preview card into `column`; returns a refresh function. */
+function buildPreviewCard(column: HTMLElement): () => void {
+  column.appendChild(sectionTitle(t("preview")));
+  const box = card();
+  box.className += " kc-preview";
+  column.appendChild(box);
+
+  const refresh = () => {
+    const settings = getSettings();
+    applyStyles();
+    box.textContent = "";
+
+    // Sample annotations are canned so the preview never depends on the
+    // native analyzer; classes match the real renderer so global styles
+    // (furigana size, authored color) apply identically.
+    const jpLine = document.createElement("div");
+    jpLine.className = "kc-preview-line";
+    renderJapaneseLine(
+      jpLine,
+      "春風薫る錦の袖に",
+      {
+        furigana: [
+          { start: 0, end: 2, reading: "しゅんぷう", origin: "inferred" },
+          { start: 2, end: 3, reading: "かお", origin: "inferred" },
+          { start: 4, end: 5, reading: "にしき", origin: "inferred" },
+          { start: 6, end: 7, reading: "そで", origin: "inferred" },
+        ],
+        romaji: "shunpuu kaoru nishiki no sode ni",
+      },
+      { furigana: settings.furigana, romaji: settings.romaji },
+    );
+
+    const hintLine = document.createElement("div");
+    hintLine.className = "kc-preview-line";
+    renderJapaneseLine(
+      hintLine,
+      "今宵も天は明るく",
+      {
+        furigana: [
+          { start: 0, end: 2, reading: "こよい", origin: "inferred" },
+          { start: 3, end: 4, reading: settings.readingHints ? "そら" : "てん", origin: settings.readingHints ? "authored" : "inferred" },
+          { start: 5, end: 6, reading: "あか", origin: "inferred" },
+        ],
+        romaji: settings.readingHints ? "koyoi mo sora wa akaruku" : "koyoi mo ten wa akaruku",
+      },
+      { furigana: settings.furigana, romaji: settings.romaji },
+    );
+
+    if (settings.useJpFont && settings.jpFontStack.trim() !== "") {
+      jpLine.style.fontFamily = settings.jpFontStack;
+      hintLine.style.fontFamily = settings.jpFontStack;
+    }
+    box.appendChild(jpLine);
+    box.appendChild(hintLine);
+
+    const zhLine = document.createElement("div");
+    zhLine.className = "kc-preview-line";
+    zhLine.textContent = "我在每夜狂想";
+    if (settings.pinyin) {
+      const syllables: [string, string][] = [
+        ["wǒ", "wo"], ["zài", "zai"], ["měi", "mei"], ["yè", "ye"], ["kuáng", "kuang"], ["xiǎng", "xiang"],
+      ];
+      const groups = settings.pinyinJoinWords ? [[0], [1], [2, 3], [4, 5]] : [[0], [1], [2], [3], [4], [5]];
+      const text = groups
+        .map((group) => group.map((i) => syllables[i]![settings.pinyinTones ? 0 : 1]).join(""))
+        .join(" ");
+      renderPinyinRow(zhLine, text);
+    }
+    box.appendChild(zhLine);
+  };
+  refresh();
+  return refresh;
+}
+
+function buildAboutCard(column: HTMLElement): void {
+  column.appendChild(sectionTitle(t("about")));
+  const box = card();
+  box.className += " kc-about";
+
+  const name = document.createElement("div");
+  const version = (plugin as { manifest?: { version?: string } }).manifest?.version ?? "";
+  name.textContent = `Kashiyomi（歌詞読み）${version ? ` v${version}` : ""}`;
+  box.appendChild(name);
+
+  const repo = document.createElement("span");
+  repo.className = "kc-link";
+  repo.textContent = t("aboutRepo");
+  repo.onclick = () => {
+    try {
+      betterncm.ncm.openUrl(REPO_URL);
+    } catch {
+      window.open(REPO_URL);
+    }
+  };
+  box.appendChild(repo);
+
+  const logPath = document.createElement("div");
+  logPath.className = "kc-muted";
+  logPath.textContent = `${t("aboutLog")}: C:\\betterncm\\kashiyomi.log`;
+  box.appendChild(logPath);
+
+  column.appendChild(box);
+}
+
+function sectionTitle(text: string): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "kc-section-title";
+  el.textContent = text;
+  return el;
+}
+
+function card(): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "kc-card";
+  return el;
+}
+
+function toggleRow(
+  key: BooleanSettingKey,
+  label: string,
+  description: string,
+  onExtra?: () => void,
+  triggersRescan = true,
+): HTMLElement {
+  const row = document.createElement("label");
+  row.className = "kc-row";
+  const text = document.createElement("div");
+  const labelEl = document.createElement("div");
+  labelEl.className = "kc-label";
+  labelEl.textContent = label;
+  text.appendChild(labelEl);
+  const desc = document.createElement("div");
+  desc.className = "kc-desc";
+  desc.textContent = description;
+  text.appendChild(desc);
+  row.appendChild(text);
+
+  const toggle = document.createElement("span");
+  toggle.className = "kc-switch";
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.checked = getSettings()[key];
+  box.onchange = () => {
+    updateSettings({ [key]: box.checked });
+    applyStyles();
+    if (triggersRescan) rescan();
+    if (onExtra) onExtra();
+  };
+  const track = document.createElement("span");
+  track.className = "kc-track";
+  toggle.appendChild(box);
+  toggle.appendChild(track);
+  row.appendChild(toggle);
+  return row;
+}
+
+function sizeRow(refreshPreview: () => void): HTMLElement {
   const row = document.createElement("div");
   row.className = "kc-row";
   const text = document.createElement("div");
   const label = document.createElement("div");
   label.className = "kc-label";
-  label.textContent = "Furigana size";
+  label.textContent = t("furiganaSize");
   const desc = document.createElement("div");
   desc.className = "kc-desc";
-  desc.textContent = "Reading size relative to the lyric text";
+  desc.textContent = t("furiganaSizeDesc");
   text.appendChild(label);
   text.appendChild(desc);
   row.appendChild(text);
@@ -202,6 +348,7 @@ function buildFuriganaSizeRow(): HTMLElement {
     value.textContent = `${slider.value}%`;
     updateSettings({ furiganaSize: Number(slider.value) });
     applyStyles();
+    refreshPreview();
   };
   control.appendChild(slider);
   control.appendChild(value);
@@ -209,17 +356,17 @@ function buildFuriganaSizeRow(): HTMLElement {
   return row;
 }
 
-function buildFontStackRow(): HTMLElement {
+function fontRow(refreshPreview: () => void): HTMLElement {
   const row = document.createElement("div");
   row.className = "kc-row";
   row.style.flexWrap = "wrap";
   const text = document.createElement("div");
   const label = document.createElement("div");
   label.className = "kc-label";
-  label.textContent = "Japanese font stack";
+  label.textContent = t("fontStack");
   const desc = document.createElement("div");
   desc.className = "kc-desc";
-  desc.textContent = "Installed fonts, first choice to fallback";
+  desc.textContent = t("fontStackDesc");
   text.appendChild(label);
   text.appendChild(desc);
   row.appendChild(text);
@@ -234,52 +381,19 @@ function buildFontStackRow(): HTMLElement {
   input.onchange = () => {
     updateSettings({ jpFontStack: input.value });
     applyStyles();
+    refreshPreview();
   };
   const reset = document.createElement("button");
   reset.className = "kc-button";
-  reset.textContent = "Reset";
+  reset.textContent = t("reset");
   reset.onclick = () => {
     input.value = DEFAULT_JP_FONT_STACK;
     updateSettings({ jpFontStack: DEFAULT_JP_FONT_STACK });
     applyStyles();
+    refreshPreview();
   };
   control.appendChild(input);
   control.appendChild(reset);
   row.appendChild(control);
-  return row;
-}
-
-function buildToggleRow(spec: ToggleSpec, onChange?: () => void): HTMLElement {
-  const row = document.createElement("label");
-  row.className = "kc-row";
-
-  const text = document.createElement("div");
-  const label = document.createElement("div");
-  label.className = "kc-label";
-  label.textContent = spec.label;
-  text.appendChild(label);
-  if (spec.description) {
-    const desc = document.createElement("div");
-    desc.className = "kc-desc";
-    desc.textContent = spec.description;
-    text.appendChild(desc);
-  }
-  row.appendChild(text);
-
-  const toggle = document.createElement("span");
-  toggle.className = "kc-switch";
-  const box = document.createElement("input");
-  box.type = "checkbox";
-  box.checked = getSettings()[spec.key];
-  box.onchange = () => {
-    updateSettings({ [spec.key]: box.checked });
-    if (onChange) onChange();
-    else rescan();
-  };
-  const track = document.createElement("span");
-  track.className = "kc-track";
-  toggle.appendChild(box);
-  toggle.appendChild(track);
-  row.appendChild(toggle);
   return row;
 }

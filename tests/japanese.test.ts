@@ -107,6 +107,20 @@ test("no space before punctuation", () => {
   assert.equal(romaji, "sora、umi");
 });
 
+test("sokuon carries across token boundaries", () => {
+  const line = "回って";
+  const tokens = [token("回っ", 0, "マワッ", "verb"), token("て", 2, "テ", "particle")];
+  const { romaji } = annotateJapaneseLine(line, tokens);
+  assert.equal(romaji, "mawatte");
+});
+
+test("line-final sokuon still voices as t", () => {
+  const line = "あっ";
+  const tokens = [token("あっ", 0, "アッ", "other")];
+  const { romaji } = annotateJapaneseLine(line, tokens);
+  assert.equal(romaji, "at");
+});
+
 test("mismatched tokens fail closed", () => {
   assert.throws(() => annotateJapaneseLine("天へ", [token("地", 0, "チ")]));
 });

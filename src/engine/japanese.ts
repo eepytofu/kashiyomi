@@ -4,7 +4,7 @@
 // imports.
 
 import { alignFurigana } from "./furigana.ts";
-import { kanaToRomaji, tokenRomaji } from "./romaji.ts";
+import { kanaToRomaji } from "./romaji.ts";
 import { KANA_ONLY, kataToHira } from "./kana.ts";
 import type { ReadingHint } from "./hints.ts";
 import { assertAnalyzerTokens, type AnalyzerToken } from "./tokens.ts";
@@ -40,6 +40,24 @@ export function annotateJapaneseLine(
 
   const furigana: LineFuriganaSegment[] = [];
   const romajiParts: string[] = [];
+  // A token-final っ geminates the next token's first consonant (回っ + て is
+  // mawatte, not "mawat te"), so the sokuon carries across the boundary and
+  // the two parts join without a space.
+  let sokuonCarry = false;
+
+  const voice = (kana: string, isFinal: boolean): { romaji: string; joined: boolean } => {
+    let hira = kataToHira(kana);
+    const joined = sokuonCarry;
+    if (sokuonCarry) {
+      hira = "っ" + hira;
+      sokuonCarry = false;
+    }
+    if (!isFinal && hira.endsWith("っ")) {
+      hira = hira.slice(0, -1);
+      sokuonCarry = true;
+    }
+    return { romaji: kanaToRomaji(hira), joined };
+  };
 
   let i = 0;
   while (i < tokens.length) {
@@ -54,11 +72,15 @@ export function annotateJapaneseLine(
           origin: "inferred",
         });
       }
-      appendRomaji(
-        romajiParts,
-        tokenRomaji(token.surface, token.readingKana, token.partOfSpeech),
-        token.surface,
-      );
+      const special = particleSpecial(token);
+      if (special !== undefined) {
+        sokuonCarry = false;
+        appendRomaji(romajiParts, special, token.surface, false);
+      } else {
+        const kana = token.readingKana !== "" ? token.readingKana : token.surface;
+        const { romaji, joined } = voice(kana, i === tokens.length - 1);
+        appendRomaji(romajiParts, romaji, token.surface, joined);
+      }
       i += 1;
       continue;
     }
@@ -99,10 +121,9 @@ export function annotateJapaneseLine(
     const suffix = displayText.slice(Math.min(runEnd, hint.end), runEnd);
     const prefixOk = prefix === "" || KANA_ONLY.test(prefix);
     const suffixOk = suffix === "" || KANA_ONLY.test(suffix);
-    const voiced = prefixOk && suffixOk
-      ? kanaToRomaji(prefix + hint.reading + suffix)
-      : kanaToRomaji(hint.reading);
-    appendRomaji(romajiParts, voiced, displayText.slice(runStart, runEnd));
+    const voicedKana = prefixOk && suffixOk ? prefix + hint.reading + suffix : hint.reading;
+    const { romaji, joined } = voice(voicedKana, last === tokens.length - 1);
+    appendRomaji(romajiParts, romaji, displayText.slice(runStart, runEnd), joined);
     i = last + 1;
   }
 
@@ -110,9 +131,20 @@ export function annotateJapaneseLine(
   return { furigana, romaji: romajiParts.join("") };
 }
 
-function appendRomaji(parts: string[], romaji: string, surface: string): void {
+// Hepburn particle spellings; everything else voices from its reading.
+function particleSpecial(token: AnalyzerToken): string | undefined {
+  if (token.partOfSpeech !== "particle") return undefined;
+  const surface = kataToHira(token.surface);
+  if (surface === "は") return "wa";
+  if (surface === "へ") return "e";
+  if (surface === "を") return "wo";
+  return undefined;
+}
+
+function appendRomaji(parts: string[], romaji: string, surface: string, joinPrevious: boolean): void {
   if (romaji === "") return;
   const needsNoSpace =
+    joinPrevious ||
     parts.length === 0 ||
     NO_SPACE_BEFORE.test(surface) ||
     NO_SPACE_AFTER.test(parts[parts.length - 1] ?? "");

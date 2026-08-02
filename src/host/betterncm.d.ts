@@ -10,6 +10,9 @@ declare const betterncm: {
     getDataPath(): Promise<string>;
     showConsole(show?: boolean): Promise<void>;
   };
+  ncm: {
+    openUrl(url: string): void;
+  };
   utils: {
     waitForElement(selector: string, interval?: number): Promise<HTMLElement | null>;
     debounce<T extends (...args: never[]) => void>(fn: T, wait: number): T;

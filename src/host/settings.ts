@@ -14,6 +14,8 @@ export type Settings = {
   /** Use a Japanese font stack on Japanese lyric lines (Han unification). */
   useJpFont: boolean;
   jpFontStack: string;
+  /** Settings panel language; unset follows the page locale. */
+  panelLang?: "en" | "zh";
 };
 
 export const DEFAULT_JP_FONT_STACK =
