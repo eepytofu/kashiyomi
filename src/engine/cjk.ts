@@ -44,13 +44,14 @@ const CHINESE_BIGRAMS = [
  */
 const HAN_RUN_CHINESE_LENGTH = 5;
 
-// Zero-width and bidi marks travel with lyric text from some providers and
-// would otherwise break character tests and offsets.
-const INVISIBLE = /[​-‏‪-‮⁠-⁤﻿]/gu;
-
-/** Normalize a line before any script test, so width variants agree. */
+/**
+ * Normalize a line before any script test. Halfwidth katakana (ｱﾏﾂｷﾂﾈ) lives
+ * in a different code range from normal kana, so without this a line written
+ * that way reads as having no kana at all and gets routed as Chinese.
+ * Detection only; the displayed text is never normalized.
+ */
 export function normalizeForDetection(line: string): string {
-  return line.normalize("NFKC").replace(INVISIBLE, "");
+  return line.normalize("NFKC");
 }
 
 function hanCount(line: string): number {

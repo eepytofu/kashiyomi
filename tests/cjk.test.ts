@@ -43,6 +43,11 @@ test("han-only lines follow the document branch", () => {
   assert.equal(resolveLineRoute("正被灯笼烛光给照耀着呢", "chinese"), "chinese");
 });
 
+test("halfwidth katakana is recognized as japanese", () => {
+  assert.equal(resolveLineRoute("ｱﾏﾂｷﾂﾈは空を駆ける", "chinese"), "japanese");
+  assert.equal(resolveLineRoute("ﾆｼｷﾉｿﾃﾞ", "chinese"), "japanese");
+});
+
 test("latin-only lines route nowhere", () => {
   assert.equal(resolveLineRoute("It's hard to say goodbye", "japanese"), undefined);
 });
