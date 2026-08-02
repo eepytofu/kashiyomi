@@ -2,11 +2,17 @@
 // settings cards on the left, a live preview (rendered with the production
 // line renderer) and an about card on the right.
 
-import { rescan } from "./annotator.ts";
-import { panelLang, setPanelLang, t, type PanelLang } from "./i18n.ts";
+import { rescan, resetTranslation } from "./annotator.ts";
+import { panelLang, setPanelLang, t, type PanelLang, type StringKey } from "./i18n.ts";
 import { nativeState } from "./native.ts";
 import { applyStyles, renderJapaneseLine, renderPinyinRow } from "./render.ts";
-import { DEFAULT_JP_FONT_STACK, getSettings, updateSettings, type Settings } from "./settings.ts";
+import {
+  DEFAULT_JP_FONT_STACK,
+  DEFAULT_ZH_FONT_STACK,
+  getSettings,
+  updateSettings,
+  type Settings,
+} from "./settings.ts";
 
 const REPO_URL = "https://github.com/eepytofu/kashiyomi";
 
@@ -85,7 +91,7 @@ function render(root: HTMLElement): void {
   jp.appendChild(toggleRow("hanRepair", t("repair"), t("repairDesc")));
   jp.appendChild(sizeRow(refreshPreview));
   jp.appendChild(toggleRow("useJpFont", t("jpFont"), t("jpFontDesc"), refreshPreview, false));
-  jp.appendChild(fontRow(refreshPreview));
+  jp.appendChild(fontStackRow("jpFontStack", DEFAULT_JP_FONT_STACK, "fontStack", "fontStackDesc", refreshPreview));
   left.appendChild(jp);
 
   left.appendChild(sectionTitle(t("sectionChinese")));
@@ -93,7 +99,20 @@ function render(root: HTMLElement): void {
   zh.appendChild(toggleRow("pinyin", t("pinyin"), t("pinyinDesc"), refreshPreview));
   zh.appendChild(toggleRow("pinyinTones", t("tones"), t("tonesDesc"), refreshPreview));
   zh.appendChild(toggleRow("pinyinJoinWords", t("groupWords"), t("groupWordsDesc"), refreshPreview));
+  zh.appendChild(toggleRow("useZhFont", t("zhFont"), t("zhFontDesc"), refreshPreview, false));
+  zh.appendChild(fontStackRow("zhFontStack", DEFAULT_ZH_FONT_STACK, "zhFontStack", "fontStackDesc", refreshPreview));
   left.appendChild(zh);
+
+  left.appendChild(sectionTitle(t("sectionAi")));
+  const ai = card();
+  ai.appendChild(toggleRow("aiAutoTranslate", t("aiAuto"), t("aiAutoDesc"), resetTranslation));
+  ai.appendChild(providerRow());
+  ai.appendChild(textRow("aiBaseUrl", "aiBaseUrl", "aiBaseUrlDesc", { placeholder: "https://api.openai.com/v1" }));
+  ai.appendChild(textRow("aiApiKey", "aiApiKey", "aiApiKeyDesc", { password: true }));
+  ai.appendChild(textRow("aiModel", "aiModel", "aiModelDesc", { placeholder: "gpt-4o-mini / gemini-2.0-flash" }));
+  ai.appendChild(textRow("aiTargetLang", "aiTargetLang", "aiTargetLangDesc", { placeholder: "English / 简体中文 / Bahasa Indonesia" }));
+  ai.appendChild(textRow("aiCustomPrompt", "aiCustomPrompt", "aiCustomPromptDesc", {}));
+  left.appendChild(ai);
 
   left.appendChild(sectionTitle(t("sectionAdvanced")));
   const adv = card();
@@ -221,6 +240,9 @@ function buildPreviewCard(column: HTMLElement): () => void {
     const zhLine = document.createElement("div");
     zhLine.className = "kc-preview-line";
     zhLine.textContent = "我在每夜狂想";
+    if (settings.useZhFont && settings.zhFontStack.trim() !== "") {
+      zhLine.style.fontFamily = settings.zhFontStack;
+    }
     if (settings.pinyin) {
       const syllables: [string, string][] = [
         ["wǒ", "wo"], ["zài", "zai"], ["měi", "mei"], ["yè", "ye"], ["kuáng", "kuang"], ["xiǎng", "xiang"],
@@ -356,30 +378,27 @@ function sizeRow(refreshPreview: () => void): HTMLElement {
   return row;
 }
 
-function fontRow(refreshPreview: () => void): HTMLElement {
+type StringSettingKey = {
+  [K in keyof Settings]-?: Settings[K] extends string ? K : never;
+}[keyof Settings];
+
+function fontStackRow(
+  key: "jpFontStack" | "zhFontStack",
+  defaultValue: string,
+  labelKey: StringKey,
+  descKey: StringKey,
+  refreshPreview: () => void,
+): HTMLElement {
   const row = document.createElement("div");
   row.className = "kc-row";
   row.style.flexWrap = "wrap";
-  const text = document.createElement("div");
-  const label = document.createElement("div");
-  label.className = "kc-label";
-  label.textContent = t("fontStack");
-  const desc = document.createElement("div");
-  desc.className = "kc-desc";
-  desc.textContent = t("fontStackDesc");
-  text.appendChild(label);
-  text.appendChild(desc);
-  row.appendChild(text);
+  row.appendChild(rowText(t(labelKey), t(descKey)));
 
   const control = document.createElement("div");
   control.style.cssText = "display:flex;align-items:center;gap:8px;flex:1 1 100%;";
-  const input = document.createElement("input");
-  input.type = "text";
-  input.value = getSettings().jpFontStack;
-  input.style.cssText =
-    "flex:1;padding:6px 10px;border:none;border-radius:6px;background:rgba(255,255,255,0.1);color:inherit;font-size:12.5px;";
+  const input = textInput(getSettings()[key]);
   input.onchange = () => {
-    updateSettings({ jpFontStack: input.value });
+    updateSettings({ [key]: input.value });
     applyStyles();
     refreshPreview();
   };
@@ -387,8 +406,8 @@ function fontRow(refreshPreview: () => void): HTMLElement {
   reset.className = "kc-button";
   reset.textContent = t("reset");
   reset.onclick = () => {
-    input.value = DEFAULT_JP_FONT_STACK;
-    updateSettings({ jpFontStack: DEFAULT_JP_FONT_STACK });
+    input.value = defaultValue;
+    updateSettings({ [key]: defaultValue });
     applyStyles();
     refreshPreview();
   };
@@ -396,4 +415,74 @@ function fontRow(refreshPreview: () => void): HTMLElement {
   control.appendChild(reset);
   row.appendChild(control);
   return row;
+}
+
+function textRow(
+  key: StringSettingKey,
+  labelKey: StringKey,
+  descKey: StringKey,
+  options: { placeholder?: string; password?: boolean },
+): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "kc-row";
+  row.style.flexWrap = "wrap";
+  row.appendChild(rowText(t(labelKey), t(descKey)));
+  const input = textInput(getSettings()[key]);
+  input.style.flex = "1 1 100%";
+  if (options.placeholder) input.placeholder = options.placeholder;
+  if (options.password) input.type = "password";
+  input.onchange = () => {
+    updateSettings({ [key]: input.value });
+    resetTranslation();
+  };
+  row.appendChild(input);
+  return row;
+}
+
+function providerRow(): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "kc-row";
+  row.appendChild(rowText(t("aiProvider"), t("aiProviderDesc")));
+  const select = document.createElement("select");
+  select.style.cssText =
+    "padding:6px 10px;border:none;border-radius:6px;background:rgba(255,255,255,0.1);color:inherit;font-size:12.5px;";
+  for (const [value, label] of [
+    ["openai", "OpenAI-compatible"],
+    ["gemini", "Gemini"],
+  ] as const) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    option.style.color = "#000";
+    if (getSettings().aiProvider === value) option.selected = true;
+    select.appendChild(option);
+  }
+  select.onchange = () => {
+    updateSettings({ aiProvider: select.value as Settings["aiProvider"] });
+    resetTranslation();
+  };
+  row.appendChild(select);
+  return row;
+}
+
+function rowText(label: string, description: string): HTMLElement {
+  const text = document.createElement("div");
+  const labelEl = document.createElement("div");
+  labelEl.className = "kc-label";
+  labelEl.textContent = label;
+  text.appendChild(labelEl);
+  const desc = document.createElement("div");
+  desc.className = "kc-desc";
+  desc.textContent = description;
+  text.appendChild(desc);
+  return text;
+}
+
+function textInput(value: string): HTMLInputElement {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = value;
+  input.style.cssText =
+    "flex:1;padding:6px 10px;border:none;border-radius:6px;background:rgba(255,255,255,0.1);color:inherit;font-size:12.5px;";
+  return input;
 }

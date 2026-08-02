@@ -8,8 +8,10 @@ import { repairJapaneseHan } from "../engine/hanRepair.ts";
 import { projectReadingHints } from "../engine/hints.ts";
 import { annotateJapaneseLine } from "../engine/japanese.ts";
 import { romanizeMandarin } from "../engine/pinyin.ts";
-import { hasHan } from "../engine/kana.ts";
+import { hasHan, hasKana } from "../engine/kana.ts";
+import { shouldDisplayTranslation } from "../engine/aiTranslation.ts";
 import { nativeAnalyze } from "./native.ts";
+import { translateSong, translationConfigured } from "./translator.ts";
 import { ensurePinyinDict } from "./pinyinDict.ts";
 import { MARK_ATTR, ROW_CLASS, renderJapaneseLine, renderPinyinRow } from "./render.ts";
 import { getSettings } from "./settings.ts";
@@ -89,6 +91,73 @@ function isOriginalLyricElement(el: HTMLElement): boolean {
   return true;
 }
 
+// ---- AI translation ----------------------------------------------------
+
+let txAbort: AbortController | undefined;
+let txDocKey = "";
+const txByText = new Map<string, string>();
+
+/** Forget the current song's translation state (call when AI settings change). */
+export function resetTranslation(): void {
+  txAbort?.abort();
+  txAbort = undefined;
+  txDocKey = "";
+  txByText.clear();
+}
+
+function hasProviderTranslationSibling(el: HTMLElement): boolean {
+  let sibling = el.nextElementSibling;
+  while (sibling) {
+    if (sibling.tagName === "P") {
+      const text = (sibling.textContent ?? "").trim();
+      if (hasHan(text) && !hasKana(text)) return true;
+    }
+    sibling = sibling.nextElementSibling;
+  }
+  return false;
+}
+
+function attachTranslationRows(originals: readonly { el: HTMLElement; text: string }[]): void {
+  if (txByText.size === 0) return;
+  for (const { el, text } of originals) {
+    const translated = txByText.get(text);
+    if (!translated) continue;
+    if (el.querySelector(".kashiyomi-tx")) continue;
+    // NCM's own translation (tlyric) outranks the AI lane; never double up.
+    if (hasProviderTranslationSibling(el)) continue;
+    const row = document.createElement("div");
+    row.className = `${ROW_CLASS} kashiyomi-tx`;
+    row.textContent = translated;
+    el.appendChild(row);
+  }
+}
+
+function maybeTranslate(originals: readonly { el: HTMLElement; text: string }[]): void {
+  attachTranslationRows(originals);
+  const settings = getSettings();
+  if (!settings.aiAutoTranslate || !translationConfigured()) return;
+  if (originals.length < 2) return;
+  const texts = originals.map((entry) => entry.text);
+  const docKey = texts.join("\n");
+  if (docKey === txDocKey) return; // already translated, in flight, or failed once
+  txDocKey = docKey;
+  txAbort?.abort();
+  const controller = new AbortController();
+  txAbort = controller;
+  void (async () => {
+    const translated = await translateSong(texts, {}, controller.signal);
+    if (!translated || controller.signal.aborted) return;
+    txByText.clear();
+    for (let i = 0; i < texts.length; i++) {
+      const source = texts[i]!;
+      const target = translated[i] ?? "";
+      if (shouldDisplayTranslation(source, target)) txByText.set(source, target);
+    }
+    log.info(`translation ready for ${txByText.size} lines`);
+    scheduleScan();
+  })();
+}
+
 type PendingLine = { el: HTMLElement; original: string };
 
 async function scan(): Promise<void> {
@@ -98,20 +167,33 @@ async function scan(): Promise<void> {
 
   const pending: PendingLine[] = [];
   const allTexts: string[] = [];
+  const originals: { el: HTMLElement; text: string }[] = [];
   for (const el of elements) {
     // NCM renders the translation (译) and its own romanization (音) as
     // additional p siblings after the original line; only the first p in a
-    // lyric entry is the lyric itself.
-    if (!isOriginalLyricElement(el)) continue;
+    // lyric entry is the lyric itself. Chinese translation siblings still get
+    // a lang tag so the Chinese font setting can reach them.
+    if (!isOriginalLyricElement(el)) {
+      const siblingText = (el.textContent ?? "").trim();
+      if (hasHan(siblingText) && !hasKana(siblingText)) el.setAttribute("lang", "zh");
+      continue;
+    }
     // Karaoke word-by-word lines carry per-word spans; not handled yet.
     if (el.querySelector("span:not(rt span)")) continue;
     const text = lineText(el);
     if (text === "" || text.length > MAX_LINE_CHARS) continue;
     allTexts.push(text);
+    originals.push({ el, text });
     if (el.getAttribute(MARK_ATTR) === text) continue;
     pending.push({ el, original: text });
   }
-  if (pending.length === 0) return;
+
+  if (pending.length === 0) {
+    // Steady state: every visible line is annotated. Attach (and, when
+    // enabled, request) AI translations now so they never race annotation.
+    maybeTranslate(originals);
+    return;
+  }
 
   const branch = resolveDocumentBranch(allTexts);
   log.debug(`scan: ${pending.length} new lines, document branch: ${branch ?? "none"}`);
@@ -121,6 +203,7 @@ async function scan(): Promise<void> {
   for (const line of pending) {
     const route = resolveLineRoute(line.original, branch);
     if (route === "japanese") {
+      line.el.setAttribute("lang", "ja");
       let display = settings.hanRepair ? repairJapaneseHan(line.original) : line.original;
       let hints: ReturnType<typeof projectReadingHints>["hints"] = [];
       if (settings.readingHints) {
@@ -130,6 +213,7 @@ async function scan(): Promise<void> {
       }
       japanese.push({ line, displayText: display, hints });
     } else if (route === "chinese" && hasHan(line.original)) {
+      line.el.setAttribute("lang", "zh");
       chinese.push(line);
     } else {
       line.el.setAttribute(MARK_ATTR, line.original);
@@ -138,19 +222,27 @@ async function scan(): Promise<void> {
 
   if (japanese.length > 0 && (settings.furigana || settings.romaji)) {
     annotateJapanese(japanese);
+  } else {
+    for (const { line } of japanese) line.el.setAttribute(MARK_ATTR, line.original);
   }
-  if (chinese.length > 0 && settings.pinyin && assetPaths) {
-    await ensurePinyinDict(assetPaths.pinyinDictPath);
-    for (const line of chinese) {
-      const reading = romanizeMandarin(line.original, {
-        tones: settings.pinyinTones,
-        joinWords: settings.pinyinJoinWords,
-      });
-      for (const row of line.el.querySelectorAll(`.${ROW_CLASS}`)) row.remove();
-      if (reading !== "") renderPinyinRow(line.el, reading);
-      line.el.setAttribute(MARK_ATTR, line.original);
+  if (chinese.length > 0) {
+    if (settings.pinyin && assetPaths) {
+      await ensurePinyinDict(assetPaths.pinyinDictPath);
+      for (const line of chinese) {
+        const reading = romanizeMandarin(line.original, {
+          tones: settings.pinyinTones,
+          joinWords: settings.pinyinJoinWords,
+        });
+        for (const row of line.el.querySelectorAll(`.${ROW_CLASS}`)) row.remove();
+        if (reading !== "") renderPinyinRow(line.el, reading);
+        line.el.setAttribute(MARK_ATTR, line.original);
+      }
+    } else {
+      for (const line of chinese) line.el.setAttribute(MARK_ATTR, line.original);
     }
   }
+  // Something was annotated this pass; the observer will fire again and the
+  // steady-state pass above will handle translations.
 }
 
 function annotateJapanese(

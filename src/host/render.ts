@@ -66,9 +66,13 @@ export function applyStyles(): void {
     document.head.appendChild(style);
   }
   const size = Math.min(100, Math.max(10, Math.round(settings.furiganaSize)));
-  const fontRule = settings.useJpFont && settings.jpFontStack.trim() !== ""
-    ? `ul.lyric li p[lang="ja"] { font-family: ${settings.jpFontStack} !important; }`
-    : "";
+  let fontRule = "";
+  if (settings.useJpFont && settings.jpFontStack.trim() !== "") {
+    fontRule += `ul.lyric li p[lang="ja"] { font-family: ${settings.jpFontStack} !important; }\n`;
+  }
+  if (settings.useZhFont && settings.zhFontStack.trim() !== "") {
+    fontRule += `ul.lyric li p[lang="zh"] { font-family: ${settings.zhFontStack} !important; }\n`;
+  }
   style.textContent = `
 .${ROW_CLASS} {
   font-size: 0.72em;

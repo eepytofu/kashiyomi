@@ -14,12 +14,28 @@ export type Settings = {
   /** Use a Japanese font stack on Japanese lyric lines (Han unification). */
   useJpFont: boolean;
   jpFontStack: string;
+  /**
+   * Use a Chinese font stack on Chinese text: Chinese lyrics, and Chinese
+   * translation lines under foreign lyrics.
+   */
+  useZhFont: boolean;
+  zhFontStack: string;
   /** Settings panel language; unset follows the page locale. */
   panelLang?: "en" | "zh";
+  aiAutoTranslate: boolean;
+  aiProvider: "openai" | "gemini";
+  aiBaseUrl: string;
+  aiApiKey: string;
+  aiModel: string;
+  aiTargetLang: string;
+  aiCustomPrompt: string;
 };
 
 export const DEFAULT_JP_FONT_STACK =
   "'Yu Gothic UI', 'Yu Gothic', 'Meiryo', 'Noto Sans JP', 'Source Han Sans JP', sans-serif";
+
+export const DEFAULT_ZH_FONT_STACK =
+  "'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC', 'Source Han Sans SC', sans-serif";
 
 const KEY = "kashiyomi:settings";
 
@@ -35,6 +51,15 @@ const DEFAULTS: Settings = {
   furiganaSize: 50,
   useJpFont: true,
   jpFontStack: DEFAULT_JP_FONT_STACK,
+  useZhFont: false,
+  zhFontStack: DEFAULT_ZH_FONT_STACK,
+  aiAutoTranslate: false,
+  aiProvider: "openai",
+  aiBaseUrl: "https://api.openai.com/v1",
+  aiApiKey: "",
+  aiModel: "",
+  aiTargetLang: "English",
+  aiCustomPrompt: "",
 };
 
 let current: Settings | undefined;
