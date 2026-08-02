@@ -109,10 +109,13 @@ fn ready_dictionary() -> Option<Arc<JapaneseDictionary>> {
 pub fn analyze_lines(lines: &[String]) -> Result<Vec<Vec<Token>>, AnalyzeError> {
     let dictionary = ready_dictionary().ok_or(AnalyzeError::NotReady)?;
     let tokenizer = StatelessTokenizer::new(dictionary.as_ref());
-    lines
+    // One pathological line (too long, tokenizer error) must not take the
+    // whole batch down; it just gets no tokens, and the frontend leaves that
+    // line unannotated.
+    Ok(lines
         .iter()
-        .map(|line| analyze_line(&tokenizer, line))
-        .collect()
+        .map(|line| analyze_line(&tokenizer, line).unwrap_or_default())
+        .collect())
 }
 
 fn analyze_line(

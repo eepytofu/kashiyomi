@@ -30,11 +30,20 @@ for (const [file, hint] of [
   }
 }
 
-await rm(target, { recursive: true, force: true });
+let dllSkipped = false;
+try {
+  await rm(target, { recursive: true, force: true });
+} catch {
+  // backend.dll stays locked while NCM is running; replace what we can.
+}
 await mkdir(target, { recursive: true });
 await cp(path.join(repo, "manifest.json"), path.join(target, "manifest.json"));
 await cp(bundle, path.join(target, "main.js"));
-await cp(dll, path.join(target, "backend.dll"));
+try {
+  await cp(dll, path.join(target, "backend.dll"));
+} catch {
+  dllSkipped = true;
+}
 await cp(path.join(repo, "assets", "sudachi"), path.join(target, "assets", "sudachi"), {
   recursive: true,
 });
@@ -45,4 +54,9 @@ const devPaths = {
 };
 await writeFile(path.join(target, "dev-paths.json"), JSON.stringify(devPaths, null, 2));
 console.log(`Installed to ${target}`);
-console.log("Restart NetEase Cloud Music completely (quit from the tray) so the native DLL loads.");
+if (dllSkipped) {
+  console.log("backend.dll is in use (NCM running) and was NOT replaced.");
+  console.log("Quit NCM completely, run dev-install again, then start NCM.");
+} else {
+  console.log("Restart NetEase Cloud Music completely (quit from the tray) so the native DLL loads.");
+}

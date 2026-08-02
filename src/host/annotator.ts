@@ -11,7 +11,7 @@ import { romanizeMandarin } from "../engine/pinyin.ts";
 import { hasHan } from "../engine/kana.ts";
 import { nativeAnalyze } from "./native.ts";
 import { ensurePinyinDict } from "./pinyinDict.ts";
-import { MARK_ATTR, renderJapaneseLine, renderPinyinRow } from "./render.ts";
+import { MARK_ATTR, ROW_CLASS, renderJapaneseLine, renderPinyinRow } from "./render.ts";
 import { getSettings } from "./settings.ts";
 import { log } from "./log.ts";
 import type { AssetPaths } from "./paths.ts";
@@ -64,9 +64,21 @@ function findLineElements(): HTMLElement[] {
   return [];
 }
 
+// Reads the line's text with our own markup (reading rows, rt readings)
+// stripped, so an annotated element compares equal to what we rendered and a
+// recycled element compares as fresh text.
 function lineText(el: HTMLElement): string {
-  return (el.textContent ?? "").trim();
+  if (!el.querySelector(`.${ROW_CLASS}, ruby.kashiyomi-ruby`)) {
+    return (el.textContent ?? "").trim();
+  }
+  const clone = el.cloneNode(true) as HTMLElement;
+  for (const node of clone.querySelectorAll(`.${ROW_CLASS}, rt`)) node.remove();
+  return (clone.textContent ?? "").trim();
 }
+
+// Sudachi rejects inputs over ~48KB; a lyric line should never be near that,
+// so anything huge is a sign of something else going wrong.
+const MAX_LINE_CHARS = 800;
 
 type PendingLine = { el: HTMLElement; original: string };
 
@@ -79,9 +91,9 @@ async function scan(): Promise<void> {
   const allTexts: string[] = [];
   for (const el of elements) {
     // Karaoke word-by-word lines carry per-word spans; not handled yet.
-    if (el.querySelector("span")) continue;
+    if (el.querySelector("span:not(rt span)")) continue;
     const text = lineText(el);
-    if (text === "") continue;
+    if (text === "" || text.length > MAX_LINE_CHARS) continue;
     allTexts.push(text);
     if (el.getAttribute(MARK_ATTR) === text) continue;
     pending.push({ el, original: text });
@@ -121,6 +133,7 @@ async function scan(): Promise<void> {
         tones: settings.pinyinTones,
         joinWords: settings.pinyinJoinWords,
       });
+      for (const row of line.el.querySelectorAll(`.${ROW_CLASS}`)) row.remove();
       if (reading !== "") renderPinyinRow(line.el, reading);
       line.el.setAttribute(MARK_ATTR, line.original);
     }
@@ -156,10 +169,13 @@ function annotateJapanese(
         furigana: settings.furigana,
         romaji: settings.romaji,
       });
+      // After rendering, lineText(el) recovers displayText, so that is the
+      // value that must be stored for the annotated-already comparison.
+      line.el.setAttribute(MARK_ATTR, displayText);
     } catch (err) {
       // Fail closed: tokens did not match the text; leave the line alone.
       log.debug("annotation failed for line, leaving as-is", displayText, err);
+      line.el.setAttribute(MARK_ATTR, line.original);
     }
-    line.el.setAttribute(MARK_ATTR, line.original);
   }
 }
