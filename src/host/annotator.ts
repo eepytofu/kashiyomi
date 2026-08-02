@@ -14,7 +14,7 @@ import { shouldDisplayTranslation } from "../engine/aiTranslation.ts";
 import { nativeAnalyze } from "./native.ts";
 import { translateSong, translationConfigured } from "./translator.ts";
 import { ensurePinyinDict } from "./pinyinDict.ts";
-import { MARK_ATTR, ROW_CLASS, renderJapaneseLine, renderPinyinRow } from "./render.ts";
+import { MARK_ATTR, ROW_CLASS, SRC_ATTR, renderJapaneseLine, renderPinyinRow } from "./render.ts";
 import { getSettings } from "./settings.ts";
 import { log } from "./log.ts";
 import type { AssetPaths } from "./paths.ts";
@@ -43,6 +43,7 @@ export function startAnnotator(paths: AssetPaths): void {
 export function rescan(): void {
   for (const el of document.querySelectorAll(`[${MARK_ATTR}]`)) {
     el.removeAttribute(MARK_ATTR);
+    el.removeAttribute(SRC_ATTR);
   }
   scheduleScan();
 }
@@ -70,13 +71,36 @@ function findLineElements(): HTMLElement[] {
 // Reads the line's text with our own markup (reading rows, rt readings)
 // stripped, so an annotated element compares equal to what we rendered and a
 // recycled element compares as fresh text.
-function lineText(el: HTMLElement): string {
+function renderedText(el: HTMLElement): string {
   if (!el.querySelector(`.${ROW_CLASS}, ruby.kashiyomi-ruby`)) {
     return (el.textContent ?? "").trim();
   }
   const clone = el.cloneNode(true) as HTMLElement;
   for (const node of clone.querySelectorAll(`.${ROW_CLASS}, rt`)) node.remove();
   return (clone.textContent ?? "").trim();
+}
+
+/**
+ * The lyric text as NCM provided it. For an element we already annotated,
+ * that is the remembered source rather than what is now on screen, because
+ * kanji repair may have rewritten the visible characters. Reading the
+ * repaired text back would let one misrouted line permanently change how the
+ * line is classified.
+ */
+function sourceText(el: HTMLElement): string {
+  const rendered = renderedText(el);
+  const remembered = el.getAttribute(SRC_ATTR);
+  if (remembered !== null && el.getAttribute(MARK_ATTR) === rendered) return remembered;
+  return rendered;
+}
+
+/**
+ * Record that a line has been handled: what is on screen now, and the source
+ * it came from.
+ */
+function markAnnotated(el: HTMLElement, source: string, rendered = source): void {
+  el.setAttribute(MARK_ATTR, rendered);
+  el.setAttribute(SRC_ATTR, source);
 }
 
 // Sudachi rejects inputs over ~48KB; a lyric line should never be near that,
@@ -216,7 +240,7 @@ async function scan(): Promise<void> {
     }
     // Karaoke word-by-word lines carry per-word spans; not handled yet.
     if (el.querySelector("span:not(rt span)")) continue;
-    const text = lineText(el);
+    const text = sourceText(el);
     if (text === "" || text.length > MAX_LINE_CHARS) continue;
     // Production credits (作詞: …, 编曲：…) are not lyrics. They are never
     // translated, and only annotated when the user asks for it.
@@ -226,10 +250,10 @@ async function scan(): Promise<void> {
       originals.push({ el, text });
     }
     if (credit && !settings.annotateCredits) {
-      el.setAttribute(MARK_ATTR, text);
+      markAnnotated(el, text);
       continue;
     }
-    if (el.getAttribute(MARK_ATTR) === text) continue;
+    if (el.getAttribute(SRC_ATTR) === text && el.hasAttribute(MARK_ATTR)) continue;
     pending.push({ el, original: text });
   }
 
@@ -264,7 +288,7 @@ async function scan(): Promise<void> {
       line.el.setAttribute("lang", "zh");
       chinese.push(line);
     } else {
-      line.el.setAttribute(MARK_ATTR, line.original);
+      markAnnotated(line.el, line.original);
     }
   }
 
@@ -285,7 +309,7 @@ async function scan(): Promise<void> {
   if (japanese.length > 0 && (settings.furigana || settings.romaji)) {
     annotateJapanese(japanese);
   } else {
-    for (const { line } of japanese) line.el.setAttribute(MARK_ATTR, line.original);
+    for (const { line } of japanese) markAnnotated(line.el, line.original);
   }
   if (chinese.length > 0) {
     if (settings.pinyin && assetPaths) {
@@ -297,10 +321,10 @@ async function scan(): Promise<void> {
         });
         for (const row of line.el.querySelectorAll(`.${ROW_CLASS}`)) row.remove();
         if (reading !== "") renderPinyinRow(line.el, reading);
-        line.el.setAttribute(MARK_ATTR, line.original);
+        markAnnotated(line.el, line.original);
       }
     } else {
-      for (const line of chinese) line.el.setAttribute(MARK_ATTR, line.original);
+      for (const line of chinese) markAnnotated(line.el, line.original);
     }
   }
   // Something was annotated this pass; the observer will fire again and the
@@ -337,7 +361,9 @@ function annotateJapanese(
   }
   if (result.kind === "unavailable") {
     log.warn("native analyzer unavailable", result.error ?? "");
-    for (const { line } of pendingAnalysis) line.el.setAttribute(MARK_ATTR, line.original);
+    for (const { line } of pendingAnalysis) {
+      markAnnotated(line.el, line.original);
+    }
     return;
   }
   log.debug(`analyzed ${pendingAnalysis.length} lines (${lines.length - pendingAnalysis.length} cached)`);
@@ -353,7 +379,7 @@ function annotateJapanese(
     } catch (err) {
       // Fail closed: tokens did not match the text; leave the line alone.
       log.debug("annotation failed for line, leaving as-is", displayText, err);
-      line.el.setAttribute(MARK_ATTR, line.original);
+      markAnnotated(line.el, line.original);
     }
   }
 }
@@ -368,7 +394,7 @@ function applyAnnotation(
     furigana: settings.furigana,
     romaji: settings.romaji,
   });
-  // After rendering, lineText(el) recovers displayText, so that is the value
-  // that must be stored for the annotated-already comparison.
-  line.el.setAttribute(MARK_ATTR, displayText);
+  // renderedText(el) now recovers displayText, so that is the marker; the
+  // untouched source is kept separately for routing on later scans.
+  markAnnotated(line.el, line.original, displayText);
 }

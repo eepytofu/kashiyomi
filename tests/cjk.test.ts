@@ -5,6 +5,7 @@ import {
   resolveDocumentContext,
   resolveLineRoute,
 } from "../src/engine/cjk.ts";
+import { repairJapaneseHan } from "../src/engine/hanRepair.ts";
 
 test("kana lines mark a document as japanese", () => {
   const branch = resolveDocumentBranch([
@@ -57,12 +58,23 @@ test("chinese lines inside a japanese song are not read as japanese", () => {
   // Han-only, so without a per-line signal they inherit the document branch.
   for (const line of [
     "但我愛的人都会一個一個死去",
-    "但我的生活還会一遍一遍継続",
+    "但我的生活還会一遍一遍繼續",
     "就求你不要孑然一身地老去",
     "我不想五味雜陳地",
   ]) {
     assert.equal(resolveLineRoute(line, "japanese"), "chinese", line);
   }
+});
+
+test("repaired output must never be routed as if it were the source", () => {
+  // Kanji repair rewrites Chinese forms into Japanese ones (繼續 to 継続).
+  // If that output were ever read back as a line's source, the line would
+  // then look Japanese and stay misrouted. Both forms must route the same.
+  const source = "但我的生活還会一遍一遍繼續";
+  const repaired = repairJapaneseHan(source);
+  assert.notEqual(repaired, source, "fixture should actually be rewritten");
+  assert.equal(resolveLineRoute(source, "japanese"), "chinese");
+  assert.equal(resolveLineRoute(repaired, "japanese"), "chinese");
 });
 
 test("kanji-only japanese lines still follow the japanese document", () => {
@@ -81,12 +93,12 @@ test("classical chinese lines in a bilingual song are not read as japanese", () 
     "探せばほんの少しは残っているんだろうか",
     "嗚呼",
     "世間無常所謂輪迴",
-    "離離虛無無所帰",
+    "離離虛無無所歸",
     "無可奈何花落去",
     "身外尽空虚",
   ]);
   assert.equal(doc.bilingual, true);
-  for (const line of ["世間無常所謂輪迴", "離離虛無無所帰", "無可奈何花落去", "身外尽空虚"]) {
+  for (const line of ["世間無常所謂輪迴", "離離虛無無所歸", "無可奈何花落去", "身外尽空虚"]) {
     assert.equal(resolveLineRoute(line, doc), "chinese", line);
   }
   assert.equal(resolveLineRoute("嗚呼", doc), "japanese");

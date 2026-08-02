@@ -5,6 +5,12 @@
 import type { JapaneseLineAnnotation } from "../engine/japanese.ts";
 
 export const MARK_ATTR = "data-kashiyomi";
+/**
+ * The untouched lyric text a line was annotated from. Kanji repair rewrites
+ * the visible text, so without remembering the source we would later read our
+ * own repaired output back out of the DOM and treat it as the original.
+ */
+export const SRC_ATTR = "data-kashiyomi-src";
 export const ROW_CLASS = "kashiyomi-row";
 
 export function renderJapaneseLine(
