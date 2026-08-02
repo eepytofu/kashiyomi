@@ -16,10 +16,6 @@ export function renderJapaneseLine(
   el.textContent = "";
   el.setAttribute("lang", "ja");
   let cursor = 0;
-  if (options.furigana && annotation.furigana.length > 0) {
-    // Marks the line so CSS reserves headroom for the overlay readings.
-    el.classList.add("kashiyomi-has-ruby");
-  }
   if (options.furigana) {
     for (const segment of annotation.furigana) {
       if (segment.start > cursor) {
@@ -92,8 +88,6 @@ export function applyStyles(): void {
     document.head.appendChild(style);
   }
   const size = Math.min(100, Math.max(10, Math.round(settings.furiganaSize)));
-  // Headroom above lines that carry readings; scales with the rt size.
-  const headroom = ((size / 100) * 1.25).toFixed(2);
   let fontRule = "";
   if (settings.useJpFont && settings.jpFontStack.trim() !== "") {
     fontRule += `ul.lyric li p[lang="ja"] { font-family: ${settings.jpFontStack} !important; }\n`;
@@ -108,24 +102,8 @@ export function applyStyles(): void {
   line-height: 1.35;
   margin-top: 2px;
 }
-/* Readings overlay the line instead of using native ruby layout, which
-   spreads base characters apart whenever the reading is wider than its
-   kanji (and CEF 91 has no ruby-align to control it). */
-.kashiyomi-has-ruby {
-  padding-top: ${headroom}em;
-}
-ruby.kashiyomi-ruby {
-  display: inline;
-  position: relative;
-}
 ruby.kashiyomi-ruby > rt {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  transform: translate(-50%, -100%);
   font-size: ${size}%;
-  line-height: 1.15;
-  white-space: nowrap;
   user-select: none;
 }
 ruby.kashiyomi-authored > rt {
