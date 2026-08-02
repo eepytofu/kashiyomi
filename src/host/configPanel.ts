@@ -3,10 +3,15 @@
 
 import { rescan } from "./annotator.ts";
 import { nativeState } from "./native.ts";
-import { getSettings, updateSettings, type Settings } from "./settings.ts";
+import { applyStyles } from "./render.ts";
+import { DEFAULT_JP_FONT_STACK, getSettings, updateSettings, type Settings } from "./settings.ts";
+
+type BooleanSettingKey = {
+  [K in keyof Settings]: Settings[K] extends boolean ? K : never;
+}[keyof Settings];
 
 type ToggleSpec = {
-  key: keyof Settings;
+  key: BooleanSettingKey;
   label: string;
   description?: string;
 };
@@ -153,13 +158,98 @@ export function buildConfigPanel(): HTMLElement {
     for (const spec of section.toggles) {
       card.appendChild(buildToggleRow(spec));
     }
+    if (section.title === "Japanese") {
+      card.appendChild(buildFuriganaSizeRow());
+      card.appendChild(buildToggleRow({
+        key: "useJpFont",
+        label: "Japanese font on Japanese lyrics",
+        description: "The same Han character can render with a Chinese glyph; force a Japanese font stack",
+      }, applyStyles));
+      card.appendChild(buildFontStackRow());
+    }
     root.appendChild(card);
   }
 
   return root;
 }
 
-function buildToggleRow(spec: ToggleSpec): HTMLElement {
+function buildFuriganaSizeRow(): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "kc-row";
+  const text = document.createElement("div");
+  const label = document.createElement("div");
+  label.className = "kc-label";
+  label.textContent = "Furigana size";
+  const desc = document.createElement("div");
+  desc.className = "kc-desc";
+  desc.textContent = "Reading size relative to the lyric text";
+  text.appendChild(label);
+  text.appendChild(desc);
+  row.appendChild(text);
+
+  const control = document.createElement("div");
+  control.style.cssText = "display:flex;align-items:center;gap:10px;flex:none;";
+  const value = document.createElement("span");
+  value.style.cssText = "font-size:12px;opacity:0.7;min-width:38px;text-align:right;";
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = "10";
+  slider.max = "100";
+  slider.step = "5";
+  slider.value = String(getSettings().furiganaSize);
+  value.textContent = `${slider.value}%`;
+  slider.oninput = () => {
+    value.textContent = `${slider.value}%`;
+    updateSettings({ furiganaSize: Number(slider.value) });
+    applyStyles();
+  };
+  control.appendChild(slider);
+  control.appendChild(value);
+  row.appendChild(control);
+  return row;
+}
+
+function buildFontStackRow(): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "kc-row";
+  row.style.flexWrap = "wrap";
+  const text = document.createElement("div");
+  const label = document.createElement("div");
+  label.className = "kc-label";
+  label.textContent = "Japanese font stack";
+  const desc = document.createElement("div");
+  desc.className = "kc-desc";
+  desc.textContent = "Installed fonts, first choice to fallback";
+  text.appendChild(label);
+  text.appendChild(desc);
+  row.appendChild(text);
+
+  const control = document.createElement("div");
+  control.style.cssText = "display:flex;align-items:center;gap:8px;flex:1 1 100%;";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = getSettings().jpFontStack;
+  input.style.cssText =
+    "flex:1;padding:6px 10px;border:none;border-radius:6px;background:rgba(255,255,255,0.1);color:inherit;font-size:12.5px;";
+  input.onchange = () => {
+    updateSettings({ jpFontStack: input.value });
+    applyStyles();
+  };
+  const reset = document.createElement("button");
+  reset.className = "kc-button";
+  reset.textContent = "Reset";
+  reset.onclick = () => {
+    input.value = DEFAULT_JP_FONT_STACK;
+    updateSettings({ jpFontStack: DEFAULT_JP_FONT_STACK });
+    applyStyles();
+  };
+  control.appendChild(input);
+  control.appendChild(reset);
+  row.appendChild(control);
+  return row;
+}
+
+function buildToggleRow(spec: ToggleSpec, onChange?: () => void): HTMLElement {
   const row = document.createElement("label");
   row.className = "kc-row";
 
@@ -183,7 +273,8 @@ function buildToggleRow(spec: ToggleSpec): HTMLElement {
   box.checked = getSettings()[spec.key];
   box.onchange = () => {
     updateSettings({ [spec.key]: box.checked });
-    rescan();
+    if (onChange) onChange();
+    else rescan();
   };
   const track = document.createElement("span");
   track.className = "kc-track";

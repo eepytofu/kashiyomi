@@ -5,12 +5,12 @@ import { rescan, startAnnotator } from "./host/annotator.ts";
 import { log } from "./host/log.ts";
 import { nativeInit, nativeState } from "./host/native.ts";
 import { resolveAssetPaths } from "./host/paths.ts";
-import { injectStyles } from "./host/render.ts";
+import { applyStyles } from "./host/render.ts";
 import { getSettings } from "./host/settings.ts";
 import { buildConfigPanel } from "./host/configPanel.ts";
 
 async function start(): Promise<void> {
-  injectStyles();
+  applyStyles();
   const paths = await resolveAssetPaths();
   if (!paths) {
     log.warn("asset paths unresolved; Japanese analysis disabled");

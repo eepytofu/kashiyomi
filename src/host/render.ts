@@ -51,10 +51,24 @@ function readingRow(text: string): HTMLElement {
   return row;
 }
 
-export function injectStyles(): void {
-  if (document.getElementById("kashiyomi-style")) return;
-  const style = document.createElement("style");
-  style.id = "kashiyomi-style";
+import { getSettings } from "./settings.ts";
+
+/**
+ * (Re)build the injected stylesheet from current settings. Cheap; call after
+ * any settings change instead of tracking which ones affect styling.
+ */
+export function applyStyles(): void {
+  const settings = getSettings();
+  let style = document.getElementById("kashiyomi-style") as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement("style");
+    style.id = "kashiyomi-style";
+    document.head.appendChild(style);
+  }
+  const size = Math.min(100, Math.max(10, Math.round(settings.furiganaSize)));
+  const fontRule = settings.useJpFont && settings.jpFontStack.trim() !== ""
+    ? `ul.lyric li p[lang="ja"] { font-family: ${settings.jpFontStack} !important; }`
+    : "";
   style.textContent = `
 .${ROW_CLASS} {
   font-size: 0.72em;
@@ -63,13 +77,13 @@ export function injectStyles(): void {
   margin-top: 2px;
 }
 ruby.kashiyomi-ruby > rt {
-  font-size: 0.5em;
+  font-size: ${size}%;
   opacity: 0.85;
   user-select: none;
 }
 ruby.kashiyomi-authored > rt {
   color: rgb(255, 207, 128);
 }
+${fontRule}
 `;
-  document.head.appendChild(style);
 }

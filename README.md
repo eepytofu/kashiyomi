@@ -1,5 +1,7 @@
 # Kashiyomi（歌詞読み）
 
+English | [简体中文](README.zh-CN.md)
+
 A [BetterNCM](https://github.com/std-microblock/BetterNCM) plugin for NetEase Cloud Music that adds readings on top of the normal lyrics page. It annotates the lyrics NCM already shows instead of replacing them with its own player.
 
 ## What it does

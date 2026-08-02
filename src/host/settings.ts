@@ -9,7 +9,15 @@ export type Settings = {
   hanRepair: boolean;
   readingHints: boolean;
   debug: boolean;
+  /** rt size as a percentage of the base lyric font. */
+  furiganaSize: number;
+  /** Use a Japanese font stack on Japanese lyric lines (Han unification). */
+  useJpFont: boolean;
+  jpFontStack: string;
 };
+
+export const DEFAULT_JP_FONT_STACK =
+  "'Yu Gothic UI', 'Yu Gothic', 'Meiryo', 'Noto Sans JP', 'Source Han Sans JP', sans-serif";
 
 const KEY = "kashiyomi:settings";
 
@@ -22,6 +30,9 @@ const DEFAULTS: Settings = {
   hanRepair: true,
   readingHints: true,
   debug: true,
+  furiganaSize: 50,
+  useJpFont: true,
+  jpFontStack: DEFAULT_JP_FONT_STACK,
 };
 
 let current: Settings | undefined;
