@@ -21,6 +21,7 @@ import { ensurePinyinDict } from "./pinyinDict.ts";
 import { MARK_ATTR, ROW_CLASS, SRC_ATTR, renderJapaneseLine, renderPinyinRow } from "./render.ts";
 import { getSettings } from "./settings.ts";
 import { log } from "./log.ts";
+import { diagnoseLayout } from "./diagnose.ts";
 import type { AssetPaths } from "./paths.ts";
 
 // NCM 3.x native lyric lines. Kept deliberately short; findLineElements logs
@@ -149,6 +150,10 @@ function rememberAnnotation(text: string, annotation: JapaneseLineAnnotation): v
     analysisCache.delete(oldest.value);
   }
 }
+
+// Layout is dumped once per session, after the first line that actually
+// carries ruby, so the log shows how NCM lays annotated lines out.
+let layoutDiagnosed = false;
 
 /** Drop cached analysis (settings that change readings invalidate it). */
 export function resetAnalysisCache(): void {
@@ -329,7 +334,7 @@ async function scan(): Promise<void> {
       log.debug(`han-only lines routed japanese: ${JSON.stringify(hanOnlyJapanese)}`);
     }
     if (chinese.length > 0) {
-      log.debug(`lines routed chinese: ${chinese.length}`);
+      log.debug(`lines routed chinese: ${JSON.stringify(chinese.map((l) => l.original))}`);
     }
   }
 
