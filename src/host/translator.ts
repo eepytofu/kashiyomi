@@ -11,55 +11,26 @@ import {
 import { log } from "./log.ts";
 import { getSettings } from "./settings.ts";
 
-const CACHE_KEY = "kashiyomi:txcache";
-const CACHE_CAP = 80;
-const CACHE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+import {
+  cacheClear,
+  cacheCount,
+  cacheGet,
+  cachePut,
+  type CacheStorage,
+} from "../engine/translationCache.ts";
 
-type CacheEnvelope = {
-  v: 1;
-  entries: Record<string, { at: number; lines: string[] }>;
+const storage: CacheStorage = {
+  getItem: (key) => localStorage.getItem(key),
+  setItem: (key, value) => localStorage.setItem(key, value),
+  removeItem: (key) => localStorage.removeItem(key),
 };
 
-function readCache(): CacheEnvelope {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as CacheEnvelope;
-      if (parsed.v === 1 && parsed.entries) return parsed;
-    }
-  } catch {
-    // fall through to a fresh cache
-  }
-  return { v: 1, entries: {} };
+export function cachedTranslationCount(): number {
+  return cacheCount(storage);
 }
 
-function writeCache(cache: CacheEnvelope): void {
-  const cutoff = Date.now() - CACHE_TTL_MS;
-  for (const [key, entry] of Object.entries(cache.entries)) {
-    if (entry.at < cutoff) delete cache.entries[key];
-  }
-  const keys = Object.keys(cache.entries);
-  if (keys.length > CACHE_CAP) {
-    // Evict least recently used first.
-    keys
-      .sort((a, b) => cache.entries[a]!.at - cache.entries[b]!.at)
-      .slice(0, keys.length - CACHE_CAP)
-      .forEach((key) => delete cache.entries[key]);
-  }
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-  } catch {
-    // Storage full: drop the oldest half and try once more before giving up.
-    const remaining = Object.keys(cache.entries).sort(
-      (a, b) => cache.entries[a]!.at - cache.entries[b]!.at,
-    );
-    remaining.slice(0, Math.ceil(remaining.length / 2)).forEach((key) => delete cache.entries[key]);
-    try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-    } catch {
-      // cache is best-effort
-    }
-  }
+export function clearTranslationCache(): void {
+  cacheClear(storage);
 }
 
 export function translationConfigured(): boolean {
@@ -80,11 +51,10 @@ export async function translateSong(
   if (!translationConfigured() || lines.length === 0) return undefined;
 
   const key = translationCacheKey(lines, s.aiProvider, s.aiModel, s.aiTargetLang, s.aiCustomPrompt);
-  const cache = readCache();
-  const hit = cache.entries[key];
-  if (hit && hit.lines.length === lines.length) {
+  const hit = cacheGet(storage, key, lines.length);
+  if (hit) {
     log.debug("translation cache hit");
-    return hit.lines;
+    return hit;
   }
 
   const prompt = buildTranslationPrompt(lines, s.aiTargetLang, meta, s.aiCustomPrompt);
@@ -104,8 +74,7 @@ export async function translateSong(
     log.warn(`translation response violated the ${lines.length}-line contract`);
     return undefined;
   }
-  cache.entries[key] = { at: Date.now(), lines: parsed };
-  writeCache(cache);
+  cachePut(storage, key, parsed);
   return parsed;
 }
 

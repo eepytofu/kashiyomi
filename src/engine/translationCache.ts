@@ -1,0 +1,116 @@
+// Translation cache policy: TTL, LRU eviction, and recovery when storage is
+// full. Storage is injected so this is testable without a browser. Pure logic;
+// no host imports.
+
+export type CacheStorage = {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+};
+
+/**
+ * `at` is when the translation was produced and drives expiry; `used` is the
+ * last read and drives eviction order. Keeping them apart means reading a
+ * cached song does not extend its freshness indefinitely.
+ */
+export type CacheEntry = { at: number; used?: number; lines: string[] };
+type Envelope = { v: 1; entries: Record<string, CacheEntry> };
+
+function lastUsed(entry: CacheEntry): number {
+  return entry.used ?? entry.at;
+}
+
+export const CACHE_KEY = "kashiyomi:txcache";
+export const CACHE_CAP = 80;
+export const CACHE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
+function emptyEnvelope(): Envelope {
+  return { v: 1, entries: {} };
+}
+
+export function readEnvelope(storage: CacheStorage): Envelope {
+  try {
+    const raw = storage.getItem(CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Envelope;
+      if (parsed.v === 1 && parsed.entries && typeof parsed.entries === "object") return parsed;
+    }
+  } catch {
+    // Corrupt cache: start over rather than fail the translation.
+  }
+  return emptyEnvelope();
+}
+
+function persist(storage: CacheStorage, envelope: Envelope): void {
+  try {
+    storage.setItem(CACHE_KEY, JSON.stringify(envelope));
+  } catch {
+    // Storage full: drop the oldest half and try once more.
+    const byAge = Object.keys(envelope.entries).sort(
+      (a, b) => lastUsed(envelope.entries[a]!) - lastUsed(envelope.entries[b]!),
+    );
+    for (const key of byAge.slice(0, Math.ceil(byAge.length / 2))) {
+      delete envelope.entries[key];
+    }
+    try {
+      storage.setItem(CACHE_KEY, JSON.stringify(envelope));
+    } catch {
+      // Caching is best-effort; translation still works without it.
+    }
+  }
+}
+
+/** Look up cached lines, refreshing recency on a hit. */
+export function cacheGet(
+  storage: CacheStorage,
+  key: string,
+  expectedLines: number,
+  now = Date.now(),
+): string[] | undefined {
+  const envelope = readEnvelope(storage);
+  const entry = envelope.entries[key];
+  if (!entry) return undefined;
+  if (now - entry.at > CACHE_TTL_MS) {
+    delete envelope.entries[key];
+    persist(storage, envelope);
+    return undefined;
+  }
+  if (entry.lines.length !== expectedLines) return undefined;
+  entry.used = now;
+  persist(storage, envelope);
+  return entry.lines;
+}
+
+/** Store lines, then prune expired entries and enforce the cap. */
+export function cachePut(
+  storage: CacheStorage,
+  key: string,
+  lines: string[],
+  now = Date.now(),
+): void {
+  const envelope = readEnvelope(storage);
+  envelope.entries[key] = { at: now, used: now, lines };
+  for (const [entryKey, entry] of Object.entries(envelope.entries)) {
+    if (now - entry.at > CACHE_TTL_MS) delete envelope.entries[entryKey];
+  }
+  const keys = Object.keys(envelope.entries);
+  if (keys.length > CACHE_CAP) {
+    keys
+      .sort((a, b) => lastUsed(envelope.entries[a]!) - lastUsed(envelope.entries[b]!))
+      .slice(0, keys.length - CACHE_CAP)
+      .forEach((entryKey) => delete envelope.entries[entryKey]);
+  }
+  persist(storage, envelope);
+}
+
+export function cacheCount(storage: CacheStorage): number {
+  return Object.keys(readEnvelope(storage).entries).length;
+}
+
+export function cacheClear(storage: CacheStorage): void {
+  try {
+    storage.removeItem(CACHE_KEY);
+  } catch {
+    // nothing to do
+  }
+}

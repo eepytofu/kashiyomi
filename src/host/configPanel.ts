@@ -3,8 +3,9 @@
 // line renderer) and an about card on the right.
 
 import { rescan, resetTranslation } from "./annotator.ts";
-import { panelLang, setPanelLang, t, type PanelLang, type StringKey } from "./i18n.ts";
+import { panelLang, setPanelLang, t, tSongsCached, type PanelLang, type StringKey } from "./i18n.ts";
 import { nativeState } from "./native.ts";
+import { cachedTranslationCount, clearTranslationCache } from "./translator.ts";
 import { applyStyles, renderJapaneseLine, renderPinyinRow } from "./render.ts";
 import {
   DEFAULT_JP_FONT_STACK,
@@ -148,6 +149,7 @@ function render(root: HTMLElement): void {
   );
   ai.appendChild(targetLangRow());
   ai.appendChild(textRow("aiCustomPrompt", "aiCustomPrompt", "aiCustomPromptDesc", {}));
+  ai.appendChild(clearCacheRow());
   left.appendChild(ai);
 
   left.appendChild(sectionTitle(t("sectionAdvanced")));
@@ -237,12 +239,13 @@ function buildPreviewCard(column: HTMLElement): () => void {
     jpLine.className = "kc-preview-line";
     renderJapaneseLine(
       jpLine,
+      // 夢=0 見=1 て=2 る=3 ␣=4 何=5 も=6 見=7 て=8 な=9 い=10
       "夢見てる 何も見てない",
       {
         furigana: [
           { start: 0, end: 2, reading: "ゆめみ", origin: "inferred" },
-          { start: 6, end: 7, reading: "なに", origin: "inferred" },
-          { start: 8, end: 9, reading: "み", origin: "inferred" },
+          { start: 5, end: 6, reading: "なに", origin: "inferred" },
+          { start: 7, end: 8, reading: "み", origin: "inferred" },
         ],
         romaji: "yume miteru nani mo mitenai",
         romajiSegments: [{ text: "yume miteru nani mo mitenai", origin: "inferred" }],
@@ -572,6 +575,34 @@ function targetLangRow(): HTMLElement {
 
   row.appendChild(wrap);
   row.appendChild(input);
+  return row;
+}
+
+function clearCacheRow(): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "kc-row";
+  const count = cachedTranslationCount();
+  const text = rowText(
+    t("aiClearCache"),
+    `${t("aiClearCacheDesc")} (${tSongsCached(count)})`,
+  );
+  row.appendChild(text);
+
+  const button = document.createElement("button");
+  button.className = "kc-button";
+  button.textContent = t("clear");
+  button.disabled = count === 0;
+  button.style.opacity = count === 0 ? "0.5" : "";
+  button.onclick = () => {
+    clearTranslationCache();
+    resetTranslation();
+    button.textContent = t("cleared");
+    button.disabled = true;
+    button.style.opacity = "0.5";
+    const desc = text.querySelector(".kc-desc");
+    if (desc) desc.textContent = `${t("aiClearCacheDesc")} (${tSongsCached(0)})`;
+  };
+  row.appendChild(button);
   return row;
 }
 

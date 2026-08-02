@@ -61,6 +61,11 @@ const STRINGS = {
     aiCustomPrompt: "Extra instructions",
     aiCustomPromptDesc: "Layered on top of the built-in prompt; wins on style, never on the output format",
     customOption: "Custom…",
+    aiClearCache: "Cached translations",
+    aiClearCacheDesc: "Translated songs are reused instead of requested again",
+    clear: "Clear",
+    cleared: "Cleared",
+    songsCached: (n: number) => (n === 1 ? "1 song stored" : `${n} songs stored`),
   },
   zh: {
     analyzerReady: "分析器就绪",
@@ -117,10 +122,18 @@ const STRINGS = {
     aiCustomPrompt: "额外指示",
     aiCustomPromptDesc: "叠加在内置提示词之上，风格上优先，但不改变输出格式",
     customOption: "自定义…",
+    aiClearCache: "翻译缓存",
+    aiClearCacheDesc: "已翻译过的歌曲会直接复用，不再重新请求",
+    clear: "清除",
+    cleared: "已清除",
+    songsCached: (n: number) => `已缓存 ${n} 首`,
   },
 } as const;
 
-export type StringKey = keyof (typeof STRINGS)["en"];
+type AllKeys = keyof (typeof STRINGS)["en"];
+export type StringKey = {
+  [K in AllKeys]: (typeof STRINGS)["en"][K] extends string ? K : never;
+}[AllKeys];
 
 export function panelLang(): PanelLang {
   const stored = getSettings().panelLang;
@@ -134,4 +147,8 @@ export function setPanelLang(lang: PanelLang): void {
 
 export function t(key: StringKey): string {
   return STRINGS[panelLang()][key];
+}
+
+export function tSongsCached(count: number): string {
+  return STRINGS[panelLang()].songsCached(count);
 }
