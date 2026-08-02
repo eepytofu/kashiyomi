@@ -4,9 +4,9 @@
 
 一个在网易云音乐原生歌词页上添加注音的 [BetterNCM](https://github.com/std-microblock/BetterNCM) 插件。它直接在网易云已经显示的歌词上做标注，不会替换成自己的播放页面。
 
-![带振假名和罗马音的日语歌词](previews/lyrics-japanese.webp)
+![刹那芳华](previews/刹那芳华.avif)
 
-![日语和中文混排的歌曲，每一行分别使用对应的注音](previews/lyrics-mixed-cjk.webp)
+![一梦红尘](previews/一梦红尘.avif)
 
 ## 功能
 

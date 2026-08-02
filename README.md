@@ -4,9 +4,9 @@ English | [简体中文](README.zh-CN.md)
 
 A [BetterNCM](https://github.com/std-microblock/BetterNCM) plugin for NetEase Cloud Music that adds readings on top of the normal lyrics page. It annotates the lyrics NCM already shows instead of replacing them with its own player.
 
-![Japanese lyrics with furigana and romaji](previews/lyrics-japanese.webp)
+![刹那芳华](previews/刹那芳华.avif)
 
-![A song that mixes Japanese and Chinese lines, each routed to its own readings](previews/lyrics-mixed-cjk.webp)
+![一梦红尘](previews/一梦红尘.avif)
 
 ## What it does
 
