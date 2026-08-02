@@ -4,6 +4,7 @@
 // bilingual songs mix both, so a Han-only line that looks Chinese wins over
 // the document branch. Pure; no host imports.
 
+import { hasChineseOnlyGlyphs, hasJapaneseOnlyGlyphs } from "./hanForms.ts";
 import { HAN_CHAR, hasHan, hasKana } from "./kana.ts";
 
 export type CjkDocumentBranch = "japanese" | "chinese" | undefined;
@@ -77,6 +78,16 @@ function hasChineseVocabulary(rawLine: string): boolean {
 }
 
 /**
+ * Positive evidence that a kana-free line is Chinese. Glyph forms are checked
+ * alongside vocabulary because literary lines carry no function words, and
+ * vocabulary is checked at all because a bilingual song's Chinese lines are
+ * sometimes typed with Japanese glyph forms (継続 for 继续).
+ */
+function looksChinese(line: string): boolean {
+  return hasChineseVocabulary(line) || hasChineseOnlyGlyphs(line);
+}
+
+/**
  * Classify the whole lyric document. A couple of kana lines mark the song as
  * Japanese; a clear majority of Han-only lines marks it as Chinese. A small
  * Japanese island must not flip an otherwise Chinese document, so Chinese
@@ -95,7 +106,14 @@ export function resolveDocumentContext(lines: readonly string[]): CjkDocumentCon
       kanaLines += 1;
     } else if (hasHan(line)) {
       hanOnlyLines += 1;
-      if (hasChineseVocabulary(line) || hanCount(line) >= HAN_RUN_CHINESE_LENGTH) {
+      const normalized = normalizeForDetection(line);
+      // A line showing Japanese orthography is evidence of a Japanese song,
+      // not of a second language, so it must not make the song look
+      // bilingual unless it also carries positive Chinese evidence.
+      if (
+        looksChinese(normalized) ||
+        (!hasJapaneseOnlyGlyphs(normalized) && hanCount(normalized) >= HAN_RUN_CHINESE_LENGTH)
+      ) {
         longHanOnlyLines += 1;
       }
     }
@@ -113,10 +131,17 @@ export function resolveDocumentContext(lines: readonly string[]): CjkDocumentCon
 }
 
 /**
- * Route one line given the document context. Kana in the line forces
- * Japanese. A Han-only line is Chinese when it carries Chinese vocabulary, or
- * when the song is bilingual and the line is a long kana-free Han run;
- * otherwise it follows the document branch.
+ * Route one line, strongest evidence first:
+ *
+ * 1. kana present, so Japanese;
+ * 2. positive Chinese evidence (vocabulary or Chinese-only glyph forms);
+ * 3. Japanese-only glyph forms or the iteration mark;
+ * 4. in a bilingual song, a long kana-free Han run;
+ * 5. otherwise the document branch.
+ *
+ * Chinese evidence outranks Japanese glyph forms because a Chinese sentence
+ * typed with Japanese forms is still Chinese, while 的 as a particle is not
+ * Japanese at all.
  */
 export function resolveLineRoute(
   rawLine: string,
@@ -129,7 +154,8 @@ export function resolveLineRoute(
   const han = hasHan(line);
   if (!kana && !han) return undefined;
   if (kana) return "japanese";
-  if (hasChineseVocabulary(line)) return "chinese";
+  if (looksChinese(line)) return "chinese";
+  if (hasJapaneseOnlyGlyphs(line)) return "japanese";
   if (context.bilingual && hanCount(line) >= HAN_RUN_CHINESE_LENGTH) return "chinese";
   return context.branch ?? "chinese";
 }

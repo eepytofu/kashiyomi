@@ -92,6 +92,30 @@ test("classical chinese lines in a bilingual song are not read as japanese", () 
   assert.equal(resolveLineRoute("嗚呼", doc), "japanese");
 });
 
+test("a japanese song built on four-character compounds stays japanese", () => {
+  // 千本桜 is full of kana-free 熟語 lines. Japanese-only character forms
+  // (戦 not 战/戰, 浄 not 净/淨) and the iteration mark 々 identify them.
+  const doc = resolveDocumentContext([
+    "大胆不敵にハイカラ革命",
+    "磊々落々 反戦国家",
+    "日の丸印の二輪車転がし",
+    "悪霊退散 ICBM",
+    "六根清浄 大革命",
+    "環状線を走り抜けて",
+    "三千世界 常世之闇",
+  ]);
+  assert.equal(doc.bilingual, false, "japanese compounds are not a second language");
+  for (const line of ["磊々落々 反戦国家", "六根清浄 大革命", "三千世界 常世之闇"]) {
+    assert.equal(resolveLineRoute(line, doc), "japanese", line);
+  }
+});
+
+test("japanese orthography outranks the bilingual length rule", () => {
+  const bilingual = { branch: "japanese", bilingual: true } as const;
+  assert.equal(resolveLineRoute("磊々落々反戦国家", bilingual), "japanese");
+  assert.equal(resolveLineRoute("六根清浄大革命", bilingual), "japanese");
+});
+
 test("a set phrase in an all-japanese song stays japanese", () => {
   const doc = resolveDocumentContext([
     "僕らの居場所はどこなんだ",

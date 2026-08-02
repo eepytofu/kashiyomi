@@ -5,14 +5,7 @@
 // be identity on already-correct Japanese text. Display-only: callers keep
 // the original line for matching and caching. Pure; no host imports.
 
-import * as OpenCC from "opencc-js";
-
-let converter: ((text: string) => string) | undefined;
-
-function cnToJp(text: string): string {
-  converter ??= OpenCC.Converter({ from: "cn", to: "jp" });
-  return converter(text);
-}
+import { toJapaneseGlyphs } from "./hanForms.ts";
 
 /**
  * Repair Han glyphs in a Japanese-routed line. Only call for lines routed as
@@ -20,7 +13,7 @@ function cnToJp(text: string): string {
  */
 export function repairJapaneseHan(line: string): string {
   if (line === "") return line;
-  let repaired = cnToJp(line);
+  let repaired = toJapaneseGlyphs(line);
   if (repaired === line) return line;
   if (repaired.length !== line.length) {
     // Every intended mapping is 1:1 in UTF-16 length; a length change means
