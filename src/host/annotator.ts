@@ -9,6 +9,7 @@ import { projectReadingHints } from "../engine/hints.ts";
 import { annotateJapaneseLine } from "../engine/japanese.ts";
 import { romanizeMandarin } from "../engine/pinyin.ts";
 import { hasHan, hasKana } from "../engine/kana.ts";
+import { isCreditLine } from "../engine/metadata.ts";
 import { shouldDisplayTranslation } from "../engine/aiTranslation.ts";
 import { nativeAnalyze } from "./native.ts";
 import { translateSong, translationConfigured } from "./translator.ts";
@@ -182,8 +183,17 @@ async function scan(): Promise<void> {
     if (el.querySelector("span:not(rt span)")) continue;
     const text = lineText(el);
     if (text === "" || text.length > MAX_LINE_CHARS) continue;
-    allTexts.push(text);
-    originals.push({ el, text });
+    // Production credits (作詞: …, 编曲：…) are not lyrics. They are never
+    // translated, and only annotated when the user asks for it.
+    const credit = isCreditLine(text);
+    if (!credit) {
+      allTexts.push(text);
+      originals.push({ el, text });
+    }
+    if (credit && !settings.annotateCredits) {
+      el.setAttribute(MARK_ATTR, text);
+      continue;
+    }
     if (el.getAttribute(MARK_ATTR) === text) continue;
     pending.push({ el, original: text });
   }

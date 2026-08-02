@@ -8,6 +8,8 @@ export type Settings = {
   pinyinJoinWords: boolean;
   hanRepair: boolean;
   readingHints: boolean;
+  /** Annotate production credit lines (作詞: …) as if they were lyrics. */
+  annotateCredits: boolean;
   debug: boolean;
   /** rt size as a percentage of the base lyric font. */
   furiganaSize: number;
@@ -47,6 +49,7 @@ const DEFAULTS: Settings = {
   pinyinJoinWords: true,
   hanRepair: true,
   readingHints: true,
+  annotateCredits: false,
   debug: true,
   furiganaSize: 50,
   useJpFont: true,

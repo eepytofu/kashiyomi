@@ -154,6 +154,7 @@ function render(root: HTMLElement): void {
 
   left.appendChild(sectionTitle(t("sectionAdvanced")));
   const adv = card();
+  adv.appendChild(toggleRow("annotateCredits", t("credits"), t("creditsDesc")));
   adv.appendChild(toggleRow("debug", t("debug"), t("debugDesc"), () => {}));
   left.appendChild(adv);
 
