@@ -1,0 +1,205 @@
+[
+  {
+    "id": "bilingual-forced-true",
+    "file": "src/engine/cjk.ts",
+    "what": "bilingual always true",
+    "find": "    distinctKanaLines >= 2 && chineseEvidenceLines >= 1 && longHanOnlyLines >= 2;",
+    "replace": "    true || (distinctKanaLines + chineseEvidenceLines + longHanOnlyLines >= 0);"
+  },
+  {
+    "id": "bilingual-forced-false",
+    "file": "src/engine/cjk.ts",
+    "what": "bilingual always false",
+    "find": "    distinctKanaLines >= 2 && chineseEvidenceLines >= 1 && longHanOnlyLines >= 2;",
+    "replace": "    false && (distinctKanaLines + chineseEvidenceLines + longHanOnlyLines >= 0);"
+  },
+  {
+    "id": "bilingual-drop-evidence-req",
+    "file": "src/engine/cjk.ts",
+    "what": "drop the chineseEvidenceLines >= 1 requirement",
+    "find": "    distinctKanaLines >= 2 && chineseEvidenceLines >= 1 && longHanOnlyLines >= 2;",
+    "replace": "    distinctKanaLines >= 2 && chineseEvidenceLines >= 0 && longHanOnlyLines >= 2;"
+  },
+  {
+    "id": "bilingual-drop-kana-req",
+    "file": "src/engine/cjk.ts",
+    "what": "distinctKanaLines >= 2 becomes >= 1",
+    "find": "    distinctKanaLines >= 2 && chineseEvidenceLines >= 1 && longHanOnlyLines >= 2;",
+    "replace": "    distinctKanaLines >= 1 && chineseEvidenceLines >= 1 && longHanOnlyLines >= 2;"
+  },
+  {
+    "id": "bilingual-drop-hanrun-req",
+    "file": "src/engine/cjk.ts",
+    "what": "longHanOnlyLines >= 2 becomes >= 1",
+    "find": "    distinctKanaLines >= 2 && chineseEvidenceLines >= 1 && longHanOnlyLines >= 2;",
+    "replace": "    distinctKanaLines >= 2 && chineseEvidenceLines >= 1 && longHanOnlyLines >= 1;"
+  },
+  {
+    "id": "dedupe-removed",
+    "file": "src/engine/cjk.ts",
+    "what": "evidence counted per occurrence again (the 千本桜 bug)",
+    "find": "  for (const line of new Set(lines)) {",
+    "replace": "  for (const line of lines) {"
+  },
+  {
+    "id": "jp-glyph-guard-removed-doc",
+    "file": "src/engine/cjk.ts",
+    "what": "japanese orthography no longer disqualifies a line as second-language evidence",
+    "find": "      (!hasJapaneseOnlyGlyphs(normalized) && hanCount(normalized) >= HAN_RUN_CHINESE_LENGTH)",
+    "replace": "      (hanCount(normalized) >= HAN_RUN_CHINESE_LENGTH)"
+  },
+  {
+    "id": "looksChinese-false",
+    "file": "src/engine/cjk.ts",
+    "what": "no positive Chinese evidence ever",
+    "find": "  return hasChineseVocabulary(line) || hasChineseOnlyGlyphs(line);",
+    "replace": "  return false && (hasChineseVocabulary(line) || hasChineseOnlyGlyphs(line));"
+  },
+  {
+    "id": "looksChinese-drop-vocab",
+    "file": "src/engine/cjk.ts",
+    "what": "glyph forms only, no vocabulary signal",
+    "find": "  return hasChineseVocabulary(line) || hasChineseOnlyGlyphs(line);",
+    "replace": "  return hasChineseOnlyGlyphs(line);"
+  },
+  {
+    "id": "looksChinese-drop-glyphs",
+    "file": "src/engine/cjk.ts",
+    "what": "vocabulary only, no Chinese-only glyph forms",
+    "find": "  return hasChineseVocabulary(line) || hasChineseOnlyGlyphs(line);",
+    "replace": "  return hasChineseVocabulary(line);"
+  },
+  {
+    "id": "markers-emptied",
+    "file": "src/engine/cjk.ts",
+    "what": "CHINESE_MARKERS set emptied",
+    "find": "  [...\"的是你她们們这這么麼怎吗嗎呢吧让讓给給说說个咱您哪嘛很什也\"],",
+    "replace": "  [...\"\"],"
+  },
+  {
+    "id": "bigrams-never-match",
+    "file": "src/engine/cjk.ts",
+    "what": "CHINESE_BIGRAMS never consulted",
+    "find": "  return CHINESE_BIGRAMS.some((bigram) => compact.includes(bigram));",
+    "replace": "  return false && CHINESE_BIGRAMS.some((bigram) => compact.includes(bigram));"
+  },
+  {
+    "id": "bigram-whitespace-strip-removed",
+    "file": "src/engine/cjk.ts",
+    "what": "bigrams matched without stripping whitespace",
+    "find": "  const compact = line.replace(/\\s+/gu, \"\");",
+    "replace": "  const compact = line;"
+  },
+  {
+    "id": "normalize-identity",
+    "file": "src/engine/cjk.ts",
+    "what": "normalizeForDetection returns input unchanged (halfwidth katakana)",
+    "find": "  return line.normalize(\"NFKC\");",
+    "replace": "  return line;"
+  },
+  {
+    "id": "hanrun-length-99",
+    "file": "src/engine/cjk.ts",
+    "what": "HAN_RUN_CHINESE_LENGTH raised to 99",
+    "find": "const HAN_RUN_CHINESE_LENGTH = 5;",
+    "replace": "const HAN_RUN_CHINESE_LENGTH = 99;"
+  },
+  {
+    "id": "hanrun-length-3",
+    "file": "src/engine/cjk.ts",
+    "what": "HAN_RUN_CHINESE_LENGTH lowered to 3",
+    "find": "const HAN_RUN_CHINESE_LENGTH = 5;",
+    "replace": "const HAN_RUN_CHINESE_LENGTH = 3;"
+  },
+  {
+    "id": "rung-translated-deleted",
+    "file": "src/engine/cjk.ts",
+    "what": "translated -> japanese rung removed",
+    "find": "  if (context.hasTranslations && translation === \"translated\") return \"japanese\";",
+    "replace": "  if (false && context.hasTranslations && translation === \"translated\") return \"japanese\";"
+  },
+  {
+    "id": "rung-untranslated-deleted",
+    "file": "src/engine/cjk.ts",
+    "what": "untranslated -> chinese rung removed",
+    "find": "  if (context.hasTranslations && translation === \"untranslated\") return \"chinese\";",
+    "replace": "  if (false && context.hasTranslations && translation === \"untranslated\") return \"chinese\";"
+  },
+  {
+    "id": "rung-translation-ungated",
+    "file": "src/engine/cjk.ts",
+    "what": "untranslated -> chinese even in songs with no translations at all",
+    "find": "  if (context.hasTranslations && translation === \"untranslated\") return \"chinese\";",
+    "replace": "  if (translation === \"untranslated\") return \"chinese\";"
+  },
+  {
+    "id": "rung-jpglyph-deleted",
+    "file": "src/engine/cjk.ts",
+    "what": "Japanese-only glyph rung removed from line routing",
+    "find": "  if (hasJapaneseOnlyGlyphs(line)) return \"japanese\";",
+    "replace": "  if (false && hasJapaneseOnlyGlyphs(line)) return \"japanese\";"
+  },
+  {
+    "id": "rung-bilingual-hanrun-deleted",
+    "file": "src/engine/cjk.ts",
+    "what": "bilingual long-Han-run rung removed",
+    "find": "  if (context.bilingual && hanCount(line) >= HAN_RUN_CHINESE_LENGTH) return \"chinese\";",
+    "replace": "  if (false && context.bilingual && hanCount(line) >= HAN_RUN_CHINESE_LENGTH) return \"chinese\";"
+  },
+  {
+    "id": "rung-chinese-evidence-deleted",
+    "file": "src/engine/cjk.ts",
+    "what": "positive Chinese evidence rung removed from line routing",
+    "find": "  if (looksChinese(line)) return \"chinese\";",
+    "replace": "  if (false && looksChinese(line)) return \"chinese\";"
+  },
+  {
+    "id": "hasTranslations-forced-true",
+    "file": "src/engine/cjk.ts",
+    "what": "hasTranslations always true",
+    "find": "  const hasTranslations = translationStates.some((state) => state === \"translated\");",
+    "replace": "  const hasTranslations = true;"
+  },
+  {
+    "id": "hasTranslations-forced-false",
+    "file": "src/engine/cjk.ts",
+    "what": "hasTranslations always false",
+    "find": "  const hasTranslations = translationStates.some((state) => state === \"translated\");",
+    "replace": "  const hasTranslations = false;"
+  },
+  {
+    "id": "fallback-japanese",
+    "file": "src/engine/cjk.ts",
+    "what": "unknown-branch fallback flips chinese -> japanese",
+    "find": "  return context.branch ?? \"chinese\";",
+    "replace": "  return context.branch ?? \"japanese\";"
+  },
+  {
+    "id": "doc-branch-chinese-floor",
+    "file": "src/engine/cjk.ts",
+    "what": "document chinese floor drops from 2 han-only lines to 1",
+    "find": "  else if (hanOnlyLines >= 2 && hanOnlyLines >= kanaLines * 2) branch = \"chinese\";",
+    "replace": "  else if (hanOnlyLines >= 1 && hanOnlyLines >= kanaLines * 2) branch = \"chinese\";"
+  },
+  {
+    "id": "doc-branch-chinese-ratio",
+    "file": "src/engine/cjk.ts",
+    "what": "document chinese 2:1 advantage drops to 1:1",
+    "find": "  else if (hanOnlyLines >= 2 && hanOnlyLines >= kanaLines * 2) branch = \"chinese\";",
+    "replace": "  else if (hanOnlyLines >= 2 && hanOnlyLines >= kanaLines * 1) branch = \"chinese\";"
+  },
+  {
+    "id": "doc-kana-threshold",
+    "file": "src/engine/cjk.ts",
+    "what": "one kana line no longer enough to make a document japanese",
+    "find": "  else if (kanaLines >= 1) branch = \"japanese\";",
+    "replace": "  else if (kanaLines >= 2) branch = \"japanese\";"
+  },
+  {
+    "id": "latin-guard-removed",
+    "file": "src/engine/cjk.ts",
+    "what": "lines with neither kana nor han no longer route nowhere",
+    "find": "  if (!kana && !han) return undefined;",
+    "replace": "  if (false && !kana && !han) return undefined;"
+  }
+]
