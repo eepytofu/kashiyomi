@@ -263,10 +263,14 @@ function buildPreviewCard(column: HTMLElement): () => void {
       { furigana: settings.furigana, romaji: settings.romaji },
     );
 
-    // 千本桜. Sudachi reads 常世 as ツネヨ and tags it a personal name, where
-    // the lyric means とこよ — so this is a real case where an authored hint
-    // beats the analyzer, not an invented one. Toggling hints swaps exactly
-    // the one reading, which is what the setting does.
+    // Shows what a line written 三千世界 常世(とこよ)之闇 renders as — the
+    // parenthetical is consumed and its reading drawn as ruby, which is why no
+    // brackets appear here. The base line is 千本桜, but **千本桜 does not carry
+    // that hint**; only the reading is illustrative, and no captured song uses
+    // parenthetical hints yet (see BACKLOG). It is still the honest choice of
+    // reading: Sudachi really does return ツネヨ for 常世 and tags it a personal
+    // name, where the lyric means とこよ, so the toggle shows a case where an
+    // authored reading beats the analyzer rather than an invented disagreement.
     const hintLine = document.createElement("div");
     hintLine.className = "kc-preview-line";
     renderJapaneseLine(
