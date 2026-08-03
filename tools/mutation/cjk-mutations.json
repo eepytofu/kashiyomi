@@ -112,6 +112,13 @@
     "replace": "const HAN_RUN_CHINESE_LENGTH = 3;"
   },
   {
+    "id": "translation-below-chinese-evidence",
+    "file": "src/engine/cjk.ts",
+    "what": "restore the old rung order: Chinese character evidence outranks translation presence",
+    "find": "  if (context.hasTranslations && translation === \"translated\") return \"japanese\";",
+    "replace": "  if (context.hasTranslations && translation === \"translated\" && !looksChinese(line)) return \"japanese\";"
+  },
+  {
     "id": "rung-translated-deleted",
     "file": "src/engine/cjk.ts",
     "what": "translated -> japanese rung removed",

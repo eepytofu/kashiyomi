@@ -56,7 +56,7 @@ test("a wholly katakana-okurigana line is recognized", () => {
 test("a line that already uses hiragana is left alone", () => {
   // Its katakana is ordinary vocabulary, so converting the line would turn
   // ハイカラ into はいから.
-  assert.equal(usesKatakanaOkurigana("大胆不敵にハイカラ革命"), false);
+  assert.equal(usesKatakanaOkurigana("大胆不敵に ハイカラ革命"), false);
 });
 
 test("katakana with no kanji is ordinary vocabulary, not okurigana", () => {

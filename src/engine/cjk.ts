@@ -174,14 +174,24 @@ export function resolveDocumentContext(
  * Route one line, strongest evidence first:
  *
  * 1. kana present, so Japanese;
- * 2. positive Chinese evidence (vocabulary or Chinese-only glyph forms);
- * 3. Japanese-only glyph forms or the iteration mark;
- * 4. in a bilingual song, a long kana-free Han run;
- * 5. otherwise the document branch.
+ * 2. the player is translating this song and translated this line, so it is
+ *    not Chinese — NetEase translates foreign lyrics into Chinese and has no
+ *    reason to translate a Chinese line;
+ * 3. the same song, but this line went untranslated, so it is Chinese;
+ * 4. positive Chinese evidence (vocabulary or Chinese-only glyph forms);
+ * 5. Japanese-only glyph forms or the iteration mark;
+ * 6. in a bilingual song, a long kana-free Han run;
+ * 7. otherwise the document branch.
  *
- * Chinese evidence outranks Japanese glyph forms because a Chinese sentence
- * typed with Japanese forms is still Chinese, while 的 as a particle is not
- * Japanese at all.
+ * The translation slot outranks every character heuristic because it is what
+ * the player itself concluded about the line, per line, rather than a guess
+ * from its glyphs. It only speaks when 译 is on; rungs 4-7 are the fallback
+ * for when it is off, and 無 (立入禁止/歌爱ユキ/诗岸) is the song that needs
+ * them.
+ *
+ * Below the translation slot, Chinese evidence outranks Japanese glyph forms
+ * because a Chinese sentence typed with Japanese forms is still Chinese, while
+ * 的 as a particle is not Japanese at all.
  */
 export function resolveLineRoute(
   rawLine: string,
@@ -197,11 +207,13 @@ export function resolveLineRoute(
   const han = hasHan(line);
   if (!kana && !han) return undefined;
   if (kana) return "japanese";
-  if (looksChinese(line)) return "chinese";
-  // In a song the player is translating into Chinese, whether this line got
-  // a translation says more than any character heuristic.
+  // In a song the player is translating into Chinese, whether this line got a
+  // translation says more than any character heuristic: a Japanese line typed
+  // with a Chinese-only glyph form used to route Chinese even while NCM was
+  // visibly showing a translation for it.
   if (context.hasTranslations && translation === "translated") return "japanese";
   if (context.hasTranslations && translation === "untranslated") return "chinese";
+  if (looksChinese(line)) return "chinese";
   if (hasJapaneseOnlyGlyphs(line)) return "japanese";
   if (context.bilingual && hanCount(line) >= HAN_RUN_CHINESE_LENGTH) return "chinese";
   return context.branch ?? "chinese";

@@ -145,18 +145,21 @@ test("traditional spelling of the same verses still routes chinese", () => {
 
 test("a japanese song built on four-character compounds stays japanese", () => {
   // 千本桜 is full of kana-free 熟語 lines. Japanese-only character forms
-  // (戦 not 战/戰, 浄 not 净/淨) and the iteration mark 々 identify them.
+  // (戦 not 战/戰) and the iteration mark 々 identify them.
+  // Captured from the running app on 2026-08-03. An earlier version of this
+  // fixture contained 六根清浄 大革命, a line the song does not have, and wrote
+  // 大胆不敵に ハイカラ革命 without its space.
   const doc = resolveDocumentContext([
-    "大胆不敵にハイカラ革命",
+    "大胆不敵に ハイカラ革命",
     "磊々落々 反戦国家",
     "日の丸印の二輪車転がし",
     "悪霊退散 ICBM",
-    "六根清浄 大革命",
+    "少年少女戦国無双",
     "環状線を走り抜けて",
     "三千世界 常世之闇",
   ]);
   assert.equal(doc.bilingual, false, "japanese compounds are not a second language");
-  for (const line of ["磊々落々 反戦国家", "六根清浄 大革命", "三千世界 常世之闇"]) {
+  for (const line of ["磊々落々 反戦国家", "少年少女戦国無双", "三千世界 常世之闇"]) {
     assert.equal(resolveLineRoute(line, doc), "japanese", line);
   }
 });
@@ -272,8 +275,10 @@ test("length alone is not evidence of a second language", () => {
 
 test("japanese orthography outranks the bilingual length rule", () => {
   const bilingual = { branch: "japanese", bilingual: true, hasTranslations: false } as const;
+  // 磊々落々反戦国家 carries both the iteration mark and a Japanese-only form;
+  // 少年少女戦国無双 carries only the latter, so it covers that path alone.
   assert.equal(resolveLineRoute("磊々落々反戦国家", bilingual), "japanese");
-  assert.equal(resolveLineRoute("六根清浄大革命", bilingual), "japanese");
+  assert.equal(resolveLineRoute("少年少女戦国無双", bilingual), "japanese");
 });
 
 test("a set phrase in an all-japanese song stays japanese", () => {
@@ -292,21 +297,71 @@ test("a translated line is not chinese, an untranslated one in the same song is"
   // Chinese, so within one song the presence of a translation separates the
   // two languages more reliably than any character heuristic.
   const doc = resolveDocumentContext(
-    ["三千世界 常世之闇", "磊々落々 反戦国家", "大胆不敵にハイカラ革命"],
+    ["三千世界 常世之闇", "磊々落々 反戦国家", "大胆不敵に ハイカラ革命"],
     ["translated", "translated", "translated"],
   );
   assert.equal(doc.hasTranslations, true);
   assert.equal(resolveLineRoute("三千世界 常世之闇", doc, "translated"), "japanese");
 
   const mixed = resolveDocumentContext(
-    ["僕らの居場所はどこなんだ", "世間無常所謂輪迴"],
+    ["僕らの居場所はどこなんだ", "世间无常所谓轮回"],
     ["translated", "untranslated"],
   );
-  assert.equal(resolveLineRoute("世間無常所謂輪迴", mixed, "untranslated"), "chinese");
+  assert.equal(resolveLineRoute("世间无常所谓轮回", mixed, "untranslated"), "chinese");
 });
 
 test("translation evidence is ignored when the song has none", () => {
-  const doc = resolveDocumentContext(["三千世界 常世之闇", "大胆不敵にハイカラ革命"], []);
+  const doc = resolveDocumentContext(["三千世界 常世之闇", "大胆不敵に ハイカラ革命"], []);
   assert.equal(doc.hasTranslations, false);
   assert.equal(resolveLineRoute("三千世界 常世之闇", doc, "untranslated"), "japanese");
+});
+
+test("a translated line is japanese even when its characters say chinese", () => {
+  // NetEase uploaders sometimes transcribe Japanese lyrics in simplified
+  // forms, and NCM still translates the line, because translation is keyed to
+  // the lyric and not to its glyphs. Every character heuristic reads 战/无/双
+  // as Chinese; the player has already said otherwise. Routing it Japanese is
+  // also what lets `hanRepair` put the Japanese forms back.
+  const doc = resolveDocumentContext(
+    ["少年少女战国无双", "大胆不敵に ハイカラ革命"],
+    ["translated", "translated"],
+  );
+  assert.equal(doc.hasTranslations, true);
+  assert.equal(resolveLineRoute("少年少女战国无双", doc, "translated"), "japanese");
+  // Same song, same characters, no translation for this line: now the
+  // characters are the only evidence there is.
+  assert.equal(resolveLineRoute("少年少女战国无双", doc, "untranslated"), "chinese");
+});
+
+test("an untranslated line is chinese even with nothing else pointing that way", () => {
+  // 無可奈何花落去 in traditional spelling carries no Chinese function words
+  // and no Chinese-only glyph forms, so every character rung passes it over.
+  // In a song that is being translated, the line going untranslated is the
+  // only evidence there is — and it is enough.
+  const doc = { branch: "japanese", bilingual: false, hasTranslations: true } as const;
+  assert.equal(resolveLineRoute("無可奈何花落去", doc, "untranslated"), "chinese");
+  assert.equal(resolveLineRoute("無可奈何花落去", doc, "translated"), "japanese");
+});
+
+test("with the translation slot off the character ladder still decides", () => {
+  // The slot only speaks when 译 is on. With it off the same line falls back
+  // to the heuristics, which read it as Chinese — the ladder is the fallback,
+  // not dead weight.
+  const doc = resolveDocumentContext(["少年少女战国无双", "大胆不敵に ハイカラ革命"], []);
+  assert.equal(doc.hasTranslations, false);
+  assert.equal(resolveLineRoute("少年少女战国无双", doc, "unknown"), "chinese");
+});
+
+test("with 译 on, 無 routes from the slot alone", () => {
+  // Verified against the running app: 33/33 lines correlate, all 13 Japanese
+  // ones translated and all 16 Chinese ones not. Forcing bilingual off proves
+  // the slot carries the song by itself, including the four classical lines
+  // that rung 6 exists for.
+  const slotOnly = { branch: undefined, bilingual: false, hasTranslations: true } as const;
+  for (const line of MU_JAPANESE) {
+    assert.equal(resolveLineRoute(line, slotOnly, "translated"), "japanese", line);
+  }
+  for (const line of MU_CHINESE) {
+    assert.equal(resolveLineRoute(line, slotOnly, "untranslated"), "chinese", line);
+  }
 });
