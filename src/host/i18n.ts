@@ -47,7 +47,7 @@ const STRINGS = {
     zhFont: "Chinese font on Chinese text",
     zhFontDesc: "Chinese lyrics, and Chinese translation lines under foreign lyrics",
     zhFontStack: "Chinese font stack",
-    sectionAi: "AI translation",
+    sectionAi: "Translation",
     aiAuto: "Translate songs automatically",
     aiAutoDesc: "One request per song, shown below the original like the built-in translation; needs your own API key",
     aiProvider: "Provider",
