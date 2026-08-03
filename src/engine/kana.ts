@@ -21,7 +21,6 @@ export const KANA_ONLY = /^[ぁ-ゖァ-ヺーゝゞヽヾ]+$/u;
 
 /** Han ideographs plus the marks that behave like kanji inside words. */
 export const HAN_CHAR = /[\p{Script=Han}々〆ヵヶ]/u;
-export const HAN_ONLY = /^[\p{Script=Han}々〆ヵヶ]+$/u;
 
 const HIRAGANA_CHAR = /[ぁ-ゖ]/u;
 const KATAKANA_CHAR = /[ァ-ヺ]/u;

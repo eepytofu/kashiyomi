@@ -6,7 +6,6 @@ import { log } from "./host/log.ts";
 import { nativeInit, nativeState } from "./host/native.ts";
 import { resolveAssetPaths } from "./host/paths.ts";
 import { applyStyles } from "./host/styles.ts";
-import { diagnoseLayout } from "./host/diagnose.ts";
 import { getSettings } from "./host/settings.ts";
 import { buildConfigPanel } from "./host/configPanel/index.ts";
 import { installCopyHandler } from "./host/copy.ts";
@@ -30,7 +29,6 @@ async function start(): Promise<void> {
   // Debug handle for testing from the console.
   (window as unknown as Record<string, unknown>).kashiyomi = {
     state: () => nativeState(),
-    diagnose: diagnoseLayout,
     rescan,
     settings: getSettings,
   };

@@ -31,7 +31,6 @@ import { cachedAnnotation, rememberAnnotation } from "./analysisCache.ts";
 import { maybeTranslate, type OriginalLine } from "./translationLane.ts";
 import { getSettings } from "./settings.ts";
 import { log } from "./log.ts";
-import { diagnoseLayout } from "./diagnose.ts";
 import type { AssetPaths } from "./paths.ts";
 
 let assetPaths: AssetPaths | undefined;
@@ -65,25 +64,6 @@ function scheduleScan(): void {
 // Sudachi rejects inputs over ~48KB; a lyric line should never be near that,
 // so anything huge is a sign of something else going wrong.
 const MAX_LINE_CHARS = 800;
-
-// Layout is dumped once per session, after the first line that actually
-// carries ruby, so the log shows how NCM lays annotated lines out. The dump is
-// deferred: the ruby has just been inserted, and if the lyric panel is not
-// laid out yet every width comes back zero. diagnoseLayout reports whether it
-// got usable numbers, and we re-arm a bounded number of times if it did not.
-let layoutDiagnosed = false;
-let layoutAttempts = 0;
-const LAYOUT_ATTEMPT_CAP = 5;
-
-function scheduleLayoutDiagnosis(): void {
-  if (!getSettings().debug) return;
-  if (layoutDiagnosed || layoutAttempts >= LAYOUT_ATTEMPT_CAP) return;
-  layoutDiagnosed = true;
-  layoutAttempts++;
-  window.setTimeout(() => {
-    if (!diagnoseLayout()) layoutDiagnosed = false;
-  }, 600);
-}
 
 type PendingLine = { el: HTMLElement; original: string; translation: LineTranslationState };
 
@@ -305,5 +285,4 @@ function applyAnnotation(
   // renderedText(el) now recovers displayText, so that is the marker; the
   // untouched source is kept separately for routing on later scans.
   markAnnotated(line.el, line.original, displayText);
-  if (line.el.querySelector("ruby.kashiyomi-ruby")) scheduleLayoutDiagnosis();
 }
