@@ -29,7 +29,10 @@ const CREDIT_LABELS = new Set([
   "特别感谢", "特別感謝", "鸣谢", "鳴謝", "原曲", "改编", "改編", "翻译", "翻譯",
   "吉他", "贝斯", "貝斯", "鼓", "键盘", "鍵盤", "弦乐", "弦樂", "笛子", "古筝", "古箏",
   "二胡", "琵琶", "配器", "乐器", "樂器", "人声", "人聲", "伴奏",
-  // Roles written as one run without a separator
+  "编写", "編寫", "演奏者", "和音", "混音师", "混音師",
+  // Roles written as one run without a separator. Kept as entries because a
+  // few are lexicalized, but decomposeIntoRoles below also handles the general
+  // case, which is how 和声编写 (和声 + 编写) is recognized.
   "作词作曲", "作詞作曲", "作曲作词", "作曲作詞", "词曲", "詞曲", "曲词", "曲詞",
   "作编曲", "作編曲", "词曲编", "詞曲編",
   // Japanese
@@ -69,8 +72,47 @@ export function isCreditLine(line: string): boolean {
   // "lyrics&", which fails the direct lookup but splits to the single valid
   // part ["lyrics"], so without it a trailing separator would be accepted.
   const parts = label.split(/[&/,，、]/u).filter((part) => part !== "");
-  return parts.length > 1 && parts.every((part) => CREDIT_LABELS.has(part));
+  if (parts.length > 1 && parts.every((part) => CREDIT_LABELS.has(part))) return true;
+  // CJK roles are also concatenated with no separator at all: 和声编写 is
+  // 和声 + 编写. Listing every combination by hand does not scale — that is
+  // what the "roles written as one run" block above was trying to do.
+  return parts.length === 1 && decomposesIntoRoles(label);
 }
+
+/**
+ * True when the label splits cleanly into two or more known roles with nothing
+ * left over. Shortest-path over split points, so 词曲编 finds 词 + 曲 + 编.
+ */
+function decomposesIntoRoles(label: string): boolean {
+  const chars = [...label];
+  if (chars.length < 2) return false;
+  // reachable[i] = fewest roles that exactly cover the first i characters.
+  const reachable: number[] = new Array(chars.length + 1).fill(-1);
+  reachable[0] = 0;
+  for (let start = 0; start < chars.length; start++) {
+    if (reachable[start] === -1) continue;
+    for (let end = start + 1; end <= chars.length; end++) {
+      if (!CREDIT_LABELS.has(chars.slice(start, end).join(""))) continue;
+      const count = reachable[start]! + 1;
+      if (reachable[end] === -1 || count < reachable[end]!) reachable[end] = count;
+    }
+  }
+  return reachable[chars.length]! >= 2;
+}
+
+/**
+ * True when the whole line is a singer or section marker: 【合】, 【海伊】,
+ * [Chorus]. Duet uploads put these on their own line to say who sings next.
+ * They are not lyrics — romanizing 【合】 as "hé" and translating it is noise —
+ * and they carry no role label, so `isCreditLine` cannot see them.
+ */
+export function isPartMarkerLine(line: string): boolean {
+  return PART_MARKER_LINE.test(line);
+}
+
+// Bounded, because an entire lyric line is sometimes parenthesized and that is
+// still a lyric. Names and section words are short.
+const PART_MARKER_LINE = /^\s*[【〖\[(（]\s*[^】〗\])）]{1,12}\s*[】〗\])）]\s*$/u;
 
 /**
  * True when a line is *shaped* like a credit — a short label, then a colon,

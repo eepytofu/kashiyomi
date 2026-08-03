@@ -13,7 +13,7 @@ import { projectReadingHints } from "../engine/hints.ts";
 import { annotateJapaneseLine, type JapaneseLineAnnotation } from "../engine/japanese.ts";
 import { romanizeMandarin } from "../engine/pinyin.ts";
 import { hasHan, hasKana, kataToHira, usesKatakanaOkurigana } from "../engine/kana.ts";
-import { hasCreditShape, isCreditLine } from "../engine/metadata.ts";
+import { hasCreditShape, isCreditLine, isPartMarkerLine } from "../engine/metadata.ts";
 import { shouldDisplayTranslation } from "../engine/aiTranslation.ts";
 import { nativeAnalyze } from "./native.ts";
 import { translateSong, translationConfigured } from "./translator.ts";
@@ -136,6 +136,16 @@ const MAX_LINE_CHARS = 800;
  * all three songs captured so far); further down, a colon is just a colon.
  */
 const CREDIT_SCAN_LINES = 6;
+
+/**
+ * Tag a line we are not going to annotate with the script it is written in, so
+ * the Japanese/Chinese font settings still reach it. Routing normally does
+ * this; lines we skip never get routed.
+ */
+function applyScriptFont(el: HTMLElement, text: string): void {
+  if (hasKana(text)) el.setAttribute("lang", "ja");
+  else if (hasHan(text)) el.setAttribute("lang", "zh");
+}
 
 function isOriginalLyricElement(el: HTMLElement): boolean {
   let sibling = el.previousElementSibling;
@@ -335,12 +345,24 @@ async function scan(): Promise<void> {
         songHasTranslations &&
         line.translation === "untranslated" &&
         hasCreditShape(text));
+    // Singer markers (【合】, 【海伊】) name who sings the next block. Never a
+    // lyric and never annotated, whatever the credits setting says — there is
+    // nothing in them to read.
+    if (isPartMarkerLine(text)) {
+      applyScriptFont(el, text);
+      markAnnotated(el, text);
+      continue;
+    }
     if (!credit) {
       allTexts.push(text);
       originals.push({ el, text });
       translationStates.push(line.translation);
     }
     if (credit && !settings.annotateCredits) {
+      // Skipped lines are never routed, so they would otherwise be the only
+      // lines on the page without a lang attribute, and would render in NCM's
+      // default font while everything around them uses the user's stack.
+      applyScriptFont(el, text);
       markAnnotated(el, text);
       continue;
     }

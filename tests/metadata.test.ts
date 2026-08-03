@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { hasCreditShape, isCreditLine } from "../src/engine/metadata.ts";
+import { hasCreditShape, isCreditLine, isPartMarkerLine } from "../src/engine/metadata.ts";
 
 test("detects the credits a japanese song actually ships with", () => {
   // Captured from the running app on 2026-08-03. NetEase writes the role
@@ -142,4 +142,29 @@ test("a known credit is also credit-shaped", () => {
   for (const line of ["作词: 立入禁止", "编曲: 黒うさP", "Composed by: someone"]) {
     assert.equal(hasCreditShape(line), true, line);
   }
+});
+
+test("concatenated roles are recognized without being listed", () => {
+  // 和声编写 is 和声 + 编写. Captured from a real song, where it was the one
+  // credit the table missed and so got pinyin and a translation.
+  assert.equal(isCreditLine("和声编写：雾敛"), true);
+  assert.equal(isCreditLine("词曲编：某人"), true);
+  assert.equal(isCreditLine("作词作曲编曲：某人"), true);
+  // A single role must not decompose into itself.
+  assert.equal(isCreditLine("笛子：囚牛"), true);
+  // Nonsense that merely contains a role character stays a lyric.
+  assert.equal(isCreditLine("春风漫草野：某人"), false);
+});
+
+test("singer markers are not lyrics", () => {
+  for (const line of ["【合】", "【minus】", "【海伊】", "[Chorus]", "（合）"]) {
+    assert.equal(isPartMarkerLine(line), true, line);
+  }
+});
+
+test("a parenthesized lyric is not a singer marker", () => {
+  // Bounded length is what separates a name from a whole sung line.
+  assert.equal(isPartMarkerLine("（白马过了离原，三月的天，春风漫草野）"), false);
+  assert.equal(isPartMarkerLine("【合】白马过了离原"), false);
+  assert.equal(isPartMarkerLine("白马过了离原"), false);
 });
