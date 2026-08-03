@@ -88,3 +88,13 @@ test("rejects non-kana parentheticals", () => {
   assert.equal(displayText, line);
   assert.deepEqual(hints, []);
 });
+
+test("the parenthetical is removed even when its reading is not used", () => {
+  // Whether to *use* 天（そら） is a setting; whether to render the markup is
+  // not. SudachiDict contains 天（そら） as an entry reading テン, so leaving it
+  // in gave one five-character token and a てん ruby smeared across the
+  // brackets, with そら missing from the romaji. Captured from アマツキツネ.
+  const { displayText, hints } = projectReadingHints("今宵も天（そら）は　明るく");
+  assert.equal(displayText, "今宵も天は　明るく");
+  assert.deepEqual(hints, [{ start: 3, end: 4, reading: "そら" }]);
+});

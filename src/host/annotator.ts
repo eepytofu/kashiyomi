@@ -389,13 +389,19 @@ async function scan(): Promise<void> {
     const route = resolveLineRoute(line.original, docContext, line.translation);
     if (route === "japanese") {
       line.el.setAttribute("lang", "ja");
-      let display = settings.hanRepair ? repairJapaneseHan(line.original) : line.original;
-      let hints: ReturnType<typeof projectReadingHints>["hints"] = [];
-      if (settings.readingHints) {
-        const projection = projectReadingHints(display);
-        display = projection.displayText;
-        hints = projection.hints;
-      }
+      const repaired = settings.hanRepair ? repairJapaneseHan(line.original) : line.original;
+      // A parenthetical reading is furigana markup the uploader wrote, not
+      // lyric text, so it comes out of the line either way. The setting
+      // decides whose reading wins — the author's そら or the dictionary's
+      // てん — not whether the markup is rendered.
+      //
+      // It must not reach the analyzer either: SudachiDict *contains* 天（そら）
+      // as an entry reading テン, so leaving it in produced one five-character
+      // token and a てん ruby smeared across 天（そら）, with そら dropped from the
+      // romaji entirely.
+      const projection = projectReadingHints(repaired);
+      const display = projection.displayText;
+      const hints = settings.readingHints ? projection.hints : [];
       // Katakana-okurigana lines are analyzed as hiragana; the conversion is
       // one character to one, so offsets still match what is displayed.
       const analysisText = usesKatakanaOkurigana(display) ? kataToHira(display) : display;

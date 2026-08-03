@@ -263,42 +263,36 @@ function buildPreviewCard(column: HTMLElement): () => void {
       { furigana: settings.furigana, romaji: settings.romaji },
     );
 
-    // アマツキツネ, captured from the app: the lyric really is written
-    // 今宵も天（そら）は　明るく, so this shows the setting doing its actual job
-    // rather than a constructed one. Both states are what the engine returns
-    // for that line — on, the parenthetical is consumed and そら becomes ruby;
-    // off, it stays as text and Sudachi swallows 天（そら） into one テン token,
-    // which is why the ruby then spans the brackets.
+    // アマツキツネ, captured from the app: the lyric is written
+    // 今宵も天（そら）は　明るく. The parenthetical is markup and always comes
+    // out, so the displayed line is the same either way and only the reading
+    // over 天 changes — the author's そら, or Sudachi's てん.
     const hintLine = document.createElement("div");
     hintLine.className = "kc-preview-line";
     renderJapaneseLine(
       hintLine,
-      // on:  今=0 宵=1 も=2 天=3 は=4 ␣=5 明=6 る=7 く=8
-      // off: 今=0 宵=1 も=2 天=3 （=4 そ=5 ら=6 ）=7 は=8 ␣=9 明=10 る=11 く=12
-      settings.readingHints ? "今宵も天は　明るく" : "今宵も天（そら）は　明るく",
-      settings.readingHints
-        ? {
-            furigana: [
-              { start: 0, end: 2, reading: "こよい", origin: "inferred" },
-              { start: 3, end: 4, reading: "そら", origin: "authored" },
-              { start: 6, end: 7, reading: "あか", origin: "inferred" },
-            ],
-            romaji: "koyoi mo sora wa akaruku",
-            romajiSegments: [
+      // 今=0 宵=1 も=2 天=3 は=4 ␣=5 明=6 る=7 く=8
+      "今宵も天は　明るく",
+      {
+        furigana: [
+          { start: 0, end: 2, reading: "こよい", origin: "inferred" },
+          {
+            start: 3,
+            end: 4,
+            reading: settings.readingHints ? "そら" : "てん",
+            origin: settings.readingHints ? "authored" : "inferred",
+          },
+          { start: 6, end: 7, reading: "あか", origin: "inferred" },
+        ],
+        romaji: settings.readingHints ? "koyoi mo sora wa akaruku" : "koyoi mo ten wa akaruku",
+        romajiSegments: settings.readingHints
+          ? [
               { text: "koyoi mo", origin: "inferred" },
               { text: " sora", origin: "authored" },
               { text: " wa akaruku", origin: "inferred" },
-            ],
-          }
-        : {
-            furigana: [
-              { start: 0, end: 2, reading: "こよい", origin: "inferred" },
-              { start: 3, end: 8, reading: "てん", origin: "inferred" },
-              { start: 10, end: 11, reading: "あか", origin: "inferred" },
-            ],
-            romaji: "koyoi mo ten wa akaruku",
-            romajiSegments: [{ text: "koyoi mo ten wa akaruku", origin: "inferred" }],
-          },
+            ]
+          : [{ text: "koyoi mo ten wa akaruku", origin: "inferred" }],
+      },
       { furigana: settings.furigana, romaji: settings.romaji },
     );
 
