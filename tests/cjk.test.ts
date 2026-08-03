@@ -87,6 +87,12 @@ test("classical chinese lines in a bilingual song are not read as japanese", () 
   // 無 alternates Japanese verses with literary Chinese ones. These carry no
   // Chinese function words at all, so only the document context separates
   // them from Japanese kanbun.
+  //
+  // Written here in traditional forms, which is the *hardest* case rather than
+  // the common one: NetEase ships mostly simplified, and simplified-only
+  // glyphs are unambiguous Chinese evidence, whereas traditional overlaps
+  // heavily with Japanese kyuujitai. Only 離離虛無無所歸 (虛) is detectable
+  // here, against three of the four lines in the simplified spelling below.
   const doc = resolveDocumentContext([
     "僕らの居場所はどこなんだ",
     "まさか本当に所謂心の中",
@@ -120,6 +126,75 @@ test("a japanese song built on four-character compounds stays japanese", () => {
   for (const line of ["磊々落々 反戦国家", "六根清浄 大革命", "三千世界 常世之闇"]) {
     assert.equal(resolveLineRoute(line, doc), "japanese", line);
   }
+});
+
+test("the same song in simplified forms routes identically", () => {
+  // What NetEase actually ships. Simplified-only glyphs make the Chinese lines
+  // easier to identify, so this must hold at least as well as the traditional
+  // spelling above.
+  const chinese = ["世间无常所谓轮回", "离离虚无无所归", "无可奈何花落去", "身外尽空虚"];
+  const doc = resolveDocumentContext([
+    "僕らの居場所はどこなんだ",
+    "まさか本当に所謂心の中",
+    "探せばほんの少しは残っているんだろうか",
+    "嗚呼",
+    ...chinese,
+  ]);
+  assert.equal(doc.bilingual, true);
+  for (const line of chinese) assert.equal(resolveLineRoute(line, doc), "chinese", line);
+});
+
+test("a repeated chorus line is one piece of evidence, not two", () => {
+  // 千本桜 repeats 三千世界 常世之闇 and 少年少女戦国無双 in the chorus. Counting
+  // occurrences rather than distinct lines let a single kana-free line clear
+  // the bilingual threshold on its own, after which every kana-free line in
+  // this all-Japanese song routed to Chinese.
+  const lines = [
+    "大胆不敵に ハイカラ革命",
+    "磊々落々 反戦国家",
+    "日の丸印の二輪車転がし",
+    "悪霊退散 ICBM",
+    "環状線を走り抜けて",
+    "少年少女戦国無双",
+    "三千世界 常世之闇",
+    "君ノ声モ届カナイヨ",
+    "嘆ク唄モ聞コエナイヨ",
+    "三千世界 常世之闇",
+    "少年少女戦国無双",
+  ];
+  const doc = resolveDocumentContext(lines);
+  assert.equal(doc.bilingual, false, "a repeated line is not a second language");
+  for (const line of ["三千世界 常世之闇", "少年少女戦国無双", "磊々落々 反戦国家"]) {
+    assert.equal(resolveLineRoute(line, doc), "japanese", line);
+  }
+});
+
+test("length alone is not evidence of a second language", () => {
+  // Two distinct kana-free lines with no Chinese vocabulary and no
+  // Chinese-only glyphs. Absence of Japanese orthography is not presence of
+  // Chinese, so this song is not bilingual.
+  const doc = resolveDocumentContext([
+    "僕らの居場所はどこなんだ",
+    "探せばほんの少しは残っているんだろうか",
+    "三千世界 常世之闇",
+    "天上天下唯我独尊",
+  ]);
+  assert.equal(doc.bilingual, false);
+  assert.equal(resolveLineRoute("三千世界 常世之闇", doc), "japanese");
+  assert.equal(resolveLineRoute("天上天下唯我独尊", doc), "japanese");
+});
+
+test("repeats do not disturb a genuinely bilingual song", () => {
+  const chinese = ["世间无常所谓轮回", "离离虚无无所归", "无可奈何花落去"];
+  const doc = resolveDocumentContext([
+    "僕らの居場所はどこなんだ",
+    "まさか本当に所謂心の中",
+    "嗚呼",
+    ...chinese,
+    ...chinese,
+  ]);
+  assert.equal(doc.bilingual, true, "duplication must not lose a real second language");
+  for (const line of chinese) assert.equal(resolveLineRoute(line, doc), "chinese", line);
 });
 
 test("japanese orthography outranks the bilingual length rule", () => {

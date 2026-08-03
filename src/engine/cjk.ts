@@ -114,24 +114,41 @@ export function resolveDocumentContext(
   lines: readonly string[],
   translationStates: readonly LineTranslationState[] = [],
 ): CjkDocumentContext {
+  // Composition: how much of the song is kana-bearing versus kana-free. A
+  // repeated chorus really is more of the document, so this counts every
+  // occurrence.
   let kanaLines = 0;
   let hanOnlyLines = 0;
-  let longHanOnlyLines = 0;
   for (const line of lines) {
+    if (hasKana(line)) kanaLines += 1;
+    else if (hasHan(line)) hanOnlyLines += 1;
+  }
+
+  // Evidence of a *second language* is counted over distinct lines instead. A
+  // chorus line repeated four times is one piece of evidence, not four:
+  // counting occurrences let 千本桜's twice-repeated 三千世界 常世之闇 make the
+  // song look bilingual by itself, after which every kana-free line in it
+  // routed to Chinese.
+  let distinctKanaLines = 0;
+  let longHanOnlyLines = 0;
+  let chineseEvidenceLines = 0;
+  for (const line of new Set(lines)) {
     if (hasKana(line)) {
-      kanaLines += 1;
-    } else if (hasHan(line)) {
-      hanOnlyLines += 1;
-      const normalized = normalizeForDetection(line);
-      // A line showing Japanese orthography is evidence of a Japanese song,
-      // not of a second language, so it must not make the song look
-      // bilingual unless it also carries positive Chinese evidence.
-      if (
-        looksChinese(normalized) ||
-        (!hasJapaneseOnlyGlyphs(normalized) && hanCount(normalized) >= HAN_RUN_CHINESE_LENGTH)
-      ) {
-        longHanOnlyLines += 1;
-      }
+      distinctKanaLines += 1;
+      continue;
+    }
+    if (!hasHan(line)) continue;
+    const normalized = normalizeForDetection(line);
+    const chinese = looksChinese(normalized);
+    if (chinese) chineseEvidenceLines += 1;
+    // A line showing Japanese orthography is evidence of a Japanese song, not
+    // of a second language, so it must not count unless it also carries
+    // positive Chinese evidence.
+    if (
+      chinese ||
+      (!hasJapaneseOnlyGlyphs(normalized) && hanCount(normalized) >= HAN_RUN_CHINESE_LENGTH)
+    ) {
+      longHanOnlyLines += 1;
     }
   }
 
@@ -141,8 +158,14 @@ export function resolveDocumentContext(
   else if (kanaLines >= 1) branch = "japanese";
   else branch = "chinese";
 
-  // One stray set phrase is not a second language; a recurring pattern is.
-  const bilingual = kanaLines >= 2 && longHanOnlyLines >= 2;
+  // A second language has to actually show itself. Length is not evidence:
+  // the absence of Japanese orthography is not the presence of Chinese, and
+  // treating it as such made an all-Japanese song of four-character compounds
+  // (千本桜) look bilingual. So require at least one line carrying positive
+  // Chinese evidence — vocabulary or Chinese-only glyph forms — as well as a
+  // recurring pattern of kana-free lines rather than one stray set phrase.
+  const bilingual =
+    distinctKanaLines >= 2 && chineseEvidenceLines >= 1 && longHanOnlyLines >= 2;
   const hasTranslations = translationStates.some((state) => state === "translated");
   return { branch, bilingual, hasTranslations };
 }
