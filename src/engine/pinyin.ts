@@ -41,7 +41,16 @@ export function romanizeMandarin(text: string, options: PinyinOptions): string {
     format: OutputFormat.AllArray,
     nonZh: "consecutive",
     toneType: options.tones ? "symbol" : "none",
-    toneSandhi: false,
+    // 一 and 不 are written with their changed tone in ordinary pinyin: 一个 is
+    // yí gè and 不是 is bú shì in dictionaries and teaching material, not yī gè
+    // and bù shì. Third-tone sandhi is the opposite convention — 你好 is always
+    // written nǐ hǎo even though it is said ní hǎo — and pinyin-pro does not
+    // apply it under this flag either way, so enabling this gets the cases
+    // orthography marks without introducing the case it does not.
+    //
+    // The exceptions are handled: 第一 dì yī, 一月 yī yuè, 统一 tǒng yī all keep
+    // the plain tone, and 一心一意 comes out yì xīn yí yì.
+    toneSandhi: true,
   });
   const parts: string[] = [];
   for (const group of groups) {

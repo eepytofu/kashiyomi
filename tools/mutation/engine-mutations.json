@@ -545,6 +545,13 @@
   },
 
   {
+    "id": "pinyin/no-tone-sandhi",
+    "file": "src/engine/pinyin.ts",
+    "what": "一 and 不 keep their plain tone instead of the written change",
+    "find": "    toneSandhi: true,",
+    "replace": "    toneSandhi: false,"
+  },
+  {
     "id": "pinyin/drop-empty-guard",
     "file": "src/engine/pinyin.ts",
     "what": "a blank line is romanized instead of short-circuiting",

@@ -52,3 +52,37 @@ test("a pinyin row uses latin punctuation", () => {
     "bái mǎ guò le lí yuán, sān yuè de tiān, chūn fēng màn cǎo yě",
   );
 });
+
+test("一 and 不 are written with their changed tone", () => {
+  // Ordinary pinyin orthography marks these two: 一个 is yí gè and 不是 is
+  // bú shì in dictionaries and teaching material. Third-tone sandhi is the
+  // opposite convention and is never written (你好 stays nǐ hǎo), which is why
+  // only these two appear here.
+  const p = (text: string) => romanizeMandarin(text, { tones: true, joinWords: false });
+  assert.equal(p("一个"), "yí gè");
+  assert.equal(p("一天"), "yì tiān");
+  assert.equal(p("不是"), "bú shì");
+  // 不 before a third tone keeps its own tone.
+  assert.equal(p("不好"), "bù hǎo");
+});
+
+test("一 keeps its plain tone where the change does not apply", () => {
+  // Ordinals, dates, digit sequences and final position. Getting these wrong is
+  // the risk that comes with enabling the change at all, so they are pinned.
+  const p = (text: string) => romanizeMandarin(text, { tones: true, joinWords: false });
+  assert.equal(p("第一"), "dì yī");
+  assert.equal(p("一月"), "yī yuè");
+  assert.equal(p("统一"), "tǒng yī");
+  assert.equal(p("万一"), "wàn yī");
+  // Both rules inside one idiom.
+  assert.equal(p("一心一意"), "yì xīn yí yì");
+});
+
+test("a captured lyric line takes the changed tone", () => {
+  // 白马过了离原, captured 2026-08-04: 一 before a second tone. 14 of 82
+  // captured lines are affected by this, so it is not a corner case.
+  assert.equal(
+    romanizeMandarin("张伞一抬眼，细雨落额前", { tones: true, joinWords: false }),
+    "zhāng sǎn yì tái yǎn, xì yǔ luò é qián",
+  );
+});
