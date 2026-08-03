@@ -45,8 +45,26 @@ export function startAnnotator(paths: AssetPaths): void {
   log.info("annotator started");
 }
 
+/**
+ * Drop our annotations and analyze every line again.
+ *
+ * The visible text is put back to the lyric NetEase supplied before the
+ * bookkeeping is cleared. Kanji repair rewrites what is on screen (繼續 →
+ * 継続), and the untouched original only exists in SRC_ATTR, so clearing that
+ * attribute while leaving the repaired text in place would make the next scan
+ * read our own output as if it were the source — the one thing routing must
+ * never do. A line misrouted once would then stay misrouted no matter how the
+ * detector improves.
+ */
 export function rescan(): void {
-  for (const el of document.querySelectorAll(`[${MARK_ATTR}]`)) {
+  for (const el of document.querySelectorAll<HTMLElement>(`[${MARK_ATTR}]`)) {
+    const source = el.getAttribute(SRC_ATTR);
+    // Only restore when the element still shows what we rendered. If NetEase
+    // has since replaced the line, its own text is already there and is newer
+    // than anything we remembered.
+    if (source !== null && renderedText(el) === el.getAttribute(MARK_ATTR)) {
+      el.textContent = source;
+    }
     el.removeAttribute(MARK_ATTR);
     el.removeAttribute(SRC_ATTR);
   }
@@ -440,7 +458,6 @@ function applyAnnotation(
   renderJapaneseLine(line.el, displayText, annotation, {
     furigana: settings.furigana,
     romaji: settings.romaji,
-    furiganaSize: settings.furiganaSize,
   });
   // renderedText(el) now recovers displayText, so that is the marker; the
   // untouched source is kept separately for routing on later scans.

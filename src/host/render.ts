@@ -3,7 +3,6 @@
 // small sublines inside the same element so they scroll with the line.
 
 import type { JapaneseLineAnnotation } from "../engine/japanese.ts";
-import { rubyWordSpacingEm } from "../engine/rubyGap.ts";
 
 export const MARK_ATTR = "data-kashiyomi";
 /**
@@ -18,18 +17,10 @@ export function renderJapaneseLine(
   el: HTMLElement,
   displayText: string,
   annotation: JapaneseLineAnnotation,
-  options: { furigana: boolean; romaji: boolean; furiganaSize: number },
+  options: { furigana: boolean; romaji: boolean },
 ): void {
   el.textContent = "";
   el.setAttribute("lang", "ja");
-  // Ruby justifies a word's base out to the width of its reading, which can
-  // leave the gaps inside a word wider than the space between words. Widen
-  // this line's spaces to stay ahead of it. NCM recycles line elements, so the
-  // property is always assigned, never left over from a previous line.
-  const wordSpacing = options.furigana
-    ? rubyWordSpacingEm(annotation.furigana, options.furiganaSize / 100)
-    : 0;
-  el.style.wordSpacing = wordSpacing > 0 ? `${wordSpacing.toFixed(3)}em` : "";
   let cursor = 0;
   if (options.furigana) {
     for (const segment of annotation.furigana) {
@@ -116,9 +107,14 @@ export function applyStyles(): void {
   opacity: 0.72;
   line-height: 1.35;
   margin-top: 2px;
-  /* The line may carry extra word-spacing to keep its phrase boundaries clear
-     of ruby-widened words. Romaji has its own spaces and must not inherit it. */
-  word-spacing: normal;
+}
+ruby.kashiyomi-ruby {
+  /* A reading wider than its word overhangs the ruby box and collides with the
+     next reading. Measured on 千本桜 at 75%: -6.5px on 千本桜 夜ニ紛レ, -5.5px
+     on 此処は宴 鋼の檻, -3.7px on 希望の丘 遥か彼方. This clears all of them
+     (min +3.3px). Do not replace with display:inline-block or inline-table --
+     both displace the reading from its base. */
+  margin-inline: 0.2em;
 }
 ruby.kashiyomi-ruby > rt {
   font-size: ${size}%;

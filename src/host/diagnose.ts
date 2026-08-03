@@ -176,6 +176,88 @@ function measureReadingGaps(line: Element): number[] {
 }
 
 /**
+ * Try candidate stylesheets that might stop a reading from overhanging its
+ * ruby box, reporting the gap between adjacent readings under each. A negative
+ * gap is a collision.
+ *
+ * If one candidate makes every gap non-negative without changing line width or
+ * height much, the per-line word-spacing compensation can be deleted outright
+ * and replaced by that rule. Height is reported because the `inline-block`
+ * candidates are close to an approach that was tried and reverted for
+ * scattering the layout, and scattering shows up as a taller line.
+ */
+function probeRubyOverhangFixes(): void {
+  // Lines carrying a real space are the ones where readings collide across a
+  // phrase boundary, so prefer those over whatever happens to come first.
+  const withReadings = Array.from(document.querySelectorAll("ul.lyric li p")).filter(
+    (el) => el.querySelectorAll("ruby.kashiyomi-ruby").length >= 2,
+  );
+  const spaced = withReadings.filter((el) => /\s/.test(displayTextOf(el)));
+  const lines = (spaced.length > 0 ? spaced : withReadings).slice(0, 6);
+  if (lines.length === 0) {
+    log.info("ruby probe: no line carries two readings yet");
+    return;
+  }
+
+  const style = document.createElement("style");
+  document.head.appendChild(style);
+  // `no-compensation` neutralizes the per-line word-spacing so each candidate
+  // is judged on its own. That is the whole point: if a rule stops readings
+  // overhanging, rubyGap.ts and its plumbing can be deleted rather than tuned.
+  const noCompensation = "ul.lyric li p{word-spacing:normal !important;}";
+  const rubyInlineBlock = "ruby.kashiyomi-ruby{display:inline-block;}";
+  const candidates: readonly (readonly [string, string])[] = [
+    ["0-baseline-with-compensation", ""],
+    ["1-no-compensation", noCompensation],
+    ["2-ruby-inline-block-only", `${noCompensation}${rubyInlineBlock}`],
+    ["3-ruby-inline-block-plus-compensation", rubyInlineBlock],
+  ];
+  for (const [name, css] of candidates) {
+    style.textContent = css;
+    // Force layout before measuring.
+    void document.body.getBoundingClientRect();
+    const report = lines.map((el) => {
+      const rect = el.getBoundingClientRect();
+      return {
+        text: displayTextOf(el).slice(0, 16),
+        gaps: measureReadingGaps(el),
+        width: round(inlineWidth(el)),
+        height: round(rect.height),
+      };
+    });
+    log.info(`ruby probe ${name}`, JSON.stringify(report));
+  }
+  style.remove();
+}
+
+/**
+ * Reconnaissance only: is NetEase's own lyric payload reachable from the page?
+ * Translation presence is our strongest routing signal but is currently read
+ * from the rendered DOM, so it disappears when the user hides 译. If tlyric /
+ * romalrc can be read from NCM's data layer instead, the signal stops
+ * depending on a display toggle. Reports what exists; extracts nothing.
+ */
+function probeLyricSource(): void {
+  const scope = window as unknown as Record<string, unknown>;
+  const interesting = Object.keys(scope)
+    .filter((key) => /lyric|player|playing|ncm|music|store|bridge/i.test(key))
+    .slice(0, 30);
+  const betterncm = scope["betterncm"] as Record<string, unknown> | undefined;
+  log.info(
+    "lyric source probe",
+    JSON.stringify({
+      globals: interesting,
+      betterncmKeys: betterncm ? Object.keys(betterncm) : null,
+      betterncmNcmKeys: betterncm?.["ncm"]
+        ? Object.keys(betterncm["ncm"] as Record<string, unknown>)
+        : null,
+      hasWebpackChunk: Object.keys(scope).filter((k) => /^webpack/i.test(k)),
+      hasLegacyCmder: typeof scope["legacyNativeCmder"],
+    }),
+  );
+}
+
+/**
  * Dump how annotated lyric lines are laid out: the line element and its
  * ancestors, how much each ruby stretches its base beyond the same characters
  * unannotated, and the same width comparison on a line we did not touch.
@@ -314,6 +396,9 @@ export function diagnoseLayout(): boolean {
       }),
     );
   }
+
+  probeRubyOverhangFixes();
+  probeLyricSource();
 
   return measuredAny || measurements.length > 0;
 }
