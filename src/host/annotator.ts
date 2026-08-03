@@ -12,7 +12,7 @@ import { maskHintBrackets, projectReadingHints } from "../engine/hints.ts";
 import { annotateJapaneseLine, type JapaneseLineAnnotation } from "../engine/japanese.ts";
 import { romanizeMandarin } from "../engine/pinyin.ts";
 import { hasHan, hasKana, kataToHira, usesKatakanaOkurigana } from "../engine/kana.ts";
-import { hasCreditShape, isCreditLine, isPartMarkerLine } from "../engine/metadata.ts";
+import { classifyLines, type ClassifiableLine } from "../engine/lineKinds.ts";
 import { nativeAnalyze } from "./native.ts";
 import { ensurePinyinDict } from "./pinyinDict.ts";
 import { ROW_CLASS, renderJapaneseLine, renderPinyinRow } from "./render.ts";
@@ -66,13 +66,6 @@ function scheduleScan(): void {
 // so anything huge is a sign of something else going wrong.
 const MAX_LINE_CHARS = 800;
 
-/**
- * How far into the song the credit-shape fallback is allowed to look.
- * Credits sit at the top of every lyric file NetEase serves (lines 1-3 in
- * all three songs captured so far); further down, a colon is just a colon.
- */
-const CREDIT_SCAN_LINES = 6;
-
 // Layout is dumped once per session, after the first line that actually
 // carries ruby, so the log shows how NCM lays annotated lines out. The dump is
 // deferred: the ruby has just been inserted, and if the lyric panel is not
@@ -108,10 +101,10 @@ async function scan(): Promise<void> {
   const elements = findLineElements();
   if (elements.length === 0) return;
 
-  // First pass collects the lyric elements. Credits cannot be decided yet:
-  // the fallback below leans on a line going untranslated, which only means
-  // something once the whole song is known to carry translations at all.
-  const scanned: { el: HTMLElement; text: string; translation: LineTranslationState }[] = [];
+  // First pass collects the lyric elements. What each line *is* cannot be
+  // decided yet: classifyLines needs the whole song, because two of its
+  // signals are document-level.
+  const scanned: (ClassifiableLine & { el: HTMLElement })[] = [];
   for (const el of elements) {
     // NCM renders the translation (译) and its own romanization (音) as
     // additional p siblings after the original line; only the first p in a
@@ -128,7 +121,7 @@ async function scan(): Promise<void> {
     scanned.push({ el, text, translation: translationStateFor(el) });
   }
 
-  const songHasTranslations = scanned.some((line) => line.translation === "translated");
+  const kinds = classifyLines(scanned);
 
   const pending: PendingLine[] = [];
   const allTexts: string[] = [];
@@ -136,34 +129,18 @@ async function scan(): Promise<void> {
   const originals: OriginalLine[] = [];
   for (const [index, line] of scanned.entries()) {
     const { el, text } = line;
-    // Production credits (作词: …, 编曲：…) are not lyrics. They are never
-    // translated, and only annotated when the user asks for it.
-    //
-    // The role table cannot list every role, so a line merely *shaped* like a
-    // credit also counts when both of the other signals agree: it sits in the
-    // song's opening lines, and the player left it untranslated while
-    // translating the song around it. That is what an unlisted role looks
-    // like, and a real lyric in those first lines would have been translated.
-    const credit =
-      isCreditLine(text) ||
-      (index < CREDIT_SCAN_LINES &&
-        songHasTranslations &&
-        line.translation === "untranslated" &&
-        hasCreditShape(text));
-    // Singer markers (【合】, 【海伊】) name who sings the next block. Never a
-    // lyric and never annotated, whatever the credits setting says — there is
-    // nothing in them to read.
-    if (isPartMarkerLine(text)) {
+    const kind = kinds[index]!;
+    // Markers are never annotated, whatever the credits setting says.
+    if (kind === "marker") {
       applyScriptFont(el, text);
       markAnnotated(el, text);
       continue;
     }
-    if (!credit) {
+    if (kind === "lyric") {
       allTexts.push(text);
       originals.push({ el, text });
       translationStates.push(line.translation);
-    }
-    if (credit && !settings.annotateCredits) {
+    } else if (!settings.annotateCredits) {
       // Skipped lines are never routed, so they would otherwise be the only
       // lines on the page without a lang attribute, and would render in NCM's
       // default font while everything around them uses the user's stack.

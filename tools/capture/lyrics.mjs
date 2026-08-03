@@ -55,7 +55,7 @@ function evaluate(expression) {
 }
 
 // Kept in sync with LINE_SELECTORS and hasProviderTranslationSibling in
-// src/host/annotator.ts. Duplicated rather than imported because this runs
+// src/host/lyricDom.ts. Duplicated rather than imported because this runs
 // inside NCM's page, not in our module graph.
 const script = String.raw`(() => {
   const SELECTORS = ["ul.lyric li p", 'ul[class*="lyric"] li p', ".lyric-scroll p"];

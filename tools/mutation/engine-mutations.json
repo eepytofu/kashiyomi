@@ -327,5 +327,40 @@
     "what": "credit label table stored verbatim, so spaced multi-word roles never match",
     "find": "].map(normalizeLabel));",
     "replace": "]);"
+  },
+  {
+    "id": "lineKinds/drop-marker-check",
+    "file": "src/engine/lineKinds.ts",
+    "what": "singer markers fall through to the credit tests",
+    "find": "    if (isPartMarkerLine(line.text)) return \"marker\";",
+    "replace": "    if (false && isPartMarkerLine(line.text)) return \"marker\";"
+  },
+  {
+    "id": "lineKinds/scan-bound-unbounded",
+    "file": "src/engine/lineKinds.ts",
+    "what": "the credit-shape fallback may look anywhere in the song",
+    "find": "export const CREDIT_SCAN_LINES = 6;",
+    "replace": "export const CREDIT_SCAN_LINES = 600;"
+  },
+  {
+    "id": "lineKinds/drop-translation-gate",
+    "file": "src/engine/lineKinds.ts",
+    "what": "shape fallback fires in a song that carries no translations at all",
+    "find": "      index < CREDIT_SCAN_LINES &&\n      songHasTranslations &&",
+    "replace": "      index < CREDIT_SCAN_LINES &&"
+  },
+  {
+    "id": "lineKinds/shape-accepts-translated",
+    "file": "src/engine/lineKinds.ts",
+    "what": "a translated opening line counts as a credit",
+    "find": "      line.translation === \"untranslated\" &&",
+    "replace": "      line.translation !== \"untranslated\" &&"
+  },
+  {
+    "id": "lineKinds/doc-translations-every",
+    "file": "src/engine/lineKinds.ts",
+    "what": "a song counts as translated only when every line is",
+    "find": "  const songHasTranslations = lines.some((line) => line.translation === \"translated\");",
+    "replace": "  const songHasTranslations = lines.every((line) => line.translation === \"translated\");"
   }
 ]
