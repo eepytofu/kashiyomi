@@ -1,11 +1,10 @@
 // The AI translation lane: one request per song, and the rows it produces.
 //
-// Separate from NCM's own 译 lane, which is never overwritten. Our rows are
-// <div>s *inside* the lyric <p>, so hasProviderTranslationSibling never
-// mistakes them for the player's translation.
+// Separate from NCM's own 译 lane, which is never overwritten: these rows are
+// <div>s *inside* the lyric <p>, while 译 renders as a sibling <p>. The two
+// coexist, and routing reads 译 through translationStateFor, not from here.
 
 import { shouldDisplayTranslation } from "../engine/aiTranslation.ts";
-import { hasProviderTranslationSibling } from "./lyricDom.ts";
 import { ROW_CLASS } from "./render.ts";
 import { getSettings } from "./settings.ts";
 import { translateSong, translationConfigured } from "./translator.ts";
@@ -31,8 +30,15 @@ function attachTranslationRows(originals: readonly OriginalLine[]): void {
     const translated = txByText.get(text);
     if (!translated) continue;
     if (el.querySelector(".kashiyomi-tx")) continue;
-    // NCM's own translation (tlyric) outranks the AI lane; never double up.
-    if (hasProviderTranslationSibling(el)) continue;
+    // The row is shown even when NCM is displaying its own 译 for this line.
+    // The two are not the same information: 译 is always Chinese, while this
+    // lane is whatever target language the user asked for, so suppressing it
+    // silently ignores that setting. Comparing the two texts instead does not
+    // work — two independent translations of a line never come out identical,
+    // so the check would never fire.
+    //
+    // The invariant is that NCM's 译 is never *overwritten*, and it is not:
+    // this appends a div inside the lyric <p>, while 译 is a sibling <p>.
     const row = document.createElement("div");
     row.className = `${ROW_CLASS} kashiyomi-tx`;
     row.textContent = translated;
