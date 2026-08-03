@@ -13,16 +13,13 @@ import { annotateJapaneseLine, type JapaneseLineAnnotation } from "../engine/jap
 import { romanizeMandarin } from "../engine/pinyin.ts";
 import { hasHan, hasKana, kataToHira, usesKatakanaOkurigana } from "../engine/kana.ts";
 import { hasCreditShape, isCreditLine, isPartMarkerLine } from "../engine/metadata.ts";
-import { shouldDisplayTranslation } from "../engine/aiTranslation.ts";
 import { nativeAnalyze } from "./native.ts";
-import { translateSong, translationConfigured } from "./translator.ts";
 import { ensurePinyinDict } from "./pinyinDict.ts";
 import { ROW_CLASS, renderJapaneseLine, renderPinyinRow } from "./render.ts";
 import {
   applyScriptFont,
   clearAnnotations,
   findLineElements,
-  hasProviderTranslationSibling,
   isAnnotatedFrom,
   isKaraokeLine,
   isOriginalLyricElement,
@@ -30,6 +27,8 @@ import {
   sourceText,
   translationStateFor,
 } from "./lyricDom.ts";
+import { cachedAnnotation, rememberAnnotation } from "./analysisCache.ts";
+import { maybeTranslate, type OriginalLine } from "./translationLane.ts";
 import { getSettings } from "./settings.ts";
 import { log } from "./log.ts";
 import { diagnoseLayout } from "./diagnose.ts";
@@ -74,36 +73,6 @@ const MAX_LINE_CHARS = 800;
  */
 const CREDIT_SCAN_LINES = 6;
 
-// ---- analysis cache ----------------------------------------------------
-
-// Analysis is deterministic for a given display text, and NCM recycles line
-// elements constantly while scrolling, so the same lines would otherwise be
-// re-analyzed many times per song. An in-memory map is enough: the expensive
-// part is the one-off dictionary load, not tokenizing a line, and keeping
-// this out of storage avoids competing with the translation cache for quota
-// and avoids stale results when the dictionary or engine changes.
-const ANALYSIS_CACHE_CAP = 600;
-const analysisCache = new Map<string, JapaneseLineAnnotation>();
-
-function cachedAnnotation(text: string): JapaneseLineAnnotation | undefined {
-  const hit = analysisCache.get(text);
-  if (hit) {
-    // Refresh insertion order so active songs survive eviction.
-    analysisCache.delete(text);
-    analysisCache.set(text, hit);
-  }
-  return hit;
-}
-
-function rememberAnnotation(text: string, annotation: JapaneseLineAnnotation): void {
-  analysisCache.set(text, annotation);
-  while (analysisCache.size > ANALYSIS_CACHE_CAP) {
-    const oldest = analysisCache.keys().next();
-    if (oldest.done) break;
-    analysisCache.delete(oldest.value);
-  }
-}
-
 // Layout is dumped once per session, after the first line that actually
 // carries ruby, so the log shows how NCM lays annotated lines out. The dump is
 // deferred: the ruby has just been inserted, and if the lyric panel is not
@@ -121,66 +90,6 @@ function scheduleLayoutDiagnosis(): void {
   window.setTimeout(() => {
     if (!diagnoseLayout()) layoutDiagnosed = false;
   }, 600);
-}
-
-/** Drop cached analysis (settings that change readings invalidate it). */
-export function resetAnalysisCache(): void {
-  analysisCache.clear();
-}
-
-// ---- AI translation ----------------------------------------------------
-
-let txAbort: AbortController | undefined;
-let txDocKey = "";
-const txByText = new Map<string, string>();
-
-/** Forget the current song's translation state (call when AI settings change). */
-export function resetTranslation(): void {
-  txAbort?.abort();
-  txAbort = undefined;
-  txDocKey = "";
-  txByText.clear();
-}
-
-function attachTranslationRows(originals: readonly { el: HTMLElement; text: string }[]): void {
-  if (txByText.size === 0) return;
-  for (const { el, text } of originals) {
-    const translated = txByText.get(text);
-    if (!translated) continue;
-    if (el.querySelector(".kashiyomi-tx")) continue;
-    // NCM's own translation (tlyric) outranks the AI lane; never double up.
-    if (hasProviderTranslationSibling(el)) continue;
-    const row = document.createElement("div");
-    row.className = `${ROW_CLASS} kashiyomi-tx`;
-    row.textContent = translated;
-    el.appendChild(row);
-  }
-}
-
-function maybeTranslate(originals: readonly { el: HTMLElement; text: string }[]): void {
-  attachTranslationRows(originals);
-  const settings = getSettings();
-  if (!settings.aiAutoTranslate || !translationConfigured()) return;
-  if (originals.length < 2) return;
-  const texts = originals.map((entry) => entry.text);
-  const docKey = texts.join("\n");
-  if (docKey === txDocKey) return; // already translated, in flight, or failed once
-  txDocKey = docKey;
-  txAbort?.abort();
-  const controller = new AbortController();
-  txAbort = controller;
-  void (async () => {
-    const translated = await translateSong(texts, {}, controller.signal);
-    if (!translated || controller.signal.aborted) return;
-    txByText.clear();
-    for (let i = 0; i < texts.length; i++) {
-      const source = texts[i]!;
-      const target = translated[i] ?? "";
-      if (shouldDisplayTranslation(source, target)) txByText.set(source, target);
-    }
-    log.info(`translation ready for ${txByText.size} lines`);
-    scheduleScan();
-  })();
 }
 
 type PendingLine = { el: HTMLElement; original: string; translation: LineTranslationState };
@@ -224,7 +133,7 @@ async function scan(): Promise<void> {
   const pending: PendingLine[] = [];
   const allTexts: string[] = [];
   const translationStates: LineTranslationState[] = [];
-  const originals: { el: HTMLElement; text: string }[] = [];
+  const originals: OriginalLine[] = [];
   for (const [index, line] of scanned.entries()) {
     const { el, text } = line;
     // Production credits (作词: …, 编曲：…) are not lyrics. They are never
@@ -269,7 +178,7 @@ async function scan(): Promise<void> {
   if (pending.length === 0) {
     // Steady state: every visible line is annotated. Attach (and, when
     // enabled, request) AI translations now so they never race annotation.
-    maybeTranslate(originals);
+    maybeTranslate(originals, scheduleScan);
     return;
   }
 

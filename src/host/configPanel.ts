@@ -2,7 +2,9 @@
 // settings cards on the left, a live preview (rendered with the production
 // line renderer) and an about card on the right.
 
-import { resetAnalysisCache, rescan, resetTranslation } from "./annotator.ts";
+import { rescan } from "./annotator.ts";
+import { resetAnalysisCache } from "./analysisCache.ts";
+import { resetTranslation } from "./translationLane.ts";
 import { panelLang, setPanelLang, t, tSongsCached, type PanelLang, type StringKey } from "./i18n.ts";
 import { nativeState } from "./native.ts";
 import { cachedTranslationCount, clearTranslationCache } from "./translator.ts";
