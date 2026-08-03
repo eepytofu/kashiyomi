@@ -13,7 +13,7 @@
 // `finally`, from a process-exit handler, and on every termination signal, so
 // a killed run still cleans up.
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -107,12 +107,15 @@ const survived = results.filter((r) => !r.error && !r.crashed && r.failed.length
 console.log(`\n${results.length} mutations, ${survived.length} SURVIVED`);
 for (const s of survived) console.log(`  SURVIVED  ${s.id} — ${s.what}`);
 
-const status = execFileSync("git", ["status", "--porcelain", "src/"], {
-  cwd: REPO,
-  encoding: "utf8",
-});
-console.log(`\nsrc/ clean after sweep: ${status.trim() === ""}`);
-if (status.trim() !== "") {
-  console.error("SOURCE LEFT MUTATED — restore before continuing:\n" + status);
+// Verify against the snapshots, not against git: the tree is legitimately
+// dirty whenever the sweep is run on work in progress, which is most of the
+// time. What matters is that every file we touched is byte-identical to how
+// we found it.
+const unrestored = [...originals]
+  .filter(([p, text]) => readFileSync(p, "utf8") !== text)
+  .map(([p]) => path.relative(REPO, p));
+console.log(`\n${originals.size} file(s) touched, all restored: ${unrestored.length === 0}`);
+if (unrestored.length > 0) {
+  console.error("SOURCE LEFT MUTATED — restore before continuing:\n" + unrestored.join("\n"));
   process.exitCode = 1;
 }
