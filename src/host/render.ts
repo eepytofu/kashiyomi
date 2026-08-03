@@ -104,7 +104,10 @@ export function applyStyles(): void {
   style.textContent = `
 .${ROW_CLASS} {
   font-size: 0.72em;
-  opacity: 0.72;
+  /* Multiplies with NCM's own line colour, which is rgba(255,255,255,0.4) on
+     inactive lines and opaque on the active one. At 0.72 that left a reading
+     row at 29% on inactive lines. Size still carries the hierarchy. */
+  opacity: 0.85;
   line-height: 1.35;
   margin-top: 2px;
 }
