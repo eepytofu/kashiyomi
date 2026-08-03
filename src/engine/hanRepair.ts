@@ -18,6 +18,10 @@ export function repairJapaneseHan(line: string): string {
   if (repaired.length !== line.length) {
     // Every intended mapping is 1:1 in UTF-16 length; a length change means
     // OpenCC did something phrase-level we did not ask for. Abstain.
+    //
+    // This does fire: sweeping every CJK ideograph found 暅 -> 𣈶 and
+    // 毶 -> 𣯶, which are non-BMP and so two UTF-16 units. Without this,
+    // every furigana offset after such a character would be shifted by one.
     return line;
   }
   // 叶 is a valid Japanese kanji (叶う kanau); OpenCC maps it to 葉 as

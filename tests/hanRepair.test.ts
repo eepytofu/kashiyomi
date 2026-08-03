@@ -36,6 +36,15 @@ test("kougou stays 皇后", () => {
   assert.equal(repairJapaneseHan("皇后と太后"), "皇后と太后");
 });
 
+test("a conversion that changes utf-16 length is refused", () => {
+  // Found by sweeping every CJK ideograph through the converter: 暅 maps to
+  // 𣈶, which is non-BMP and therefore two UTF-16 units. Offsets are the
+  // engine's contract, so a line whose length would move is left alone rather
+  // than silently shifting every furigana span after it.
+  assert.equal(repairJapaneseHan("暅"), "暅");
+  assert.equal(repairJapaneseHan("梦见暅"), "梦见暅");
+});
+
 test("empty line", () => {
   assert.equal(repairJapaneseHan(""), "");
 });

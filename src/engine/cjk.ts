@@ -104,7 +104,12 @@ function looksChinese(line: string): boolean {
  * Classify the whole lyric document. A couple of kana lines mark the song as
  * Japanese; a clear majority of Han-only lines marks it as Chinese. A small
  * Japanese island must not flip an otherwise Chinese document, so Chinese
- * needs both an absolute floor and a 2:1 advantage.
+ * needs a 2:1 advantage in Han-only lines.
+ *
+ * There used to be an absolute floor of two Han-only lines alongside the
+ * ratio. It never did anything: the only case it excluded (no kana lines, one
+ * Han-only line) falls through to the final branch, which returns "chinese"
+ * regardless.
  */
 export function resolveDocumentBranch(lines: readonly string[]): CjkDocumentBranch {
   return resolveDocumentContext(lines).branch;
@@ -154,7 +159,7 @@ export function resolveDocumentContext(
 
   let branch: CjkDocumentBranch;
   if (kanaLines === 0 && hanOnlyLines === 0) branch = undefined;
-  else if (hanOnlyLines >= 2 && hanOnlyLines >= kanaLines * 2) branch = "chinese";
+  else if (hanOnlyLines >= kanaLines * 2) branch = "chinese";
   else if (kanaLines >= 1) branch = "japanese";
   else branch = "chinese";
 

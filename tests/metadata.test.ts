@@ -54,10 +54,40 @@ test("detects english credits", () => {
   }
 });
 
+test("multi-word english roles are detected", () => {
+  // The label is compared with spaces stripped, so these could never match
+  // while the table stored them spaced. Every one of them was dead.
+  for (const line of [
+    "Composed by: someone",
+    "Written by: someone",
+    "Arranged by: someone",
+    "Produced by: someone",
+    "Translated by: someone",
+    "Special Thanks: everyone",
+  ]) {
+    assert.equal(isCreditLine(line), true, line);
+  }
+});
+
 test("detects compound role labels", () => {
   assert.equal(isCreditLine("作词作曲：某人"), true);
   assert.equal(isCreditLine("词/曲：某人"), true);
   assert.equal(isCreditLine("Lyrics & Music: someone"), true);
+});
+
+test("a trailing separator does not make a single role a compound", () => {
+  // "Lyrics&" normalizes to "lyrics&", which fails the direct lookup but
+  // splits to the single valid part ["lyrics"]. Accepting that would let any
+  // role plus a stray separator through.
+  assert.equal(isCreditLine("Lyrics&: someone"), false);
+  assert.equal(isCreditLine("作词、：某人"), false);
+});
+
+test("a long compound credit is still a credit", () => {
+  // The label length bound is only a prefilter, and at 20 characters it was
+  // rejecting ordinary Vocaloid credits.
+  assert.equal(isCreditLine("Lyrics & Music & Arrangement: someone"), true);
+  assert.equal(isCreditLine("special thanks & translation: someone"), true);
 });
 
 test("every part of a compound label has to be a role", () => {
