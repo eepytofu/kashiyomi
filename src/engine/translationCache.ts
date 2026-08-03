@@ -111,6 +111,7 @@ export function cacheClear(storage: CacheStorage): void {
   try {
     storage.removeItem(CACHE_KEY);
   } catch {
-    // nothing to do
+    // Clearing is best-effort, like writing: a cache that refuses to go away
+    // is not worth failing the caller over.
   }
 }
