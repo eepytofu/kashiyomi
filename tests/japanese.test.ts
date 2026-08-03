@@ -25,11 +25,16 @@ function token(
 }
 
 test("furigana and romaji for a plain line", () => {
+  // Tokens verified against the real analyzer on 2026-08-03:
+  //   native/target/release/analyze "灯篭の灯に照らされてゆく"
+  // An earlier version read 灯 as ヒ, which Sudachi does not return here — it
+  // reads アカリ — so the asserted romaji was for a tokenization the user
+  // never gets.
   const line = "灯篭の灯に照らされてゆく";
   const tokens = [
     token("灯篭", 0, "トウロウ"),
     token("の", 2, "ノ", "particle"),
-    token("灯", 3, "ヒ"),
+    token("灯", 3, "アカリ"),
     token("に", 4, "ニ", "particle"),
     token("照らさ", 5, "テラサ", "verb"),
     token("れ", 8, "レ", "auxiliaryVerb"),
@@ -39,10 +44,10 @@ test("furigana and romaji for a plain line", () => {
   const { furigana, romaji } = annotateJapaneseLine(line, tokens);
   assert.deepEqual(furigana, [
     { start: 0, end: 2, reading: "とうろう", origin: "inferred" },
-    { start: 3, end: 4, reading: "ひ", origin: "inferred" },
+    { start: 3, end: 4, reading: "あかり", origin: "inferred" },
     { start: 5, end: 6, reading: "て", origin: "inferred" },
   ]);
-  assert.equal(romaji, "tourou no hi ni terasa re te yuku");
+  assert.equal(romaji, "tourou no akari ni terasa re te yuku");
 });
 
 test("authored hint overrides reading and romaji", () => {
@@ -83,6 +88,9 @@ test("okurigana-carrying hint puts ruby only over the kanji", () => {
 });
 
 test("hint spanning two tokens is voiced once", () => {
+  // Deliberately constructed, not a real tokenization: Sudachi returns 大空 as
+  // a single オオゾラ token. The split exists to exercise a hint that crosses a
+  // token boundary, which does happen on compounds the dictionary does split.
   const line = "大空へ";
   const tokens = [token("大", 0, "オオ"), token("空", 1, "ソラ"), token("へ", 2, "ヘ", "particle")];
   const { furigana, romaji } = annotateJapaneseLine(line, tokens, [
@@ -103,7 +111,7 @@ test("unknown readings abstain from furigana but keep the line", () => {
 test("no space before punctuation", () => {
   const line = "そら、うみ";
   const tokens = [
-    token("そら", 0, "ソラ"),
+    token("そら", 0, "ソラ", "pronoun"),
     token("、", 2, ""),
     token("うみ", 3, "ウミ"),
   ];
@@ -128,7 +136,7 @@ test("line-final sokuon still voices as t", () => {
 test("the topic particle は voices as wa", () => {
   const line = "僕は空";
   const tokens = [
-    token("僕", 0, "ボク"),
+    token("僕", 0, "ボク", "pronoun"),
     token("は", 1, "ハ", "particle"),
     token("空", 2, "ソラ"),
   ];

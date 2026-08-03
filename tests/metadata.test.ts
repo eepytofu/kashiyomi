@@ -2,15 +2,34 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { isCreditLine } from "../src/engine/metadata.ts";
 
-test("detects japanese credits", () => {
+test("detects the credits a japanese song actually ships with", () => {
+  // Captured from the running app on 2026-08-03. NetEase writes the role
+  // labels in **simplified** even for Japanese songs: 無 (立入禁止), 千本桜
+  // (黒うさP) and Bad Apple!! all open with 作词/作曲/编曲, never 作詞/編曲.
+  // An earlier version of this fixture paired the real artist with role
+  // spellings NetEase was not observed to serve.
   for (const line of [
-    "作詞: 立入禁止",
+    "作词: 立入禁止",
     "作曲: 立入禁止",
-    "編曲: 立入禁止",
-    "唄：歌爱ユキ",
-    "ミックス: someone",
-    "イラスト：絵師",
+    "编曲: 立入禁止",
+    "作词: 黒うさP",
+    "编曲: ビートまりお / Masayoshi Minoshima / まらしぃ",
   ]) {
+    assert.equal(isCreditLine(line), true, line);
+  }
+});
+
+test("japanese role spellings are still accepted", () => {
+  // Not observed from NetEase, but lyrics can be uploaded by anyone and the
+  // kanji forms cost nothing to keep. Labelled so nobody reads this as
+  // evidence of what the app serves.
+  for (const line of ["作詞: 立入禁止", "編曲: 立入禁止", "唄：歌爱ユキ"]) {
+    assert.equal(isCreditLine(line), true, line);
+  }
+});
+
+test("detects non-role japanese credit labels", () => {
+  for (const line of ["ミックス: someone", "イラスト：絵師"]) {
     assert.equal(isCreditLine(line), true, line);
   }
 });
@@ -50,9 +69,12 @@ test("every part of a compound label has to be a role", () => {
 });
 
 test("leaves real lyrics alone", () => {
+  // 但我爱的人都会一个一个死去 and 嗚呼 are 無 as the app serves it; an earlier
+  // version wrote the first with traditional 愛/個 beside simplified 都会,
+  // a hybrid spelling no lyric uses.
   for (const line of [
     "灯篭の灯に照らされてゆく",
-    "但我愛的人都会一個一個死去",
+    "但我爱的人都会一个一个死去",
     "嗚呼",
     "今宵も天は明るく",
     "水柔而无形 汇入一方庭园",
