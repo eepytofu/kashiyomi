@@ -186,6 +186,75 @@ test("a repeated chorus line is one piece of evidence, not two", () => {
   }
 });
 
+test("a repeated chinese line is one piece of evidence, not two", () => {
+  // The 千本桜 case above cannot catch occurrence-counting: it carries no
+  // Chinese line at all, so the evidence requirement rejects it whichever way
+  // the counting goes. This song has exactly one, repeated — distinct
+  // counting sees one piece of evidence, occurrence counting sees two.
+  const doc = resolveDocumentContext([
+    "僕らの居場所はどこなんだ",
+    "探せばほんの少しは残っているんだろうか",
+    "我不想五味杂陈地…",
+    "我不想五味杂陈地…",
+  ]);
+  assert.equal(doc.bilingual, false);
+});
+
+test("a repeated kana line does not reach the bilingual kana threshold", () => {
+  // Same defect from the other side: one distinct Japanese line sung three
+  // times is not two Japanese lines.
+  const doc = resolveDocumentContext([
+    "僕らの居場所はどこなんだ",
+    "僕らの居場所はどこなんだ",
+    "僕らの居場所はどこなんだ",
+    "我不想五味杂陈地…",
+    "但我爱的人都会一个一个死去",
+  ]);
+  assert.equal(doc.bilingual, false);
+});
+
+test("japanese orthography is not evidence of a second language", () => {
+  // 磊々落々 反戦国家 is kana-free and long, but 々 and 戦 mark it Japanese.
+  // Counting it as second-language evidence makes an ordinary Japanese song
+  // that happens to carry one Chinese line look bilingual, after which its
+  // kana-free lines route to Chinese — the 千本桜 bug.
+  const doc = resolveDocumentContext([
+    "僕らの居場所はどこなんだ",
+    "探せばほんの少しは残っているんだろうか",
+    "我不想五味杂陈地…",
+    "磊々落々 反戦国家",
+  ]);
+  assert.equal(doc.bilingual, false);
+  assert.equal(resolveLineRoute("三千世界 常世之闇", doc), "japanese");
+});
+
+test("either kind of chinese vocabulary evidence is enough on its own", () => {
+  // 很 is a function-word marker carrying no bigram; 知道/時候 are bigrams
+  // whose characters are individually ambiguous. Lines carrying both let
+  // either mechanism be deleted unnoticed.
+  assert.equal(resolveLineRoute("很好啊", "japanese"), "chinese");
+  assert.equal(resolveLineRoute("知道時候", "japanese"), "chinese");
+});
+
+test("a chinese bigram split by a space is still evidence", () => {
+  // NCM lyrics are often spaced for phrasing, which would otherwise break a
+  // bigram in half.
+  assert.equal(resolveLineRoute("知 道", "japanese"), "chinese");
+});
+
+test("a short kana-free line is not chinese by length alone", () => {
+  // The long-Han-run rung has a floor: four-character compounds are the
+  // normal shape of a kana-free Japanese lyric line.
+  const bilingual = { branch: "japanese", bilingual: true, hasTranslations: false } as const;
+  assert.equal(resolveLineRoute("花鳥風月", bilingual), "japanese");
+});
+
+test("a han-only line with no document context falls back to chinese", () => {
+  // Reached only when the document yielded no branch at all; kanji-only text
+  // with nothing else to go on is likelier Chinese than Japanese.
+  assert.equal(resolveLineRoute("花鳥風月", undefined), "chinese");
+});
+
 test("length alone is not evidence of a second language", () => {
   // Two distinct kana-free lines with no Chinese vocabulary and no
   // Chinese-only glyphs. Absence of Japanese orthography is not presence of

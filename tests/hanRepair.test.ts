@@ -24,6 +24,14 @@ test("kanau keeps 叶", () => {
   assert.equal(repairJapaneseHan("叶えて"), "叶えて");
 });
 
+test("a genuine 葉 survives a line that is being repaired", () => {
+  // The 叶 restore only runs on lines OpenCC actually changed, so it needs a
+  // fixture carrying both a converted glyph and a real 葉. Restoring without
+  // checking the okurigana would turn 葉っぱ into 叶っぱ.
+  assert.equal(repairJapaneseHan("梦见葉っぱ"), "夢見葉っぱ");
+  assert.equal(repairJapaneseHan("头发の葉が"), "頭髪の葉が");
+});
+
 test("kougou stays 皇后", () => {
   assert.equal(repairJapaneseHan("皇后と太后"), "皇后と太后");
 });

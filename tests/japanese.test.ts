@@ -125,6 +125,39 @@ test("line-final sokuon still voices as t", () => {
   assert.equal(romaji, "at");
 });
 
+test("the topic particle は voices as wa", () => {
+  const line = "僕は空";
+  const tokens = [
+    token("僕", 0, "ボク"),
+    token("は", 1, "ハ", "particle"),
+    token("空", 2, "ソラ"),
+  ];
+  assert.equal(annotateJapaneseLine(line, tokens).romaji, "boku wa sora");
+});
+
+test("the object particle を voices as wo", () => {
+  const line = "空を";
+  const tokens = [token("空", 0, "ソラ"), token("を", 1, "ヲ", "particle")];
+  assert.equal(annotateJapaneseLine(line, tokens).romaji, "sora wo");
+});
+
+test("は outside a particle keeps its own sound", () => {
+  // Only the particle is respelled. A は the analyzer did not tag as one is
+  // read normally, so the Hepburn rule must stay gated on part of speech.
+  const tokens = [token("は", 0, "ハ", "noun")];
+  assert.equal(annotateJapaneseLine("は", tokens).romaji, "ha");
+});
+
+test("a hint with non-kana context around it is voiced alone", () => {
+  // The hint covers 空 only, but its token run starts at 大, and 大's sound
+  // cannot be reconstructed from the display text. Voicing the run would
+  // splice a kanji into the romaji, so the authored reading stands by itself.
+  const line = "大空へ";
+  const tokens = [token("大空", 0, "オオゾラ"), token("へ", 2, "ヘ", "particle")];
+  const { romaji } = annotateJapaneseLine(line, tokens, [{ start: 1, end: 2, reading: "ぞら" }]);
+  assert.equal(romaji, "zora e");
+});
+
 test("mismatched tokens fail closed", () => {
   assert.throws(() => annotateJapaneseLine("天へ", [token("地", 0, "チ")]));
 });

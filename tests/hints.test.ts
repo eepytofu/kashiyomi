@@ -56,6 +56,32 @@ test("rejects when whitespace precedes the paren", () => {
   assert.deepEqual(hints, []);
 });
 
+test("accepts a katakana reading over hiragana okurigana", () => {
+  // Authored hints are sometimes written in katakana. The okurigana match has
+  // to normalize both sides or ゆ against ユ looks like a mismatch and the
+  // whole hint is thrown away.
+  const { displayText, hints } = projectReadingHints("嘘 思ゆ(オボユ)桜");
+  assert.equal(displayText, "嘘 思ゆ桜");
+  assert.deepEqual(hints, [{ start: 2, end: 4, reading: "オボユ" }]);
+});
+
+test("a single-kanji word at the end of a kana line is still a reading", () => {
+  // The chant-echo rejection needs the annotated word to be at least two
+  // characters. A lone kanji after kana is an ordinary short reading, not
+  // backing vocals.
+  const { displayText, hints } = projectReadingHints("らら 灯(あかり)");
+  assert.equal(displayText, "らら 灯");
+  assert.deepEqual(hints, [{ start: 3, end: 4, reading: "あかり" }]);
+});
+
+test("real context before the word defeats the chant rejection", () => {
+  // 勝負服(はっはっ) alone is a chant echo; the same word after kanji is a
+  // genuine reading, so the rule must look at what precedes it.
+  const { displayText, hints } = projectReadingHints("僕の勝負服(はっはっ)");
+  assert.equal(displayText, "僕の勝負服");
+  assert.deepEqual(hints, [{ start: 2, end: 5, reading: "はっはっ" }]);
+});
+
 test("rejects non-kana parentheticals", () => {
   const line = "天(Stage)へ";
   const { displayText, hints } = projectReadingHints(line);

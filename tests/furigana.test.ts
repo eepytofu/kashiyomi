@@ -46,6 +46,22 @@ test("unusable readings abstain", () => {
   assert.deepEqual(alignFurigana("Fake", "フェイク"), []);
 });
 
+test("katakana okurigana anchors against a katakana reading", () => {
+  // 夜ニ紛レ style lines reach the aligner with katakana okurigana. The anchor
+  // has to be normalized like the reading is, or レ never matches れ and the
+  // split is abandoned.
+  assert.deepEqual(alignFurigana("紛レ", "マギレ"), [
+    { start: 0, end: 1, reading: "まぎ" },
+  ]);
+});
+
+test("a non-kana reading is rejected rather than rendered", () => {
+  // Romaji or latin coming back from the analyzer is not a reading; putting
+  // it in a ruby would print it over the kanji.
+  assert.deepEqual(alignFurigana("灯篭", "tourou"), []);
+  assert.deepEqual(alignFurigana("灯篭", "トウロウ2"), []);
+});
+
 test("mismatched anchors fall back to whole-surface ruby", () => {
   // Reading does not contain the kana anchor れ where expected.
   assert.deepEqual(alignFurigana("離れ離れ", "ハナレバナ"), [

@@ -41,6 +41,14 @@ test("detects compound role labels", () => {
   assert.equal(isCreditLine("Lyrics & Music: someone"), true);
 });
 
+test("every part of a compound label has to be a role", () => {
+  // 作词/张三 pairs a role with a name, which is a lyric-side slash, not a
+  // two-role credit. Accepting it because one part matches would swallow real
+  // lines.
+  assert.equal(isCreditLine("作词/张三: 甲"), false);
+  assert.equal(isCreditLine("Lyrics & 僕: something"), false);
+});
+
 test("leaves real lyrics alone", () => {
   for (const line of [
     "灯篭の灯に照らされてゆく",
