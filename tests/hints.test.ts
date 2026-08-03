@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { projectReadingHints } from "../src/engine/hints.ts";
+import { maskHintBrackets, projectReadingHints } from "../src/engine/hints.ts";
 
 test("accepts an inline reading hint and hides the parenthetical", () => {
   const { displayText, hints } = projectReadingHints("天(そら)へ翔けてゆけ");
@@ -97,4 +97,29 @@ test("the parenthetical is removed even when its reading is not used", () => {
   const { displayText, hints } = projectReadingHints("今宵も天（そら）は　明るく");
   assert.equal(displayText, "今宵も天は　明るく");
   assert.deepEqual(hints, [{ start: 3, end: 4, reading: "そら" }]);
+});
+
+test("masking blanks only the brackets and keeps the length", () => {
+  // With the setting off the lyric stays exactly as NetEase serves it, so the
+  // annotation is still on screen. The analyzer still must not see the
+  // brackets: SudachiDict has 天（そら） as one entry reading テン, which put a
+  // てん ruby across all five characters. Length is preserved because every
+  // furigana offset indexes the displayed line.
+  const line = "今宵も天（そら）は　明るく";
+  const masked = maskHintBrackets(line);
+  assert.equal(masked, "今宵も天 そら は　明るく");
+  assert.equal(masked.length, line.length);
+});
+
+test("masking leaves a rejected annotation alone", () => {
+  // 勝負服(はっはっ) is a chant echo, not a reading, so it is not a hint and
+  // its brackets stay.
+  const line = "勝負服(はっはっ)";
+  assert.equal(maskHintBrackets(line), line);
+});
+
+test("masking handles several hints in one line", () => {
+  const line = "天(そら)と地(つち)";
+  assert.equal(maskHintBrackets(line), "天 そら と地 つち ");
+  assert.equal(maskHintBrackets(line).length, line.length);
 });

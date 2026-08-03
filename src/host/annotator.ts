@@ -9,7 +9,7 @@ import {
   type LineTranslationState,
 } from "../engine/cjk.ts";
 import { repairJapaneseHan } from "../engine/hanRepair.ts";
-import { projectReadingHints } from "../engine/hints.ts";
+import { maskHintBrackets, projectReadingHints } from "../engine/hints.ts";
 import { annotateJapaneseLine, type JapaneseLineAnnotation } from "../engine/japanese.ts";
 import { romanizeMandarin } from "../engine/pinyin.ts";
 import { hasHan, hasKana, kataToHira, usesKatakanaOkurigana } from "../engine/kana.ts";
@@ -390,21 +390,25 @@ async function scan(): Promise<void> {
     if (route === "japanese") {
       line.el.setAttribute("lang", "ja");
       const repaired = settings.hanRepair ? repairJapaneseHan(line.original) : line.original;
-      // A parenthetical reading is furigana markup the uploader wrote, not
-      // lyric text, so it comes out of the line either way. The setting
-      // decides whose reading wins — the author's そら or the dictionary's
-      // てん — not whether the markup is rendered.
+      // With hints on, the annotation is consumed: it leaves the display and
+      // becomes the reading. With hints off the lyric is left exactly as
+      // NetEase serves it, brackets and all — the setting is about using the
+      // author's reading, not about rewriting the line.
       //
-      // It must not reach the analyzer either: SudachiDict *contains* 天（そら）
-      // as an entry reading テン, so leaving it in produced one five-character
-      // token and a てん ruby smeared across 天（そら）, with そら dropped from the
-      // romaji entirely.
+      // Either way the *analyzer* must not see the brackets. SudachiDict
+      // contains 天（そら） as a single entry reading テン, so an untouched line
+      // produced one five-character token and a てん ruby smeared across
+      // 天（そら）. Blanking just the brackets keeps the length, so every offset
+      // still indexes the displayed text.
       const projection = projectReadingHints(repaired);
-      const display = projection.displayText;
+      const display = settings.readingHints ? projection.displayText : repaired;
       const hints = settings.readingHints ? projection.hints : [];
       // Katakana-okurigana lines are analyzed as hiragana; the conversion is
       // one character to one, so offsets still match what is displayed.
-      const analysisText = usesKatakanaOkurigana(display) ? kataToHira(display) : display;
+      const forAnalysis = settings.readingHints ? display : maskHintBrackets(display);
+      const analysisText = usesKatakanaOkurigana(forAnalysis)
+        ? kataToHira(forAnalysis)
+        : forAnalysis;
       japanese.push({ line, displayText: display, analysisText, hints });
     } else if (route === "chinese" && hasHan(line.original)) {
       line.el.setAttribute("lang", "zh");

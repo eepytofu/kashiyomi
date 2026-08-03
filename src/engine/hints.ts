@@ -44,6 +44,50 @@ export function projectReadingHints(line: string): HintProjection {
   const hints: ReadingHint[] = [];
   let display = "";
   let consumed = 0;
+  for (const { full, word, reading, index } of acceptedHints(line)) {
+    display += line.slice(consumed, index) + word;
+    hints.push({
+      start: display.length - word.length,
+      end: display.length,
+      reading,
+    });
+    consumed = index + full.length;
+  }
+  display += line.slice(consumed);
+  return { displayText: display, hints };
+}
+
+/**
+ * The line with only the *brackets* of each accepted hint blanked out, same
+ * length, for feeding to the analyzer when the display keeps the annotation.
+ *
+ * Needed because the annotation confuses tokenization: SudachiDict contains
+ * 天（そら） as a single entry reading テン, so an untouched line yields one
+ * five-character token and a てん ruby smeared across the brackets. Blanking
+ * just the brackets leaves 天 and そら as separate words, so the ruby lands on
+ * 天 alone and そら still romanizes.
+ *
+ * Length is preserved because every offset the annotator computes — furigana
+ * spans, hint ranges — indexes the displayed text.
+ */
+export function maskHintBrackets(line: string): string {
+  let out = "";
+  let consumed = 0;
+  for (const { full, word, index } of acceptedHints(line)) {
+    // The parenthetical runs from just after the word to the end of the match:
+    // word 「（ reading ）」, so the two brackets are its first and last unit.
+    const openAt = index + word.length;
+    const closeAt = index + full.length - 1;
+    out += line.slice(consumed, openAt) + " " + line.slice(openAt + 1, closeAt) + " ";
+    consumed = closeAt + 1;
+  }
+  return out + line.slice(consumed);
+}
+
+type AcceptedHint = { full: string; word: string; reading: string; index: number };
+
+/** Hint matches that survive the rejection rules, in order. */
+function* acceptedHints(line: string): Generator<AcceptedHint> {
   for (const match of line.matchAll(HINT_PATTERN)) {
     const [full, kanji, okurigana, reading] = match as unknown as [string, string, string, string];
     const word = kanji + okurigana;
@@ -55,16 +99,8 @@ export function projectReadingHints(line: string): HintProjection {
     if (DECORATION_ONLY.test(tail) && isChantContext(line, index, word)) {
       continue;
     }
-    display += line.slice(consumed, index) + word;
-    hints.push({
-      start: display.length - word.length,
-      end: display.length,
-      reading,
-    });
-    consumed = index + full.length;
+    yield { full, word, reading, index };
   }
-  display += line.slice(consumed);
-  return { displayText: display, hints };
 }
 
 // A line-final kana parenthetical after mostly-kana content reads as a chant
