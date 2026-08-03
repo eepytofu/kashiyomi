@@ -73,3 +73,22 @@ test("segments do not gain a leading or trailing space", () => {
   const out = latinizeSegments([{ text: " a" }, { text: "。" }]);
   assert.equal(out.map((s) => s.text).join(""), "a.");
 });
+
+test("a space on both sides of a segment boundary collapses to one", () => {
+  // アマツキツネ with reading hints off, captured 2026-08-04. The brackets of
+  // 天（そら） are blanked for the analyzer, so the tokens either side carry a
+  // space and the row read "koyoi mo ten  sora  wa  akaruku". Each segment is
+  // collapsed on its own, so only the boundary can produce the double space.
+  const out = latinizeSegments([
+    { text: "koyoi mo ten " },
+    { text: "sora " },
+    { text: " wa akaruku" },
+  ]);
+  assert.equal(out.map((s) => s.text).join(""), "koyoi mo ten sora wa akaruku");
+  // The joined string and the segments must agree; that is the whole reason
+  // latinizeSegments exists rather than fixing the two separately.
+  assert.equal(
+    out.map((s) => s.text).join(""),
+    toLatinPunctuation("koyoi mo ten  sora  wa  akaruku"),
+  );
+});

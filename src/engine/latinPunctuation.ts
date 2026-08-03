@@ -84,6 +84,14 @@ export function latinizeSegments<T extends { text: string }>(segments: readonly 
     if (OPENING.includes(last)) next.text = next.text.replace(/^[ \t]+/u, "");
     else if (NEEDS_TRAILING_SPACE.includes(last) && next.text !== "" && !/^\s/u.test(next.text)) {
       next.text = ` ${next.text}`;
+    } else if (last === " " || last === "\t") {
+      // A space ending one segment and another starting the next join into a
+      // double space that neither segment's own pass can see, because each is
+      // collapsed on its own. With reading hints off this is the normal case:
+      // the brackets of 天（そら） are blanked for the analyzer, so the tokens
+      // around them carry spaces on both sides and the romaji read
+      // "ten  sora  wa".
+      next.text = next.text.replace(/^[ \t]+/u, "");
     }
   }
   const first = out[0];

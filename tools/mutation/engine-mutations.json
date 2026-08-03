@@ -451,6 +451,13 @@
   },
 
   {
+    "id": "latin/double-space-across-segments",
+    "file": "src/engine/latinPunctuation.ts",
+    "what": "a space on each side of a segment boundary stays a double space",
+    "find": "    } else if (last === \" \" || last === \"\\t\") {",
+    "replace": "    } else if (false) {"
+  },
+  {
     "id": "apiKeys/no-comma-separator",
     "file": "src/engine/apiKeys.ts",
     "what": "only newlines separate keys, so a comma-pasted list is one key",
