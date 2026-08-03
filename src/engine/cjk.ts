@@ -44,10 +44,17 @@ const CHINESE_BIGRAMS = [
   "我不", "不要", "不想", "不是", "不会", "不能", "我的", "你的", "他的", "她的",
   "我们", "我們", "你们", "你們", "他们", "他們", "一个", "一個", "这个", "這個",
   "那个", "那個", "什么", "什麼", "怎么", "怎麼", "因为", "因為", "所以", "可以",
-  "已经", "已經", "还是", "還是", "就是", "没有", "沒有", "知道", "时候", "時候",
+  "已经", "已經", "还是", "還是", "就是", "没有", "沒有", "知道", "时候",
   "如果", "但是", "只是", "还有", "還有", "多少", "为了", "為了", "一起", "起来",
-  "起來", "出来", "出來", "下去", "过去", "過去", "现在", "現在",
+  "起來", "出来", "下去", "过去", "现在",
 ];
+
+// Dropped on 2026-08-03: 時候, 過去, 現在, 出來. Each is a traditional form that
+// is character-identical to an ordinary Japanese word (ジコウ, カコ, ゲンザイ,
+// デキ), so it could only ever misfire here — NetEase is a mainland service and
+// ships simplified, including in credit labels, on every song captured so far.
+// The simplified twins 时候/过去/现在/出来 stay; 出来 is also common Japanese, but
+// unlike the others it is genuinely the form this platform serves.
 
 /**
  * Japanese lyric lines almost always carry kana, because particles and

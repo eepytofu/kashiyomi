@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { isCreditLine } from "../src/engine/metadata.ts";
+import { hasCreditShape, isCreditLine } from "../src/engine/metadata.ts";
 
 test("detects the credits a japanese song actually ships with", () => {
   // Captured from the running app on 2026-08-03. NetEase writes the role
@@ -122,4 +122,24 @@ test("a lyric containing a colon is not treated as a credit", () => {
 test("a label with no value is not a credit", () => {
   assert.equal(isCreditLine("作詞:"), false);
   assert.equal(isCreditLine("作詞"), false);
+});
+
+test("credit shape accepts an unlisted role but refuses a lyric", () => {
+  // The shape test is the weaker signal a caller combines with position and
+  // translation state, so it must not swallow lyrics on its own.
+  for (const line of ["PV: someone", "Mastering Engineer: someone", "特效：某人"]) {
+    assert.equal(hasCreditShape(line), true, line);
+    assert.equal(isCreditLine(line), false, line);
+  }
+  // Kana in the label means a sentence, not a role.
+  assert.equal(hasCreditShape("君に言った: さよなら"), false);
+  // No colon at all, and a label too long to be a role.
+  assert.equal(hasCreditShape("僕らの居場所はどこなんだ"), false);
+  assert.equal(hasCreditShape("答案是：我不知道"), false);
+});
+
+test("a known credit is also credit-shaped", () => {
+  for (const line of ["作词: 立入禁止", "编曲: 黒うさP", "Composed by: someone"]) {
+    assert.equal(hasCreditShape(line), true, line);
+  }
 });

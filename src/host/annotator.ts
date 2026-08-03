@@ -13,7 +13,7 @@ import { projectReadingHints } from "../engine/hints.ts";
 import { annotateJapaneseLine, type JapaneseLineAnnotation } from "../engine/japanese.ts";
 import { romanizeMandarin } from "../engine/pinyin.ts";
 import { hasHan, hasKana, kataToHira, usesKatakanaOkurigana } from "../engine/kana.ts";
-import { isCreditLine } from "../engine/metadata.ts";
+import { hasCreditShape, isCreditLine } from "../engine/metadata.ts";
 import { shouldDisplayTranslation } from "../engine/aiTranslation.ts";
 import { nativeAnalyze } from "./native.ts";
 import { translateSong, translationConfigured } from "./translator.ts";
@@ -129,6 +129,13 @@ function markAnnotated(el: HTMLElement, source: string, rendered = source): void
 // Sudachi rejects inputs over ~48KB; a lyric line should never be near that,
 // so anything huge is a sign of something else going wrong.
 const MAX_LINE_CHARS = 800;
+
+/**
+ * How far into the song the credit-shape fallback is allowed to look.
+ * Credits sit at the top of every lyric file NetEase serves (lines 1-3 in
+ * all three songs captured so far); further down, a colon is just a colon.
+ */
+const CREDIT_SCAN_LINES = 6;
 
 function isOriginalLyricElement(el: HTMLElement): boolean {
   let sibling = el.previousElementSibling;
@@ -285,10 +292,10 @@ async function scan(): Promise<void> {
   const elements = findLineElements();
   if (elements.length === 0) return;
 
-  const pending: PendingLine[] = [];
-  const allTexts: string[] = [];
-  const translationStates: LineTranslationState[] = [];
-  const originals: { el: HTMLElement; text: string }[] = [];
+  // First pass collects the lyric elements. Credits cannot be decided yet:
+  // the fallback below leans on a line going untranslated, which only means
+  // something once the whole song is known to carry translations at all.
+  const scanned: { el: HTMLElement; text: string; translation: LineTranslationState }[] = [];
   for (const el of elements) {
     // NCM renders the translation (译) and its own romanization (音) as
     // additional p siblings after the original line; only the first p in a
@@ -303,20 +310,42 @@ async function scan(): Promise<void> {
     if (el.querySelector("span:not(rt span)")) continue;
     const text = sourceText(el);
     if (text === "" || text.length > MAX_LINE_CHARS) continue;
-    // Production credits (作詞: …, 编曲：…) are not lyrics. They are never
+    scanned.push({ el, text, translation: translationStateFor(el) });
+  }
+
+  const songHasTranslations = scanned.some((line) => line.translation === "translated");
+
+  const pending: PendingLine[] = [];
+  const allTexts: string[] = [];
+  const translationStates: LineTranslationState[] = [];
+  const originals: { el: HTMLElement; text: string }[] = [];
+  for (const [index, line] of scanned.entries()) {
+    const { el, text } = line;
+    // Production credits (作词: …, 编曲：…) are not lyrics. They are never
     // translated, and only annotated when the user asks for it.
-    const credit = isCreditLine(text);
+    //
+    // The role table cannot list every role, so a line merely *shaped* like a
+    // credit also counts when both of the other signals agree: it sits in the
+    // song's opening lines, and the player left it untranslated while
+    // translating the song around it. That is what an unlisted role looks
+    // like, and a real lyric in those first lines would have been translated.
+    const credit =
+      isCreditLine(text) ||
+      (index < CREDIT_SCAN_LINES &&
+        songHasTranslations &&
+        line.translation === "untranslated" &&
+        hasCreditShape(text));
     if (!credit) {
       allTexts.push(text);
       originals.push({ el, text });
-      translationStates.push(translationStateFor(el));
+      translationStates.push(line.translation);
     }
     if (credit && !settings.annotateCredits) {
       markAnnotated(el, text);
       continue;
     }
     if (el.getAttribute(SRC_ATTR) === text && el.hasAttribute(MARK_ATTR)) continue;
-    pending.push({ el, original: text, translation: translationStateFor(el) });
+    pending.push({ el, original: text, translation: line.translation });
   }
 
   if (pending.length === 0) {

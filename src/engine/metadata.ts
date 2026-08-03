@@ -2,6 +2,8 @@
 // They are not lyrics: annotating them adds noise and translating them wastes
 // a request, so they are detected and left alone. Pure; no host imports.
 
+import { hasKana } from "./kana.ts";
+
 /**
  * Labels are compared with spacing and interpuncts removed, so that 作 词 and
  * 作词, or "Special Thanks" and "special thanks", are the same label.
@@ -69,3 +71,40 @@ export function isCreditLine(line: string): boolean {
   const parts = label.split(/[&/,，、]/u).filter((part) => part !== "");
   return parts.length > 1 && parts.every((part) => CREDIT_LABELS.has(part));
 }
+
+/**
+ * True when a line is *shaped* like a credit — a short label, then a colon,
+ * then a value — without requiring the label to be a role we know.
+ *
+ * The role table cannot be complete (`PV:`, `Mastering Engineer:`, `特效:` are
+ * all real and all absent), and an unrecognized credit becomes a lyric: it gets
+ * annotated and sent to the translator. This is the weaker test a caller can
+ * combine with evidence the table does not have — where the line sits in the
+ * song, and whether the player translated it.
+ *
+ * Deliberately stricter than `CREDIT_LINE` on the label, because on its own
+ * this would swallow lyrics: no kana (roles are written in kanji or Latin, so
+ * "君に言った: さよなら" is excluded) and short.
+ */
+export function hasCreditShape(line: string): boolean {
+  const match = CREDIT_LINE.exec(line);
+  if (!match) return false;
+  const label = match[1] ?? "";
+  if (hasKana(label)) return false;
+  for (const ch of label) {
+    if (SENTENCE_CHARS.has(ch)) return false;
+  }
+  return normalizeLabel(label).length <= CREDIT_SHAPE_MAX_LABEL;
+}
+
+/** "masteringengineer" is 17, and real roles do not run much past that. */
+const CREDIT_SHAPE_MAX_LABEL = 20;
+
+/**
+ * A role label is a noun phrase. These characters belong to sentences, so a
+ * "label" holding one is a lyric that happens to contain a colon —
+ * 答案是：我不知道 is the case that forced this. Kept deliberately small, and
+ * free of characters that appear in real roles (和 rules out 和声, 制 rules out
+ * 制作人).
+ */
+const SENTENCE_CHARS = new Set([..."是不我你他她們们的了吗嗎呢吧很麼么怎"]);
