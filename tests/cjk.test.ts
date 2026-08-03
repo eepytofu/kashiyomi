@@ -365,3 +365,13 @@ test("with 译 on, 無 routes from the slot alone", () => {
     assert.equal(resolveLineRoute(line, slotOnly, "untranslated"), "chinese", line);
   }
 });
+
+test("給 is not Chinese evidence, but 给 is", () => {
+  // 給 is the traditional form of 给 and simultaneously the everyday Japanese
+  // kanji: SudachiDict has 給料, 供給, 配給, 支給. NetEase ships simplified on
+  // every song captured, so the traditional form could only ever misfire.
+  // Same test that removed 時候/過去/現在/出來 on 2026-08-03.
+  const doc = { branch: "japanese" as const, bilingual: false, hasTranslations: false };
+  assert.equal(resolveLineRoute("供給支給", doc, "unknown"), "japanese");
+  assert.equal(resolveLineRoute("给我", doc, "unknown"), "chinese");
+});

@@ -35,8 +35,20 @@ export type LineTranslationState = "translated" | "untranslated" | "unknown";
 // Characters that are ordinary Chinese function words and essentially never
 // appear in Japanese lyric text.
 const CHINESE_MARKERS = new Set(
-  [..."的是你她们們这這么麼怎吗嗎呢吧让讓给給说說个咱您哪嘛很什也"],
+  [..."的是你她们們这這么麼怎吗嗎呢吧让讓给说說个咱您哪嘛很什也"],
 );
+
+// Dropped on 2026-08-04: 給. It is the traditional form of 给, and it is also
+// the everyday Japanese kanji — SudachiDict has 給料, 供給, 配給, 支給, 給料日,
+// 供給源 — so it is character-identical to ordinary Japanese, the same test that
+// removed 時候/過去/現在/出來. NetEase ships simplified (4/4 songs captured), so
+// 給 could only ever misfire here while 给 does the work. Reopen if a captured
+// NetEase song is served in traditional and uses 給 as the verb.
+//
+// Checked and kept in the same pass: 讓 is only a given name in SudachiDict
+// (ユズル, and names land in credit lines, which are skipped); 說 and 麼 are OOV
+// entirely; 一個 tokenizes as 一 + 個 (numeral plus counter), not as a word, so
+// it cannot appear in a kana-free Japanese line the way 時候 could.
 
 // Chinese word patterns whose characters are individually ambiguous but whose
 // pairing is not.

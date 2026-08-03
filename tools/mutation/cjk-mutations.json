@@ -73,7 +73,7 @@
     "id": "markers-emptied",
     "file": "src/engine/cjk.ts",
     "what": "CHINESE_MARKERS set emptied",
-    "find": "  [...\"的是你她们們这這么麼怎吗嗎呢吧让讓给給说說个咱您哪嘛很什也\"],",
+    "find": "  [...\"的是你她们們这這么麼怎吗嗎呢吧让讓给说說个咱您哪嘛很什也\"],",
     "replace": "  [...\"\"],"
   },
   {
@@ -208,5 +208,12 @@
     "what": "lines with neither kana nor han no longer route nowhere",
     "find": "  if (!kana && !han) return undefined;",
     "replace": "  if (false && !kana && !han) return undefined;"
+  },
+  {
+    "id": "markers-readd-traditional-gei",
+    "file": "src/engine/cjk.ts",
+    "what": "給 back in the markers, so ordinary Japanese 供給/給料 reads as Chinese",
+    "find": "  [...\"的是你她们們这這么麼怎吗嗎呢吧让讓给说說个咱您哪嘛很什也\"],",
+    "replace": "  [...\"的是你她们們这這么麼怎吗嗎呢吧让讓给給说說个咱您哪嘛很什也\"],"
   }
 ]
