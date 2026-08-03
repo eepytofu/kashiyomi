@@ -362,5 +362,33 @@
     "what": "a song counts as translated only when every line is",
     "find": "  const songHasTranslations = lines.some((line) => line.translation === \"translated\");",
     "replace": "  const songHasTranslations = lines.every((line) => line.translation === \"translated\");"
+  },
+  {
+    "id": "lineText/hints-off-still-strips",
+    "file": "src/engine/lineText.ts",
+    "what": "hints off rewrites the display instead of leaving NetEase's line alone",
+    "find": "  const displayText = options.readingHints ? projection.displayText : repaired;",
+    "replace": "  const displayText = projection.displayText;"
+  },
+  {
+    "id": "lineText/analyzer-sees-brackets",
+    "file": "src/engine/lineText.ts",
+    "what": "with hints off the analyzer is handed the bracketed line",
+    "find": "  const unbracketed = options.readingHints ? displayText : maskHintBrackets(displayText);",
+    "replace": "  const unbracketed = displayText;"
+  },
+  {
+    "id": "lineText/okurigana-unconditional",
+    "file": "src/engine/lineText.ts",
+    "what": "every line is converted to hiragana, not just okurigana lines",
+    "find": "  const analysisText = usesKatakanaOkurigana(unbracketed)\n    ? kataToHira(unbracketed)\n    : unbracketed;",
+    "replace": "  const analysisText = kataToHira(unbracketed);"
+  },
+  {
+    "id": "lineText/drop-han-repair",
+    "file": "src/engine/lineText.ts",
+    "what": "kanji repair never runs",
+    "find": "  const repaired = options.hanRepair ? repairJapaneseHan(source) : source;",
+    "replace": "  const repaired = source;"
   }
 ]

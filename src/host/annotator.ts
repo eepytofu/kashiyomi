@@ -7,12 +7,11 @@ import {
   resolveLineRoute,
   type LineTranslationState,
 } from "../engine/cjk.ts";
-import { repairJapaneseHan } from "../engine/hanRepair.ts";
-import { maskHintBrackets, projectReadingHints } from "../engine/hints.ts";
 import { annotateJapaneseLine, type JapaneseLineAnnotation } from "../engine/japanese.ts";
 import { romanizeMandarin } from "../engine/pinyin.ts";
-import { hasHan, hasKana, kataToHira, usesKatakanaOkurigana } from "../engine/kana.ts";
+import { hasHan, hasKana } from "../engine/kana.ts";
 import { classifyLines, type ClassifiableLine } from "../engine/lineKinds.ts";
+import { prepareJapaneseLine, type PreparedJapaneseLine } from "../engine/lineText.ts";
 import { nativeAnalyze } from "./native.ts";
 import { ensurePinyinDict } from "./pinyinDict.ts";
 import { ROW_CLASS, renderJapaneseLine, renderPinyinRow } from "./render.ts";
@@ -67,14 +66,7 @@ const MAX_LINE_CHARS = 800;
 
 type PendingLine = { el: HTMLElement; original: string; translation: LineTranslationState };
 
-type JapaneseWork = {
-  line: PendingLine;
-  /** Text shown on screen, after repair and hint removal. */
-  displayText: string;
-  /** Same length as displayText, adjusted so the analyzer can parse it. */
-  analysisText: string;
-  hints: ReturnType<typeof projectReadingHints>["hints"];
-};
+type JapaneseWork = PreparedJapaneseLine & { line: PendingLine };
 
 async function scan(): Promise<void> {
   const settings = getSettings();
@@ -151,27 +143,7 @@ async function scan(): Promise<void> {
     const route = resolveLineRoute(line.original, docContext, line.translation);
     if (route === "japanese") {
       line.el.setAttribute("lang", "ja");
-      const repaired = settings.hanRepair ? repairJapaneseHan(line.original) : line.original;
-      // With hints on, the annotation is consumed: it leaves the display and
-      // becomes the reading. With hints off the lyric is left exactly as
-      // NetEase serves it, brackets and all — the setting is about using the
-      // author's reading, not about rewriting the line.
-      //
-      // Either way the *analyzer* must not see the brackets. SudachiDict
-      // contains 天（そら） as a single entry reading テン, so an untouched line
-      // produced one five-character token and a てん ruby smeared across
-      // 天（そら）. Blanking just the brackets keeps the length, so every offset
-      // still indexes the displayed text.
-      const projection = projectReadingHints(repaired);
-      const display = settings.readingHints ? projection.displayText : repaired;
-      const hints = settings.readingHints ? projection.hints : [];
-      // Katakana-okurigana lines are analyzed as hiragana; the conversion is
-      // one character to one, so offsets still match what is displayed.
-      const forAnalysis = settings.readingHints ? display : maskHintBrackets(display);
-      const analysisText = usesKatakanaOkurigana(forAnalysis)
-        ? kataToHira(forAnalysis)
-        : forAnalysis;
-      japanese.push({ line, displayText: display, analysisText, hints });
+      japanese.push({ line, ...prepareJapaneseLine(line.original, settings) });
     } else if (route === "chinese" && hasHan(line.original)) {
       line.el.setAttribute("lang", "zh");
       chinese.push(line);
