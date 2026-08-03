@@ -32,6 +32,28 @@ test("runs of marks are not padded apart", () => {
   assert.equal(toLatinPunctuation("a ？ ！"), "a?!");
 });
 
+test("the ideographic space becomes an ordinary one", () => {
+  // U+3000 is a Han-typography glyph one em wide. Lyrics use it to break a
+  // line into phrases, and left alone it renders as a gulf in the middle of a
+  // romaji row. アマツキツネ writes 今宵も天（そら）は　明るく with one.
+  assert.equal(toLatinPunctuation("koyoi mo ten wa 　 akaruku"), "koyoi mo ten wa akaruku");
+  assert.equal(toLatinPunctuation("sanzensekai　tsuneyo no yami"), "sanzensekai tsuneyo no yami");
+});
+
+test("a middle dot separating names becomes a space", () => {
+  // 编曲: ビートまりお / Masayoshi Minoshima is served with ・ between names in
+  // some uploads; Latin does the same job with a space.
+  assert.equal(toLatinPunctuation("beat mario・masayoshi"), "beat mario masayoshi");
+  assert.equal(toLatinPunctuation("hǎi yī·xīng chén"), "hǎi yī xīng chén");
+});
+
+test("a mark with no space after it gains one", () => {
+  // The other fixtures all arrive pre-spaced by the segmenter, so this is the
+  // only case that exercises the inserting half of the spacing rule.
+  assert.equal(toLatinPunctuation("wǒ，nǐ"), "wǒ, nǐ");
+  assert.equal(toLatinPunctuation("a。b"), "a. b");
+});
+
 test("segments keep the same spacing as the joined line", () => {
   // The renderer draws the plain line from the joined string and the coloured
   // line from the segments, so the two must not disagree.

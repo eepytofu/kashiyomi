@@ -46,3 +46,17 @@ test("rejects out-of-bounds ranges", () => {
     assertAnalyzerTokens("天", [token({ surface: "天へ", start: 0, end: 2 })]),
   );
 });
+
+test("rejects non-integer offsets", () => {
+  // The offsets cross the JS/Rust boundary as JSON numbers, so a malformed
+  // payload can carry a float. slice() would silently truncate it and every
+  // ruby after that point would sit one character off.
+  assert.throws(
+    () => assertAnalyzerTokens("夢見", [token({ surface: "夢", start: 0, end: 1.5 })]),
+    /non-integer/,
+  );
+  assert.throws(
+    () => assertAnalyzerTokens("夢見", [token({ surface: "夢", start: NaN, end: 1 })]),
+    /non-integer/,
+  );
+});

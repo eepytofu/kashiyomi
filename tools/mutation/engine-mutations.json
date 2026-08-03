@@ -390,5 +390,172 @@
     "what": "kanji repair never runs",
     "find": "  const repaired = options.hanRepair ? repairJapaneseHan(source) : source;",
     "replace": "  const repaired = source;"
+  },
+
+  {
+    "id": "hanForms/drop-iteration-mark",
+    "file": "src/engine/hanForms.ts",
+    "what": "々 no longer counts as japanese orthography",
+    "find": "    if (ch === ITERATION_MARK || JAPANESE_ONLY_KANJI.has(ch)) return true;",
+    "replace": "    if (JAPANESE_ONLY_KANJI.has(ch)) return true;"
+  },
+  {
+    "id": "hanForms/drop-kokuji",
+    "file": "src/engine/hanForms.ts",
+    "what": "kokuji dropped from the japanese-only set",
+    "find": "  ...(\"働込峠畑辻匂凪雫枠榊麿躾塀笹咲栃搾腺\"),",
+    "replace": "  ...(\"\"),"
+  },
+  {
+    "id": "hanForms/chinese-only-inverted",
+    "file": "src/engine/hanForms.ts",
+    "what": "chinese-only glyph detection inverted",
+    "find": "  return toJapaneseGlyphs(line) !== line;",
+    "replace": "  return toJapaneseGlyphs(line) === line;"
+  },
+
+  {
+    "id": "latin/drop-ideographic-space",
+    "file": "src/engine/latinPunctuation.ts",
+    "what": "U+3000 survives into a romanized row",
+    "find": "  [\"　\", \" \"],",
+    "replace": "  [\"　\", \"　\"],"
+  },
+  {
+    "id": "latin/drop-enumeration-comma",
+    "file": "src/engine/latinPunctuation.ts",
+    "what": "、 is left as-is instead of becoming a comma",
+    "find": "  [\"、\", \",\"],",
+    "replace": "  [\"、\", \"、\"],"
+  },
+  {
+    "id": "latin/drop-middle-dot",
+    "file": "src/engine/latinPunctuation.ts",
+    "what": "the name-separating middle dot is not turned into a space",
+    "find": "  [\"・\", \" \"],",
+    "replace": "  [\"・\", \"・\"],"
+  },
+  {
+    "id": "latin/no-space-after-mark",
+    "file": "src/engine/latinPunctuation.ts",
+    "what": "no space is inserted after a mark that needs one",
+    "find": "    .replace(/([,.!?;:])(?=[^\\s,.!?;:])/gu, \"$1 \")",
+    "replace": "    .replace(/([,.!?;:])(?=[^\\s,.!?;:])/gu, \"$1\")"
+  },
+  {
+    "id": "latin/keep-space-before-mark",
+    "file": "src/engine/latinPunctuation.ts",
+    "what": "a space is left in front of a closing mark",
+    "find": "    .replace(/[ \\t]+([,.!?;:)\\]\"'])/gu, \"$1\")",
+    "replace": "    .replace(/[ \\t]+([,.!?;:)\\]\"'])/gu, \" $1\")"
+  },
+
+  {
+    "id": "apiKeys/no-comma-separator",
+    "file": "src/engine/apiKeys.ts",
+    "what": "only newlines separate keys, so a comma-pasted list is one key",
+    "find": "    .split(/[\\n,]+/u)",
+    "replace": "    .split(/[\\n]+/u)"
+  },
+  {
+    "id": "apiKeys/drop-resting-keys",
+    "file": "src/engine/apiKeys.ts",
+    "what": "keys still cooling down are dropped instead of tried last",
+    "find": "  return [...ready, ...resting];",
+    "replace": "  return ready;"
+  },
+  {
+    "id": "apiKeys/no-rotation",
+    "file": "src/engine/apiKeys.ts",
+    "what": "rotation ignores the last key that worked",
+    "find": "    rotated.push(keys[(startIndex + i) % keys.length]!);",
+    "replace": "    rotated.push(keys[i]!);"
+  },
+  {
+    "id": "apiKeys/drop-401",
+    "file": "src/engine/apiKeys.ts",
+    "what": "a rejected key is not treated as exhausted",
+    "find": "  return status === 429 || status === 402 || status === 401 || status === 403;",
+    "replace": "  return status === 429 || status === 402 || status === 403;"
+  },
+  {
+    "id": "apiKeys/cooldown-boundary",
+    "file": "src/engine/apiKeys.ts",
+    "what": "a key whose cooldown just expired is still treated as resting",
+    "find": "  const ready = rotated.filter((key) => (cooldown.get(key) ?? 0) <= now);",
+    "replace": "  const ready = rotated.filter((key) => (cooldown.get(key) ?? 0) < now);"
+  },
+
+  {
+    "id": "tokens/drop-overlap-check",
+    "file": "src/engine/tokens.ts",
+    "what": "overlapping and out-of-bounds token ranges are accepted",
+    "find": "    if (token.start < previousEnd || token.end < token.start || token.end > text.length) {",
+    "replace": "    if (token.end < token.start) {"
+  },
+  {
+    "id": "tokens/drop-surface-check",
+    "file": "src/engine/tokens.ts",
+    "what": "a token whose range does not hold its surface is accepted",
+    "find": "    if (text.slice(token.start, token.end) !== token.surface) {",
+    "replace": "    if (false) {"
+  },
+  {
+    "id": "tokens/drop-integer-check",
+    "file": "src/engine/tokens.ts",
+    "what": "non-integer offsets are accepted",
+    "find": "    if (!Number.isInteger(token.start) || !Number.isInteger(token.end)) {",
+    "replace": "    if (false) {"
+  },
+
+  {
+    "id": "romaji/drop-particle-wa",
+    "file": "src/engine/romaji.ts",
+    "what": "the topic particle は romanizes as ha",
+    "find": "    if (s === \"は\") return \"wa\";",
+    "replace": "    if (s === \"はは\") return \"wa\";"
+  },
+  {
+    "id": "romaji/drop-particle-he",
+    "file": "src/engine/romaji.ts",
+    "what": "the particle へ romanizes as he",
+    "find": "    if (s === \"へ\") return \"e\";",
+    "replace": "    if (s === \"へへ\") return \"e\";"
+  },
+  {
+    "id": "romaji/drop-n-apostrophe",
+    "file": "src/engine/romaji.ts",
+    "what": "ん before a vowel loses its disambiguating apostrophe",
+    "find": "      out += nextStart && (VOWELS.has(nextStart) || nextStart === \"y\") ? \"n'\" : \"n\";",
+    "replace": "      out += \"n\";"
+  },
+  {
+    "id": "romaji/surface-fallback-dropped",
+    "file": "src/engine/romaji.ts",
+    "what": "a token with no reading romanizes as empty instead of its surface",
+    "find": "  return kanaToRomaji(readingKana !== \"\" ? readingKana : surface);",
+    "replace": "  return kanaToRomaji(readingKana);"
+  },
+
+  {
+    "id": "pinyin/drop-empty-guard",
+    "file": "src/engine/pinyin.ts",
+    "what": "a blank line is romanized instead of short-circuiting",
+    "find": "  if (text.trim() === \"\") return \"\";",
+    "replace": "  if (false) return \"\";"
+  },
+  {
+    "id": "pinyin/ignore-join-words",
+    "file": "src/engine/pinyin.ts",
+    "what": "word grouping is ignored, so every syllable stands alone",
+    "find": "    if (options.joinWords) {",
+    "replace": "    if (false) {"
+  },
+  {
+    "id": "pinyin/skip-latin-punctuation",
+    "file": "src/engine/pinyin.ts",
+    "what": "pinyin rows keep CJK punctuation",
+    "find": "  return toLatinPunctuation(parts.join(\" \"));",
+    "replace": "  return parts.join(\" \");"
   }
 ]

@@ -35,3 +35,14 @@ test("latin runs pass through", () => {
 test("empty input", () => {
   assert.equal(romanizeMandarin("  ", { tones: true, joinWords: false }), "");
 });
+
+test("a pinyin row uses latin punctuation", () => {
+  // The whole first sung line of 白马过了离原, captured from the app on
+  // 2026-08-04. Romanization is Latin-script orthography, so it takes Latin
+  // marks; leaving the fullwidth comma in also left the segmenter's spaces on
+  // both sides ("lí yuán ， sān").
+  assert.equal(
+    romanizeMandarin("白马过了离原，三月的天，春风漫草野", { tones: true, joinWords: false }),
+    "bái mǎ guò le lí yuán, sān yuè de tiān, chūn fēng màn cǎo yě",
+  );
+});
