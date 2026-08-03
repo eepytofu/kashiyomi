@@ -8,7 +8,7 @@ import { resolveAssetPaths } from "./host/paths.ts";
 import { applyStyles } from "./host/styles.ts";
 import { diagnoseLayout } from "./host/diagnose.ts";
 import { getSettings } from "./host/settings.ts";
-import { buildConfigPanel } from "./host/configPanel.ts";
+import { buildConfigPanel } from "./host/configPanel/index.ts";
 import { installCopyHandler } from "./host/copy.ts";
 
 async function start(): Promise<void> {
