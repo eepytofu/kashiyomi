@@ -4,6 +4,7 @@
 // here before romanizing. Pure; no host imports.
 
 import { addDict, OutputFormat, segment } from "pinyin-pro";
+import { toLatinPunctuation } from "./latinPunctuation.ts";
 
 let completeDictRegistered = false;
 
@@ -50,5 +51,5 @@ export function romanizeMandarin(text: string, options: PinyinOptions): string {
       parts.push(...pieces);
     }
   }
-  return parts.join(" ").replace(/\s+/g, " ").trim();
+  return toLatinPunctuation(parts.join(" "));
 }

@@ -8,6 +8,7 @@ import { kanaToRomaji } from "./romaji.ts";
 import { KANA_ONLY, kataToHira } from "./kana.ts";
 import type { ReadingHint } from "./hints.ts";
 import { assertAnalyzerTokens, type AnalyzerToken } from "./tokens.ts";
+import { latinizeSegments } from "./latinPunctuation.ts";
 
 export type LineFuriganaSegment = {
   /** Range in the display line (UTF-16 units). */
@@ -136,10 +137,14 @@ export function annotateJapaneseLine(
   }
 
   furigana.sort((a, b) => a.start - b.start);
+  // Romaji is Latin script, so CJK marks become Latin ones and pick up Latin
+  // spacing. Done over the segments so the coloured authored line and the
+  // plain line cannot disagree.
+  const latinized = latinizeSegments(romajiParts);
   return {
     furigana,
-    romaji: romajiParts.map((part) => part.text).join(""),
-    romajiSegments: romajiParts,
+    romaji: latinized.map((part) => part.text).join(""),
+    romajiSegments: latinized,
   };
 }
 

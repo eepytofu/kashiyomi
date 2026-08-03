@@ -108,7 +108,11 @@ test("unknown readings abstain from furigana but keep the line", () => {
   assert.equal(romaji, "天 e");
 });
 
-test("no space before punctuation", () => {
+test("cjk punctuation becomes latin punctuation", () => {
+  // Romaji is Latin-script orthography, so 、 romanizes as a comma and takes
+  // Latin spacing: nothing before it, one space after. Keeping 、 also looked
+  // wrong for a second reason — the fullwidth glyph carries its own advance
+  // width, which is what makes it need no spaces in the Japanese line.
   const line = "そら、うみ";
   const tokens = [
     token("そら", 0, "ソラ", "pronoun"),
@@ -116,7 +120,13 @@ test("no space before punctuation", () => {
     token("うみ", 3, "ウミ"),
   ];
   const { romaji } = annotateJapaneseLine(line, tokens);
-  assert.equal(romaji, "sora、umi");
+  assert.equal(romaji, "sora, umi");
+});
+
+test("line-final punctuation leaves no trailing space", () => {
+  const line = "そら。";
+  const tokens = [token("そら", 0, "ソラ", "pronoun"), token("。", 2, "")];
+  assert.equal(annotateJapaneseLine(line, tokens).romaji, "sora.");
 });
 
 test("sokuon carries across token boundaries", () => {
