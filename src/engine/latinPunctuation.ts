@@ -30,6 +30,10 @@ const CJK_TO_LATIN = new Map([
   // A middle dot separates names in CJK; a space does the same job in Latin.
   ["・", " "],
   ["·", " "],
+  // The ideographic space is a Han-typography glyph one em wide. Lyrics use it
+  // to break a line into phrases, and left alone it renders as a gulf in the
+  // middle of a romaji row: "koyoi mo ten wa 　 akaruku".
+  ["　", " "],
 ]);
 
 /** Marks that attach to the word before them, so no space may precede. */
