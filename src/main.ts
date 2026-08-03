@@ -9,6 +9,7 @@ import { applyStyles } from "./host/render.ts";
 import { diagnoseLayout } from "./host/diagnose.ts";
 import { getSettings } from "./host/settings.ts";
 import { buildConfigPanel } from "./host/configPanel.ts";
+import { installCopyHandler } from "./host/copy.ts";
 
 async function start(): Promise<void> {
   applyStyles();
@@ -24,6 +25,7 @@ async function start(): Promise<void> {
     nativeInit(paths.dictPath, paths.resourceDir);
   }
   startAnnotator(paths);
+  installCopyHandler();
 
   // Debug handle for testing from the console.
   (window as unknown as Record<string, unknown>).kashiyomi = {
