@@ -1,7 +1,6 @@
-// Watches NCM's lyric DOM and annotates lines in place. Lines are matched by
-// their text content, not by class names, so NCM markup churn degrades to
-// "no annotation" instead of breaking. Elements NCM recycles are detected by
-// comparing the stored original text and re-annotated.
+// Watches NCM's lyric DOM and annotates lines in place: classify each line,
+// route it to Japanese or Chinese, then hand it to the matching renderer.
+// Everything that knows NCM's markup lives in lyricDom.ts.
 
 import {
   resolveDocumentContext,
@@ -18,19 +17,23 @@ import { shouldDisplayTranslation } from "../engine/aiTranslation.ts";
 import { nativeAnalyze } from "./native.ts";
 import { translateSong, translationConfigured } from "./translator.ts";
 import { ensurePinyinDict } from "./pinyinDict.ts";
-import { MARK_ATTR, ROW_CLASS, SRC_ATTR, renderJapaneseLine, renderPinyinRow } from "./render.ts";
+import { ROW_CLASS, renderJapaneseLine, renderPinyinRow } from "./render.ts";
+import {
+  applyScriptFont,
+  clearAnnotations,
+  findLineElements,
+  hasProviderTranslationSibling,
+  isAnnotatedFrom,
+  isKaraokeLine,
+  isOriginalLyricElement,
+  markAnnotated,
+  sourceText,
+  translationStateFor,
+} from "./lyricDom.ts";
 import { getSettings } from "./settings.ts";
 import { log } from "./log.ts";
 import { diagnoseLayout } from "./diagnose.ts";
 import type { AssetPaths } from "./paths.ts";
-
-// NCM 3.x native lyric lines. Kept deliberately short; findLineElements logs
-// candidate counts so new selectors can be added from live debugging.
-const LINE_SELECTORS = [
-  "ul.lyric li p",
-  'ul[class*="lyric"] li p',
-  ".lyric-scroll p",
-];
 
 let assetPaths: AssetPaths | undefined;
 let observer: MutationObserver | undefined;
@@ -45,29 +48,9 @@ export function startAnnotator(paths: AssetPaths): void {
   log.info("annotator started");
 }
 
-/**
- * Drop our annotations and analyze every line again.
- *
- * The visible text is put back to the lyric NetEase supplied before the
- * bookkeeping is cleared. Kanji repair rewrites what is on screen (繼續 →
- * 継続), and the untouched original only exists in SRC_ATTR, so clearing that
- * attribute while leaving the repaired text in place would make the next scan
- * read our own output as if it were the source — the one thing routing must
- * never do. A line misrouted once would then stay misrouted no matter how the
- * detector improves.
- */
+/** Drop our annotations and analyze every line again. */
 export function rescan(): void {
-  for (const el of document.querySelectorAll<HTMLElement>(`[${MARK_ATTR}]`)) {
-    const source = el.getAttribute(SRC_ATTR);
-    // Only restore when the element still shows what we rendered. If NetEase
-    // has since replaced the line, its own text is already there and is newer
-    // than anything we remembered.
-    if (source !== null && renderedText(el) === el.getAttribute(MARK_ATTR)) {
-      el.textContent = source;
-    }
-    el.removeAttribute(MARK_ATTR);
-    el.removeAttribute(SRC_ATTR);
-  }
+  clearAnnotations();
   scheduleScan();
 }
 
@@ -80,52 +63,6 @@ function scheduleScan(): void {
   }, 250);
 }
 
-function findLineElements(): HTMLElement[] {
-  for (const selector of LINE_SELECTORS) {
-    const matches = [...document.querySelectorAll<HTMLElement>(selector)];
-    if (matches.length >= 2) {
-      log.debug(`selector "${selector}" matched ${matches.length} lines`);
-      return matches;
-    }
-  }
-  return [];
-}
-
-// Reads the line's text with our own markup (reading rows, rt readings)
-// stripped, so an annotated element compares equal to what we rendered and a
-// recycled element compares as fresh text.
-function renderedText(el: HTMLElement): string {
-  if (!el.querySelector(`.${ROW_CLASS}, ruby.kashiyomi-ruby`)) {
-    return (el.textContent ?? "").trim();
-  }
-  const clone = el.cloneNode(true) as HTMLElement;
-  for (const node of clone.querySelectorAll(`.${ROW_CLASS}, rt`)) node.remove();
-  return (clone.textContent ?? "").trim();
-}
-
-/**
- * The lyric text as NCM provided it. For an element we already annotated,
- * that is the remembered source rather than what is now on screen, because
- * kanji repair may have rewritten the visible characters. Reading the
- * repaired text back would let one misrouted line permanently change how the
- * line is classified.
- */
-function sourceText(el: HTMLElement): string {
-  const rendered = renderedText(el);
-  const remembered = el.getAttribute(SRC_ATTR);
-  if (remembered !== null && el.getAttribute(MARK_ATTR) === rendered) return remembered;
-  return rendered;
-}
-
-/**
- * Record that a line has been handled: what is on screen now, and the source
- * it came from.
- */
-function markAnnotated(el: HTMLElement, source: string, rendered = source): void {
-  el.setAttribute(MARK_ATTR, rendered);
-  el.setAttribute(SRC_ATTR, source);
-}
-
 // Sudachi rejects inputs over ~48KB; a lyric line should never be near that,
 // so anything huge is a sign of something else going wrong.
 const MAX_LINE_CHARS = 800;
@@ -136,25 +73,6 @@ const MAX_LINE_CHARS = 800;
  * all three songs captured so far); further down, a colon is just a colon.
  */
 const CREDIT_SCAN_LINES = 6;
-
-/**
- * Tag a line we are not going to annotate with the script it is written in, so
- * the Japanese/Chinese font settings still reach it. Routing normally does
- * this; lines we skip never get routed.
- */
-function applyScriptFont(el: HTMLElement, text: string): void {
-  if (hasKana(text)) el.setAttribute("lang", "ja");
-  else if (hasHan(text)) el.setAttribute("lang", "zh");
-}
-
-function isOriginalLyricElement(el: HTMLElement): boolean {
-  let sibling = el.previousElementSibling;
-  while (sibling) {
-    if (sibling.tagName === "P") return false;
-    sibling = sibling.previousElementSibling;
-  }
-  return true;
-}
 
 // ---- analysis cache ----------------------------------------------------
 
@@ -222,27 +140,6 @@ export function resetTranslation(): void {
   txAbort = undefined;
   txDocKey = "";
   txByText.clear();
-}
-
-function hasProviderTranslationSibling(el: HTMLElement): boolean {
-  let sibling = el.nextElementSibling;
-  while (sibling) {
-    if (sibling.tagName === "P") {
-      const text = (sibling.textContent ?? "").trim();
-      if (hasHan(text) && !hasKana(text)) return true;
-    }
-    sibling = sibling.nextElementSibling;
-  }
-  return false;
-}
-
-/**
- * Whether NetEase is showing its own Chinese translation for this line.
- * Only meaningful when the song carries translations at all, which the
- * document context decides.
- */
-function translationStateFor(el: HTMLElement): LineTranslationState {
-  return hasProviderTranslationSibling(el) ? "translated" : "untranslated";
 }
 
 function attachTranslationRows(originals: readonly { el: HTMLElement; text: string }[]): void {
@@ -316,8 +213,7 @@ async function scan(): Promise<void> {
       if (hasHan(siblingText) && !hasKana(siblingText)) el.setAttribute("lang", "zh");
       continue;
     }
-    // Karaoke word-by-word lines carry per-word spans; not handled yet.
-    if (el.querySelector("span:not(rt span)")) continue;
+    if (isKaraokeLine(el)) continue;
     const text = sourceText(el);
     if (text === "" || text.length > MAX_LINE_CHARS) continue;
     scanned.push({ el, text, translation: translationStateFor(el) });
@@ -366,7 +262,7 @@ async function scan(): Promise<void> {
       markAnnotated(el, text);
       continue;
     }
-    if (el.getAttribute(SRC_ATTR) === text && el.hasAttribute(MARK_ATTR)) continue;
+    if (isAnnotatedFrom(el, text)) continue;
     pending.push({ el, original: text, translation: line.translation });
   }
 
