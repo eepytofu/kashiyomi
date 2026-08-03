@@ -34,6 +34,12 @@ test("latin runs pass through", () => {
 
 test("empty input", () => {
   assert.equal(romanizeMandarin("  ", { tones: true, joinWords: false }), "");
+  // The empty string specifically: pinyin-pro throws on it ("Cannot read
+  // properties of undefined (reading 'patterns')") while whitespace comes back
+  // as "". The guard in romanizeMandarin is what stops that, so it is
+  // load-bearing rather than an optimization, and a fixture of "  " alone
+  // could not tell the difference.
+  assert.equal(romanizeMandarin("", { tones: true, joinWords: false }), "");
 });
 
 test("a pinyin row uses latin punctuation", () => {

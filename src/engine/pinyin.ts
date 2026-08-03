@@ -34,6 +34,8 @@ export type PinyinOptions = {
  * through as-is; a space separates every output token.
  */
 export function romanizeMandarin(text: string, options: PinyinOptions): string {
+  // Not just a shortcut: pinyin-pro throws on the empty string. Whitespace is
+  // folded in here too so callers never have to care which kind of blank it is.
   if (text.trim() === "") return "";
   const groups = segment(text, {
     format: OutputFormat.AllArray,

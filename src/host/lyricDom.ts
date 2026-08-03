@@ -110,15 +110,6 @@ export function isOriginalLyricElement(el: HTMLElement): boolean {
 }
 
 /**
- * Karaoke word-by-word (yrc) lines carry per-word spans; not handled yet.
- * No captured song has ever tripped this on the in-app lyric page, but it
- * costs nothing and would be right the day NCM starts rendering yrc there.
- */
-export function isKaraokeLine(el: HTMLElement): boolean {
-  return el.querySelector("span:not(rt span)") !== null;
-}
-
-/**
  * Tag a line we are not going to annotate with the script it is written in, so
  * the Japanese/Chinese font settings still reach it. Routing normally does
  * this; lines we skip never get routed.

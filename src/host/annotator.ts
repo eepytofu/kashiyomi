@@ -20,7 +20,6 @@ import {
   clearAnnotations,
   findLineElements,
   isAnnotatedFrom,
-  isKaraokeLine,
   isOriginalLyricElement,
   markAnnotated,
   sourceText,
@@ -87,7 +86,6 @@ async function scan(): Promise<void> {
       if (hasHan(siblingText) && !hasKana(siblingText)) el.setAttribute("lang", "zh");
       continue;
     }
-    if (isKaraokeLine(el)) continue;
     const text = sourceText(el);
     if (text === "" || text.length > MAX_LINE_CHARS) continue;
     scanned.push({ el, text, translation: translationStateFor(el) });
