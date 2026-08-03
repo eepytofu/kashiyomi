@@ -18,7 +18,8 @@ Readings are generated on your machine. No account, no reading service, nothing 
 - Kanji repair for Japanese lyrics that were stored with Chinese glyph forms, so 梦见ては displays as 夢見ては.
 - Stylized lyrics that write their okurigana in katakana (夜ニ紛レ, 君ノ声モ届カナイヨ) are still read correctly.
 - Songs that mix Japanese and Chinese are handled line by line, so a Chinese line inside a Japanese song gets pinyin instead of being read as kanji. This works even for literary Chinese lines that contain no obviously Chinese words.
-- Production credits at the top of a lyric file (作詞:, 编曲：, Vocal:) are recognized and left alone, so they don't get readings or a translation.
+- Production credits at the top of a lyric file (作詞:, 编曲：, Vocal:) are recognized and left alone, so they don't get readings or a translation. Lines that only name who sings next (【合】, 【海伊】) are skipped the same way.
+- Copying a lyric line gives you the lyric. The furigana and the reading rows stay out of the clipboard.
 - AI translation below the original line, like the built-in translation. Works with an OpenAI-compatible endpoint or with Gemini, and needs your own API key. One request covers the whole song, results are cached per song, and NCM's own translation is never replaced. You can add several keys, one per line, and a key that hits a rate limit hands over to the next one.
 - The same Han character can be drawn with a Chinese or a Japanese glyph ([Han unification](https://heistak.github.io/your-code-displays-japanese-wrong/)), so you can set a font for Japanese lines and another for Chinese text, including the Chinese translation under a foreign song.
 - Furigana size is adjustable, and the settings panel is available in English and Simplified Chinese.
