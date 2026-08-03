@@ -251,7 +251,7 @@ function buildPreviewCard(column: HTMLElement): () => void {
         romaji: "yume miteru nani mo mitenai",
         romajiSegments: [{ text: "yume miteru nani mo mitenai", origin: "inferred" }],
       },
-      { furigana: settings.furigana, romaji: settings.romaji },
+      { furigana: settings.furigana, romaji: settings.romaji, furiganaSize: settings.furiganaSize },
     );
 
     const hintLine = document.createElement("div");
@@ -274,7 +274,7 @@ function buildPreviewCard(column: HTMLElement): () => void {
             ]
           : [{ text: "koyoi mo ten wa akaruku", origin: "inferred" }],
       },
-      { furigana: settings.furigana, romaji: settings.romaji },
+      { furigana: settings.furigana, romaji: settings.romaji, furiganaSize: settings.furiganaSize },
     );
 
     if (settings.useJpFont && settings.jpFontStack.trim() !== "") {
@@ -420,6 +420,12 @@ function sizeRow(refreshPreview: () => void): HTMLElement {
     updateSettings({ furiganaSize: Number(slider.value) });
     applyStyles();
     refreshPreview();
+  };
+  // Reading size feeds the per-line word-spacing that keeps phrase boundaries
+  // clear of ruby-widened words, and that is baked in at render time rather
+  // than by CSS. Re-render on release, not on every step of the drag.
+  slider.onchange = () => {
+    rescan();
   };
   control.appendChild(slider);
   control.appendChild(value);

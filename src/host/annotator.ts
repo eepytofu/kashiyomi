@@ -152,8 +152,23 @@ function rememberAnnotation(text: string, annotation: JapaneseLineAnnotation): v
 }
 
 // Layout is dumped once per session, after the first line that actually
-// carries ruby, so the log shows how NCM lays annotated lines out.
+// carries ruby, so the log shows how NCM lays annotated lines out. The dump is
+// deferred: the ruby has just been inserted, and if the lyric panel is not
+// laid out yet every width comes back zero. diagnoseLayout reports whether it
+// got usable numbers, and we re-arm a bounded number of times if it did not.
 let layoutDiagnosed = false;
+let layoutAttempts = 0;
+const LAYOUT_ATTEMPT_CAP = 5;
+
+function scheduleLayoutDiagnosis(): void {
+  if (!getSettings().debug) return;
+  if (layoutDiagnosed || layoutAttempts >= LAYOUT_ATTEMPT_CAP) return;
+  layoutDiagnosed = true;
+  layoutAttempts++;
+  window.setTimeout(() => {
+    if (!diagnoseLayout()) layoutDiagnosed = false;
+  }, 600);
+}
 
 /** Drop cached analysis (settings that change readings invalidate it). */
 export function resetAnalysisCache(): void {
@@ -425,8 +440,10 @@ function applyAnnotation(
   renderJapaneseLine(line.el, displayText, annotation, {
     furigana: settings.furigana,
     romaji: settings.romaji,
+    furiganaSize: settings.furiganaSize,
   });
   // renderedText(el) now recovers displayText, so that is the marker; the
   // untouched source is kept separately for routing on later scans.
   markAnnotated(line.el, line.original, displayText);
+  if (line.el.querySelector("ruby.kashiyomi-ruby")) scheduleLayoutDiagnosis();
 }
