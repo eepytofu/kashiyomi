@@ -5,7 +5,7 @@ import { rescan, startAnnotator } from "./host/annotator.ts";
 import { log } from "./host/log.ts";
 import { nativeInit, nativeState } from "./host/native.ts";
 import { resolveAssetPaths } from "./host/paths.ts";
-import { applyStyles } from "./host/render.ts";
+import { applyStyles } from "./host/styles.ts";
 import { diagnoseLayout } from "./host/diagnose.ts";
 import { getSettings } from "./host/settings.ts";
 import { buildConfigPanel } from "./host/configPanel.ts";

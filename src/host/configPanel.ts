@@ -6,7 +6,8 @@ import { resetAnalysisCache, rescan, resetTranslation } from "./annotator.ts";
 import { panelLang, setPanelLang, t, tSongsCached, type PanelLang, type StringKey } from "./i18n.ts";
 import { nativeState } from "./native.ts";
 import { cachedTranslationCount, clearTranslationCache } from "./translator.ts";
-import { applyStyles, renderJapaneseLine, renderPinyinRow } from "./render.ts";
+import { renderJapaneseLine, renderPinyinRow } from "./render.ts";
+import { applyStyles } from "./styles.ts";
 import {
   DEFAULT_JP_FONT_STACK,
   DEFAULT_ZH_FONT_STACK,
