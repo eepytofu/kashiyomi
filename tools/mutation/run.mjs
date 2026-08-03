@@ -107,6 +107,16 @@ const survived = results.filter((r) => !r.error && !r.crashed && r.failed.length
 console.log(`\n${results.length} mutations, ${survived.length} SURVIVED`);
 for (const s of survived) console.log(`  SURVIVED  ${s.id} — ${s.what}`);
 
+// A mutation whose pattern no longer matches has stopped testing anything, and
+// the summary above would still read "0 SURVIVED". Editing the source it
+// targets is exactly when that happens, so make it loud and fatal.
+const errored = results.filter((r) => r.error);
+if (errored.length > 0) {
+  console.error(`\n${errored.length} mutation(s) never ran — the suite proved less than it looks:`);
+  for (const e of errored) console.error(`  ERROR  ${e.id} — ${e.error}`);
+  process.exitCode = 1;
+}
+
 // Verify against the snapshots, not against git: the tree is legitimately
 // dirty whenever the sweep is run on work in progress, which is most of the
 // time. What matters is that every file we touched is byte-identical to how

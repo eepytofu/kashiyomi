@@ -1,101 +1,331 @@
 [
-  { "id": "kana/kata-to-hira-offset", "file": "src/engine/kana.ts", "what": "katakana->hiragana offset wrong",
-    "find": "const KATA_TO_HIRA_OFFSET = 0x60;", "replace": "const KATA_TO_HIRA_OFFSET = 0x61;" },
-  { "id": "kana/kata-to-hira-identity", "file": "src/engine/kana.ts", "what": "kataToHira never converts",
-    "find": "      ? String.fromCodePoint(code - KATA_TO_HIRA_OFFSET)", "replace": "      ? ch" },
-  { "id": "kana/katakana-end-short", "file": "src/engine/kana.ts", "what": "conversion range one short (ヶ/ヵ edge)",
-    "find": "const KATAKANA_END = 0x30f6;", "replace": "const KATAKANA_END = 0x30f5;" },
-  { "id": "kana/okurigana-drop-hiragana-guard", "file": "src/engine/kana.ts", "what": "katakana-okurigana no longer requires the line to lack hiragana",
-    "find": "  return HAN_CHAR.test(text) && KATAKANA_CHAR.test(text) && !HIRAGANA_CHAR.test(text);", "replace": "  return HAN_CHAR.test(text) && KATAKANA_CHAR.test(text);" },
-  { "id": "kana/okurigana-drop-han-guard", "file": "src/engine/kana.ts", "what": "katakana-okurigana no longer requires kanji",
-    "find": "  return HAN_CHAR.test(text) && KATAKANA_CHAR.test(text) && !HIRAGANA_CHAR.test(text);", "replace": "  return KATAKANA_CHAR.test(text) && !HIRAGANA_CHAR.test(text);" },
-  { "id": "kana/kana-char-drop-katakana", "file": "src/engine/kana.ts", "what": "KANA_CHAR no longer matches katakana",
-    "find": "export const KANA_CHAR = /[ぁ-ゖァ-ヺーゝゞヽヾ]/u;", "replace": "export const KANA_CHAR = /[ぁ-ゖ]/u;" },
-  { "id": "kana/kana-char-drop-prolong", "file": "src/engine/kana.ts", "what": "KANA_CHAR no longer matches ー and iteration marks",
-    "find": "export const KANA_CHAR = /[ぁ-ゖァ-ヺーゝゞヽヾ]/u;", "replace": "export const KANA_CHAR = /[ぁ-ゖァ-ヺ]/u;" },
-  { "id": "kana/han-char-drop-marks", "file": "src/engine/kana.ts", "what": "HAN_CHAR drops 々〆ヵヶ",
-    "find": "export const HAN_CHAR = /[\\p{Script=Han}々〆ヵヶ]/u;", "replace": "export const HAN_CHAR = /[\\p{Script=Han}]/u;" },
-  { "id": "kana/kana-only-drop-prolong", "file": "src/engine/kana.ts", "what": "KANA_ONLY rejects ー and iteration marks",
-    "find": "export const KANA_ONLY = /^[ぁ-ゖァ-ヺーゝゞヽヾ]+$/u;", "replace": "export const KANA_ONLY = /^[ぁ-ゖァ-ヺ]+$/u;" },
-
-  { "id": "hints/drop-okurigana-check", "file": "src/engine/hints.ts", "what": "reading no longer has to end with the word's okurigana",
-    "find": "    if (okurigana !== \"\" && !kataToHira(reading).endsWith(kataToHira(okurigana))) {", "replace": "    if (false && okurigana !== \"\" && !kataToHira(reading).endsWith(kataToHira(okurigana))) {" },
-  { "id": "hints/okurigana-check-no-normalize", "file": "src/engine/hints.ts", "what": "okurigana compared without katakana normalization",
-    "find": "    if (okurigana !== \"\" && !kataToHira(reading).endsWith(kataToHira(okurigana))) {", "replace": "    if (okurigana !== \"\" && !reading.endsWith(okurigana)) {" },
-  { "id": "hints/drop-chant-rejection", "file": "src/engine/hints.ts", "what": "chant-echo parentheticals accepted as readings",
-    "find": "    if (DECORATION_ONLY.test(tail) && isChantContext(line, index, word)) {", "replace": "    if (false && DECORATION_ONLY.test(tail) && isChantContext(line, index, word)) {" },
-  { "id": "hints/chant-drop-tail-check", "file": "src/engine/hints.ts", "what": "chant rejection no longer requires the paren to end the line",
-    "find": "    if (DECORATION_ONLY.test(tail) && isChantContext(line, index, word)) {", "replace": "    if (isChantContext(line, index, word)) {" },
-  { "id": "hints/chant-word-length", "file": "src/engine/hints.ts", "what": "chant rejection drops the word-length requirement",
-    "find": "  return KANA_ONLY_LOOSE.test(before) && word.length >= 2;", "replace": "  return KANA_ONLY_LOOSE.test(before);" },
-  { "id": "hints/chant-drop-kana-context", "file": "src/engine/hints.ts", "what": "chant rejection ignores what precedes the word",
-    "find": "  return KANA_ONLY_LOOSE.test(before) && word.length >= 2;", "replace": "  return word.length >= 2;" },
-  { "id": "hints/pattern-allow-space", "file": "src/engine/hints.ts", "what": "a spaced-off aside now counts as a reading hint",
-    "find": "  /([\\p{Script=Han}々〆ヵヶ]{1,12})([ぁ-ゖー]{0,8})[（(]([ぁ-ゖァ-ヺー]{1,24})[）)]/gu;", "replace": "  /([\\p{Script=Han}々〆ヵヶ]{1,12})([ぁ-ゖー]{0,8})\\s*[（(]([ぁ-ゖァ-ヺー]{1,24})[）)]/gu;" },
-  { "id": "hints/pattern-allow-nonkana-reading", "file": "src/engine/hints.ts", "what": "parenthetical no longer has to be kana",
-    "find": "  /([\\p{Script=Han}々〆ヵヶ]{1,12})([ぁ-ゖー]{0,8})[（(]([ぁ-ゖァ-ヺー]{1,24})[）)]/gu;", "replace": "  /([\\p{Script=Han}々〆ヵヶ]{1,12})([ぁ-ゖー]{0,8})[（(]([^）)]{1,24})[）)]/gu;" },
-  { "id": "hints/pattern-drop-okurigana-capture", "file": "src/engine/hints.ts", "what": "okurigana never captured as part of the word",
-    "find": "  /([\\p{Script=Han}々〆ヵヶ]{1,12})([ぁ-ゖー]{0,8})[（(]([ぁ-ゖァ-ヺー]{1,24})[）)]/gu;", "replace": "  /([\\p{Script=Han}々〆ヵヶ]{1,12})([ぁ-ゖー]{0,0})[（(]([ぁ-ゖァ-ヺー]{1,24})[）)]/gu;" },
-
-  { "id": "metadata/drop-lowercase", "file": "src/engine/metadata.ts", "what": "credit labels matched case-sensitively",
-    "find": "  return label.replace(/[\\s·・]/gu, \"\").toLowerCase();", "replace": "  return label.replace(/[\\s·・]/gu, \"\");" },
-  { "id": "metadata/drop-space-strip", "file": "src/engine/metadata.ts", "what": "credit labels not stripped of spaces and interpuncts",
-    "find": "  return label.replace(/[\\s·・]/gu, \"\").toLowerCase();", "replace": "  return label.toLowerCase();" },
-  { "id": "metadata/compound-any-part", "file": "src/engine/metadata.ts", "what": "compound label accepted when only some parts are credits",
-    "find": "  return parts.length > 1 && parts.every((part) => CREDIT_LABELS.has(part));", "replace": "  return parts.length > 1 && parts.some((part) => CREDIT_LABELS.has(part));" },
-  { "id": "metadata/compound-single-part", "file": "src/engine/metadata.ts", "what": "compound path accepts a single part",
-    "find": "  return parts.length > 1 && parts.every((part) => CREDIT_LABELS.has(part));", "replace": "  return parts.length >= 1 && parts.every((part) => CREDIT_LABELS.has(part));" },
-  { "id": "metadata/allow-empty-value", "file": "src/engine/metadata.ts", "what": "credit line no longer needs a value after the colon",
-    "find": "  /^\\s*(?:\\d{1,3}\\s*[.．、)]\\s*)?([\\p{L}\\p{N}][\\p{L}\\p{N}\\s&/・·,，、-]{0,20}?)\\s*[:：]\\s*(\\S.*)$/u;", "replace": "  /^\\s*(?:\\d{1,3}\\s*[.．、)]\\s*)?([\\p{L}\\p{N}][\\p{L}\\p{N}\\s&/・·,，、-]{0,20}?)\\s*[:：]\\s*(.*)$/u;" },
-  { "id": "metadata/label-length-unbounded", "file": "src/engine/metadata.ts", "what": "credit label length bound removed",
-    "find": "([\\p{L}\\p{N}][\\p{L}\\p{N}\\s&/・·,，、-]{0,20}?)", "replace": "([\\p{L}\\p{N}][\\p{L}\\p{N}\\s&/・·,，、-]{0,200}?)" },
-  { "id": "metadata/drop-empty-label-guard", "file": "src/engine/metadata.ts", "what": "empty label no longer rejected",
-    "find": "  if (label === \"\") return false;", "replace": "  if (false && label === \"\") return false;" },
-
-  { "id": "hanRepair/drop-length-guard", "file": "src/engine/hanRepair.ts", "what": "phrase-level OpenCC rewrites no longer rejected",
-    "find": "  if (repaired.length !== line.length) {", "replace": "  if (false && repaired.length !== line.length) {" },
-  { "id": "hanRepair/drop-kanau-restore", "file": "src/engine/hanRepair.ts", "what": "叶う no longer restored from 葉う",
-    "find": "  repaired = repaired.replace(/葉([いうえわお])/gu, \"叶$1\");", "replace": "  repaired = repaired;" },
-  { "id": "hanRepair/kanau-restore-always", "file": "src/engine/hanRepair.ts", "what": "葉 restored to 叶 regardless of okurigana",
-    "find": "  repaired = repaired.replace(/葉([いうえわお])/gu, \"叶$1\");", "replace": "  repaired = repaired.replace(/葉(.?)/gu, \"叶$1\");" },
-
-  { "id": "furigana/drop-kana-only-guard", "file": "src/engine/furigana.ts", "what": "non-kana readings no longer rejected",
-    "find": "  if (surface === \"\" || readingKana === \"\" || !KANA_ONLY.test(readingKana)) return [];", "replace": "  if (surface === \"\" || readingKana === \"\") return [];" },
-  { "id": "furigana/drop-ambiguity-abstain", "file": "src/engine/furigana.ts", "what": "lazy/greedy disagreement no longer abstains (guessed splits)",
-    "find": "  if (!greedy || lazy.join(\" \") !== greedy.join(\" \")) {", "replace": "  if (!greedy) {" },
-  { "id": "furigana/greedy-instead-of-lazy", "file": "src/engine/furigana.ts", "what": "segments taken from the greedy match",
-    "find": "    const runReading = lazy[capture]!;", "replace": "    const runReading = (greedy ?? lazy)[capture]!;" },
-  { "id": "furigana/drop-kana-anchor-normalize", "file": "src/engine/furigana.ts", "what": "kana anchors not normalized before matching",
-    "find": "    pattern += run.isHan ? quant : escapeRegex(kataToHira(run.text));", "replace": "    pattern += run.isHan ? quant : escapeRegex(run.text);" },
-  { "id": "furigana/pure-kanji-splits", "file": "src/engine/furigana.ts", "what": "single-run pure-kanji token no longer short-circuits",
-    "find": "  if (hanRuns.length === runs.length && hanRuns.length === 1) {", "replace": "  if (false && hanRuns.length === runs.length && hanRuns.length === 1) {" },
-  { "id": "furigana/no-han-returns-whole", "file": "src/engine/furigana.ts", "what": "kana-only surfaces get ruby instead of none",
-    "find": "  if (hanRuns.length === 0) return [];", "replace": "  if (hanRuns.length === 0) return [{ start: 0, end: surface.length, reading: kataToHira(readingKana) }];" },
-
-  { "id": "japanese/drop-sokuon-carry", "file": "src/engine/japanese.ts", "what": "token-final っ no longer geminates across the boundary",
-    "find": "    if (!isFinal && hira.endsWith(\"っ\")) {", "replace": "    if (false && !isFinal && hira.endsWith(\"っ\")) {" },
-  { "id": "japanese/sokuon-carry-when-final", "file": "src/engine/japanese.ts", "what": "sokuon carried off the end of the line too",
-    "find": "    if (!isFinal && hira.endsWith(\"っ\")) {", "replace": "    if (hira.endsWith(\"っ\")) {" },
-  { "id": "japanese/drop-particle-wa", "file": "src/engine/japanese.ts", "what": "particle は voiced as ha",
-    "find": "  if (surface === \"は\") return \"wa\";", "replace": "  if (false) return \"wa\";" },
-  { "id": "japanese/drop-particle-pos-check", "file": "src/engine/japanese.ts", "what": "any は becomes wa, not just the particle",
-    "find": "  if (token.partOfSpeech !== \"particle\") return undefined;", "replace": "  if (false) return undefined;" },
-  { "id": "japanese/hint-overlap-inclusive", "file": "src/engine/japanese.ts", "what": "hint/token overlap test made inclusive at the edges",
-    "find": "    const hint = hints.find((h) => h.start < token.end && h.end > token.start);", "replace": "    const hint = hints.find((h) => h.start <= token.end && h.end >= token.start);" },
-  { "id": "japanese/drop-hint-run-grouping", "file": "src/engine/japanese.ts", "what": "a hint spanning several tokens no longer groups them",
-    "find": "    while (last + 1 < tokens.length && tokens[last + 1]!.start < hint.end) last += 1;", "replace": "    while (false) last += 1;" },
-  { "id": "japanese/drop-context-kana-check", "file": "src/engine/japanese.ts", "what": "non-kana context around a hint is voiced anyway",
-    "find": "    const voicedKana = prefixOk && suffixOk ? prefix + hint.reading + suffix : hint.reading;", "replace": "    const voicedKana = prefix + hint.reading + suffix;" },
-  { "id": "japanese/drop-authored-alignment", "file": "src/engine/japanese.ts", "what": "authored hints never anchored on okurigana",
-    "find": "    const authored = alignFurigana(hintSurface, hint.reading);", "replace": "    const authored = [];" },
-  { "id": "japanese/drop-no-space-before", "file": "src/engine/japanese.ts", "what": "romaji spacing ignores leading punctuation",
-    "find": "    NO_SPACE_BEFORE.test(surface) ||", "replace": "    false ||" },
-  { "id": "japanese/drop-no-space-after", "file": "src/engine/japanese.ts", "what": "romaji spacing ignores trailing punctuation",
-    "find": "    NO_SPACE_AFTER.test(parts[parts.length - 1]?.text ?? \"\");", "replace": "    false;" },
-  { "id": "japanese/drop-empty-romaji-guard", "file": "src/engine/japanese.ts", "what": "empty romaji parts appended",
-    "find": "  if (romaji === \"\") return;", "replace": "  if (false) return;" },
-  { "id": "japanese/drop-furigana-sort", "file": "src/engine/japanese.ts", "what": "furigana segments left unsorted",
-    "find": "  furigana.sort((a, b) => a.start - b.start);", "replace": "  ;" },
-  { "id": "japanese/surface-fallback-removed", "file": "src/engine/japanese.ts", "what": "tokens with no reading voice as empty instead of their surface",
-    "find": "        const kana = token.readingKana !== \"\" ? token.readingKana : token.surface;", "replace": "        const kana = token.readingKana;" }
+  {
+    "id": "kana/kata-to-hira-offset",
+    "file": "src/engine/kana.ts",
+    "what": "katakana->hiragana offset wrong",
+    "find": "const KATA_TO_HIRA_OFFSET = 0x60;",
+    "replace": "const KATA_TO_HIRA_OFFSET = 0x61;"
+  },
+  {
+    "id": "kana/kata-to-hira-identity",
+    "file": "src/engine/kana.ts",
+    "what": "kataToHira never converts",
+    "find": "      ? String.fromCodePoint(code - KATA_TO_HIRA_OFFSET)",
+    "replace": "      ? ch"
+  },
+  {
+    "id": "kana/katakana-end-short",
+    "file": "src/engine/kana.ts",
+    "what": "conversion range one short (ヶ/ヵ edge)",
+    "find": "const KATAKANA_END = 0x30f6;",
+    "replace": "const KATAKANA_END = 0x30f5;"
+  },
+  {
+    "id": "kana/okurigana-drop-hiragana-guard",
+    "file": "src/engine/kana.ts",
+    "what": "katakana-okurigana no longer requires the line to lack hiragana",
+    "find": "  return HAN_CHAR.test(text) && KATAKANA_CHAR.test(text) && !HIRAGANA_CHAR.test(text);",
+    "replace": "  return HAN_CHAR.test(text) && KATAKANA_CHAR.test(text);"
+  },
+  {
+    "id": "kana/okurigana-drop-han-guard",
+    "file": "src/engine/kana.ts",
+    "what": "katakana-okurigana no longer requires kanji",
+    "find": "  return HAN_CHAR.test(text) && KATAKANA_CHAR.test(text) && !HIRAGANA_CHAR.test(text);",
+    "replace": "  return KATAKANA_CHAR.test(text) && !HIRAGANA_CHAR.test(text);"
+  },
+  {
+    "id": "kana/kana-char-drop-katakana",
+    "file": "src/engine/kana.ts",
+    "what": "KANA_CHAR no longer matches katakana",
+    "find": "export const KANA_CHAR = /[ぁ-ゖァ-ヺーゝゞヽヾ]/u;",
+    "replace": "export const KANA_CHAR = /[ぁ-ゖ]/u;"
+  },
+  {
+    "id": "kana/kana-char-drop-prolong",
+    "file": "src/engine/kana.ts",
+    "what": "KANA_CHAR no longer matches ー and iteration marks",
+    "find": "export const KANA_CHAR = /[ぁ-ゖァ-ヺーゝゞヽヾ]/u;",
+    "replace": "export const KANA_CHAR = /[ぁ-ゖァ-ヺ]/u;"
+  },
+  {
+    "id": "kana/han-char-drop-marks",
+    "file": "src/engine/kana.ts",
+    "what": "HAN_CHAR drops 々〆ヵヶ",
+    "find": "export const HAN_CHAR = /[\\p{Script=Han}々〆ヵヶ]/u;",
+    "replace": "export const HAN_CHAR = /[\\p{Script=Han}]/u;"
+  },
+  {
+    "id": "kana/kana-only-drop-prolong",
+    "file": "src/engine/kana.ts",
+    "what": "KANA_ONLY rejects ー and iteration marks",
+    "find": "export const KANA_ONLY = /^[ぁ-ゖァ-ヺーゝゞヽヾ]+$/u;",
+    "replace": "export const KANA_ONLY = /^[ぁ-ゖァ-ヺ]+$/u;"
+  },
+  {
+    "id": "hints/drop-okurigana-check",
+    "file": "src/engine/hints.ts",
+    "what": "reading no longer has to end with the word's okurigana",
+    "find": "    if (okurigana !== \"\" && !kataToHira(reading).endsWith(kataToHira(okurigana))) {",
+    "replace": "    if (false && okurigana !== \"\" && !kataToHira(reading).endsWith(kataToHira(okurigana))) {"
+  },
+  {
+    "id": "hints/okurigana-check-no-normalize",
+    "file": "src/engine/hints.ts",
+    "what": "okurigana compared without katakana normalization",
+    "find": "    if (okurigana !== \"\" && !kataToHira(reading).endsWith(kataToHira(okurigana))) {",
+    "replace": "    if (okurigana !== \"\" && !reading.endsWith(okurigana)) {"
+  },
+  {
+    "id": "hints/drop-chant-rejection",
+    "file": "src/engine/hints.ts",
+    "what": "chant-echo parentheticals accepted as readings",
+    "find": "    if (DECORATION_ONLY.test(tail) && isChantContext(line, index, word)) {",
+    "replace": "    if (false && DECORATION_ONLY.test(tail) && isChantContext(line, index, word)) {"
+  },
+  {
+    "id": "hints/chant-drop-tail-check",
+    "file": "src/engine/hints.ts",
+    "what": "chant rejection no longer requires the paren to end the line",
+    "find": "    if (DECORATION_ONLY.test(tail) && isChantContext(line, index, word)) {",
+    "replace": "    if (isChantContext(line, index, word)) {"
+  },
+  {
+    "id": "hints/chant-word-length",
+    "file": "src/engine/hints.ts",
+    "what": "chant rejection drops the word-length requirement",
+    "find": "  return KANA_ONLY_LOOSE.test(before) && word.length >= 2;",
+    "replace": "  return KANA_ONLY_LOOSE.test(before);"
+  },
+  {
+    "id": "hints/chant-drop-kana-context",
+    "file": "src/engine/hints.ts",
+    "what": "chant rejection ignores what precedes the word",
+    "find": "  return KANA_ONLY_LOOSE.test(before) && word.length >= 2;",
+    "replace": "  return word.length >= 2;"
+  },
+  {
+    "id": "hints/pattern-allow-space",
+    "file": "src/engine/hints.ts",
+    "what": "a spaced-off aside now counts as a reading hint",
+    "find": "  /([\\p{Script=Han}々〆ヵヶ]{1,12})([ぁ-ゖー]{0,8})[（(]([ぁ-ゖァ-ヺー]{1,24})[）)]/gu;",
+    "replace": "  /([\\p{Script=Han}々〆ヵヶ]{1,12})([ぁ-ゖー]{0,8})\\s*[（(]([ぁ-ゖァ-ヺー]{1,24})[）)]/gu;"
+  },
+  {
+    "id": "hints/pattern-allow-nonkana-reading",
+    "file": "src/engine/hints.ts",
+    "what": "parenthetical no longer has to be kana",
+    "find": "  /([\\p{Script=Han}々〆ヵヶ]{1,12})([ぁ-ゖー]{0,8})[（(]([ぁ-ゖァ-ヺー]{1,24})[）)]/gu;",
+    "replace": "  /([\\p{Script=Han}々〆ヵヶ]{1,12})([ぁ-ゖー]{0,8})[（(]([^）)]{1,24})[）)]/gu;"
+  },
+  {
+    "id": "hints/pattern-drop-okurigana-capture",
+    "file": "src/engine/hints.ts",
+    "what": "okurigana never captured as part of the word",
+    "find": "  /([\\p{Script=Han}々〆ヵヶ]{1,12})([ぁ-ゖー]{0,8})[（(]([ぁ-ゖァ-ヺー]{1,24})[）)]/gu;",
+    "replace": "  /([\\p{Script=Han}々〆ヵヶ]{1,12})([ぁ-ゖー]{0,0})[（(]([ぁ-ゖァ-ヺー]{1,24})[）)]/gu;"
+  },
+  {
+    "id": "metadata/drop-lowercase",
+    "file": "src/engine/metadata.ts",
+    "what": "credit labels matched case-sensitively",
+    "find": "  return label.replace(/[\\s·・]/gu, \"\").toLowerCase();",
+    "replace": "  return label.replace(/[\\s·・]/gu, \"\");"
+  },
+  {
+    "id": "metadata/drop-space-strip",
+    "file": "src/engine/metadata.ts",
+    "what": "credit labels not stripped of spaces and interpuncts",
+    "find": "  return label.replace(/[\\s·・]/gu, \"\").toLowerCase();",
+    "replace": "  return label.toLowerCase();"
+  },
+  {
+    "id": "metadata/compound-any-part",
+    "file": "src/engine/metadata.ts",
+    "what": "compound label accepted when only some parts are credits",
+    "find": "  return parts.length > 1 && parts.every((part) => CREDIT_LABELS.has(part));",
+    "replace": "  return parts.length > 1 && parts.some((part) => CREDIT_LABELS.has(part));"
+  },
+  {
+    "id": "metadata/compound-single-part",
+    "file": "src/engine/metadata.ts",
+    "what": "compound path accepts a single part",
+    "find": "  return parts.length > 1 && parts.every((part) => CREDIT_LABELS.has(part));",
+    "replace": "  return parts.length >= 1 && parts.every((part) => CREDIT_LABELS.has(part));"
+  },
+  {
+    "id": "metadata/allow-empty-value",
+    "file": "src/engine/metadata.ts",
+    "what": "credit line no longer needs a value after the colon",
+    "find": "  /^\\s*(?:\\d{1,3}\\s*[.．、)]\\s*)?([\\p{L}\\p{N}][\\p{L}\\p{N}\\s&/・·,，、-]{0,40}?)\\s*[:：]\\s*(\\S.*)$/u;",
+    "replace": "  /^\\s*(?:\\d{1,3}\\s*[.．、)]\\s*)?([\\p{L}\\p{N}][\\p{L}\\p{N}\\s&/・·,，、-]{0,40}?)\\s*[:：]\\s*(.*)$/u;"
+  },
+  {
+    "id": "metadata/label-length-unbounded",
+    "file": "src/engine/metadata.ts",
+    "what": "credit label length bound removed",
+    "find": "[\\p{L}\\p{N}\\s&/・·,，、-]{0,40}?)",
+    "replace": "[\\p{L}\\p{N}\\s&/・·,，、-]{0,400}?)"
+  },
+  {
+    "id": "hanRepair/drop-length-guard",
+    "file": "src/engine/hanRepair.ts",
+    "what": "phrase-level OpenCC rewrites no longer rejected",
+    "find": "  if (repaired.length !== line.length) {",
+    "replace": "  if (false && repaired.length !== line.length) {"
+  },
+  {
+    "id": "hanRepair/drop-kanau-restore",
+    "file": "src/engine/hanRepair.ts",
+    "what": "叶う no longer restored from 葉う",
+    "find": "  repaired = repaired.replace(/葉([いうえわお])/gu, \"叶$1\");",
+    "replace": "  repaired = repaired;"
+  },
+  {
+    "id": "hanRepair/kanau-restore-always",
+    "file": "src/engine/hanRepair.ts",
+    "what": "葉 restored to 叶 regardless of okurigana",
+    "find": "  repaired = repaired.replace(/葉([いうえわお])/gu, \"叶$1\");",
+    "replace": "  repaired = repaired.replace(/葉(.?)/gu, \"叶$1\");"
+  },
+  {
+    "id": "furigana/drop-kana-only-guard",
+    "file": "src/engine/furigana.ts",
+    "what": "non-kana readings no longer rejected",
+    "find": "  if (surface === \"\" || readingKana === \"\" || !KANA_ONLY.test(readingKana)) return [];",
+    "replace": "  if (surface === \"\" || readingKana === \"\") return [];"
+  },
+  {
+    "id": "furigana/drop-ambiguity-abstain",
+    "file": "src/engine/furigana.ts",
+    "what": "lazy/greedy disagreement no longer abstains (guessed splits)",
+    "find": "  if (!greedy || lazy.join(\"\\u0000\") !== greedy.join(\"\\u0000\")) {",
+    "replace": "  if (!greedy) {"
+  },
+  {
+    "id": "furigana/greedy-instead-of-lazy",
+    "file": "src/engine/furigana.ts",
+    "what": "segments taken from the greedy match",
+    "find": "    const runReading = lazy[capture]!;",
+    "replace": "    const runReading = (greedy ?? lazy)[capture]!;"
+  },
+  {
+    "id": "furigana/drop-kana-anchor-normalize",
+    "file": "src/engine/furigana.ts",
+    "what": "kana anchors not normalized before matching",
+    "find": "    pattern += run.isHan ? quant : escapeRegex(kataToHira(run.text));",
+    "replace": "    pattern += run.isHan ? quant : escapeRegex(run.text);"
+  },
+  {
+    "id": "furigana/pure-kanji-splits",
+    "file": "src/engine/furigana.ts",
+    "what": "single-run pure-kanji token no longer short-circuits",
+    "find": "  if (hanRuns.length === runs.length && hanRuns.length === 1) {",
+    "replace": "  if (false && hanRuns.length === runs.length && hanRuns.length === 1) {"
+  },
+  {
+    "id": "furigana/no-han-returns-whole",
+    "file": "src/engine/furigana.ts",
+    "what": "kana-only surfaces get ruby instead of none",
+    "find": "  if (hanRuns.length === 0) return [];",
+    "replace": "  if (hanRuns.length === 0) return [{ start: 0, end: surface.length, reading: kataToHira(readingKana) }];"
+  },
+  {
+    "id": "japanese/drop-sokuon-carry",
+    "file": "src/engine/japanese.ts",
+    "what": "token-final っ no longer geminates across the boundary",
+    "find": "    if (!isFinal && hira.endsWith(\"っ\")) {",
+    "replace": "    if (false && !isFinal && hira.endsWith(\"っ\")) {"
+  },
+  {
+    "id": "japanese/sokuon-carry-when-final",
+    "file": "src/engine/japanese.ts",
+    "what": "sokuon carried off the end of the line too",
+    "find": "    if (!isFinal && hira.endsWith(\"っ\")) {",
+    "replace": "    if (hira.endsWith(\"っ\")) {"
+  },
+  {
+    "id": "japanese/drop-particle-wa",
+    "file": "src/engine/japanese.ts",
+    "what": "particle は voiced as ha",
+    "find": "  if (surface === \"は\") return \"wa\";",
+    "replace": "  if (false) return \"wa\";"
+  },
+  {
+    "id": "japanese/drop-particle-pos-check",
+    "file": "src/engine/japanese.ts",
+    "what": "any は becomes wa, not just the particle",
+    "find": "  if (token.partOfSpeech !== \"particle\") return undefined;",
+    "replace": "  if (false) return undefined;"
+  },
+  {
+    "id": "japanese/hint-overlap-inclusive",
+    "file": "src/engine/japanese.ts",
+    "what": "hint/token overlap test made inclusive at the edges",
+    "find": "    const hint = hints.find((h) => h.start < token.end && h.end > token.start);",
+    "replace": "    const hint = hints.find((h) => h.start <= token.end && h.end >= token.start);"
+  },
+  {
+    "id": "japanese/drop-hint-run-grouping",
+    "file": "src/engine/japanese.ts",
+    "what": "a hint spanning several tokens no longer groups them",
+    "find": "    while (last + 1 < tokens.length && tokens[last + 1]!.start < hint.end) last += 1;",
+    "replace": "    while (false) last += 1;"
+  },
+  {
+    "id": "japanese/drop-context-kana-check",
+    "file": "src/engine/japanese.ts",
+    "what": "non-kana context around a hint is voiced anyway",
+    "find": "    const voicedKana = prefixOk && suffixOk ? prefix + hint.reading + suffix : hint.reading;",
+    "replace": "    const voicedKana = prefix + hint.reading + suffix;"
+  },
+  {
+    "id": "japanese/drop-authored-alignment",
+    "file": "src/engine/japanese.ts",
+    "what": "authored hints never anchored on okurigana",
+    "find": "    const authored = alignFurigana(hintSurface, hint.reading);",
+    "replace": "    const authored = [];"
+  },
+  {
+    "id": "japanese/drop-no-space-before",
+    "file": "src/engine/japanese.ts",
+    "what": "romaji spacing ignores leading punctuation",
+    "find": "    NO_SPACE_BEFORE.test(surface) ||",
+    "replace": "    false ||"
+  },
+  {
+    "id": "japanese/drop-no-space-after",
+    "file": "src/engine/japanese.ts",
+    "what": "romaji spacing ignores trailing punctuation",
+    "find": "    NO_SPACE_AFTER.test(parts[parts.length - 1]?.text ?? \"\");",
+    "replace": "    false;"
+  },
+  {
+    "id": "japanese/drop-empty-romaji-guard",
+    "file": "src/engine/japanese.ts",
+    "what": "empty romaji parts appended",
+    "find": "  if (romaji === \"\") return;",
+    "replace": "  if (false) return;"
+  },
+  {
+    "id": "japanese/drop-furigana-sort",
+    "file": "src/engine/japanese.ts",
+    "what": "furigana segments left unsorted",
+    "find": "  furigana.sort((a, b) => a.start - b.start);",
+    "replace": "  ;"
+  },
+  {
+    "id": "japanese/surface-fallback-removed",
+    "file": "src/engine/japanese.ts",
+    "what": "tokens with no reading voice as empty instead of their surface",
+    "find": "        const kana = token.readingKana !== \"\" ? token.readingKana : token.surface;",
+    "replace": "        const kana = token.readingKana;"
+  },
+  {
+    "id": "metadata/label-table-not-normalized",
+    "file": "src/engine/metadata.ts",
+    "what": "credit label table stored verbatim, so spaced multi-word roles never match",
+    "find": "].map(normalizeLabel));",
+    "replace": "]);"
+  }
 ]

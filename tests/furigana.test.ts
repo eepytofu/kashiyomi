@@ -74,3 +74,22 @@ test("iteration mark stays inside the kanji run", () => {
     { start: 0, end: 2, reading: "ひび" },
   ]);
 });
+
+test("an ambiguous split abstains instead of guessing", () => {
+  // The kana anchor と occurs twice in the reading, so lazy matching splits it
+  // 子=こ / 子=ことこ while greedy splits it 子=ことこ / 子=こ. Neither is
+  // more right, so one ruby covers the whole word rather than inventing a
+  // placement the reader would take as fact.
+  assert.deepEqual(alignFurigana("子と子", "ことことこ"), [
+    { start: 0, end: 3, reading: "ことことこ" },
+  ]);
+});
+
+test("the same shape splits when only one placement works", () => {
+  // Guards the test above from passing for the wrong reason: this reading has
+  // a single と, so there is no ambiguity to abstain from.
+  assert.deepEqual(alignFurigana("子と子", "こことこ"), [
+    { start: 0, end: 1, reading: "ここ" },
+    { start: 2, end: 3, reading: "こ" },
+  ]);
+});

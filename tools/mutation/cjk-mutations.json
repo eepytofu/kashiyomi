@@ -182,18 +182,18 @@
     "replace": "  return context.branch ?? \"japanese\";"
   },
   {
-    "id": "doc-branch-chinese-floor",
+    "id": "doc-branch-chinese-strict",
     "file": "src/engine/cjk.ts",
-    "what": "document chinese floor drops from 2 han-only lines to 1",
-    "find": "  else if (hanOnlyLines >= 2 && hanOnlyLines >= kanaLines * 2) branch = \"chinese\";",
-    "replace": "  else if (hanOnlyLines >= 1 && hanOnlyLines >= kanaLines * 2) branch = \"chinese\";"
+    "what": "chinese branch needs a strictly greater han-only majority",
+    "find": "  else if (hanOnlyLines >= kanaLines * 2) branch = \"chinese\";",
+    "replace": "  else if (hanOnlyLines > kanaLines * 2) branch = \"chinese\";"
   },
   {
     "id": "doc-branch-chinese-ratio",
     "file": "src/engine/cjk.ts",
     "what": "document chinese 2:1 advantage drops to 1:1",
-    "find": "  else if (hanOnlyLines >= 2 && hanOnlyLines >= kanaLines * 2) branch = \"chinese\";",
-    "replace": "  else if (hanOnlyLines >= 2 && hanOnlyLines >= kanaLines * 1) branch = \"chinese\";"
+    "find": "  else if (hanOnlyLines >= kanaLines * 2) branch = \"chinese\";",
+    "replace": "  else if (hanOnlyLines >= kanaLines) branch = \"chinese\";"
   },
   {
     "id": "doc-kana-threshold",
