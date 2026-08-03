@@ -143,15 +143,15 @@
     "id": "metadata/compound-any-part",
     "file": "src/engine/metadata.ts",
     "what": "compound label accepted when only some parts are credits",
-    "find": "  return parts.length > 1 && parts.every((part) => CREDIT_LABELS.has(part));",
-    "replace": "  return parts.length > 1 && parts.some((part) => CREDIT_LABELS.has(part));"
+    "find": "  if (parts.length > 1 && parts.every((part) => CREDIT_LABELS.has(part))) return true;",
+    "replace": "  if (parts.length > 1 && parts.some((part) => CREDIT_LABELS.has(part))) return true;"
   },
   {
     "id": "metadata/compound-single-part",
     "file": "src/engine/metadata.ts",
     "what": "compound path accepts a single part",
-    "find": "  return parts.length > 1 && parts.every((part) => CREDIT_LABELS.has(part));",
-    "replace": "  return parts.length >= 1 && parts.every((part) => CREDIT_LABELS.has(part));"
+    "find": "  if (parts.length > 1 && parts.every((part) => CREDIT_LABELS.has(part))) return true;",
+    "replace": "  if (parts.length >= 1 && parts.every((part) => CREDIT_LABELS.has(part))) return true;"
   },
   {
     "id": "metadata/allow-empty-value",
