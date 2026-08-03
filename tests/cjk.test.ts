@@ -57,10 +57,10 @@ test("chinese lines inside a japanese song are not read as japanese", () => {
   // 無 mixes Japanese verses with Chinese ones; the Chinese lines are
   // Han-only, so without a per-line signal they inherit the document branch.
   for (const line of [
-    "但我愛的人都会一個一個死去",
-    "但我的生活還会一遍一遍繼續",
+    "但我爱的人都会一个一个死去",
+    "但我的生活还会一遍一遍继续",
     "就求你不要孑然一身地老去",
-    "我不想五味雜陳地",
+    "我不想五味杂陈地…",
   ]) {
     assert.equal(resolveLineRoute(line, "japanese"), "chinese", line);
   }
@@ -83,31 +83,64 @@ test("kanji-only japanese lines still follow the japanese document", () => {
   }
 });
 
-test("classical chinese lines in a bilingual song are not read as japanese", () => {
-  // 無 alternates Japanese verses with literary Chinese ones. These carry no
-  // Chinese function words at all, so only the document context separates
-  // them from Japanese kanbun.
-  //
-  // Written here in traditional forms, which is the *hardest* case rather than
-  // the common one: NetEase ships mostly simplified, and simplified-only
-  // glyphs are unambiguous Chinese evidence, whereas traditional overlaps
-  // heavily with Japanese kyuujitai. Only 離離虛無無所歸 (虛) is detectable
-  // here, against three of the four lines in the simplified spelling below.
+// 無 (立入禁止/歌爱ユキ/诗岸) alternates Japanese verses with Chinese ones.
+// Captured from the running app on 2026-08-03, so this is the text NetEase
+// actually serves — simplified, which is what it ships for nearly everything.
+// An earlier version of this fixture was written in traditional forms that no
+// real lyric used; it passed while testing a spelling the code never sees.
+const MU_JAPANESE = [
+  "嗚呼",
+  "僕らの居場所はどこなんだ",
+  "まさか本当に所謂心の中",
+  "されどこんな空っぽな僕の体",
+  "住める人は何処だ",
+  "こんな瞳から写った自分は",
+  "虚しく見えるのは僕の所為のか？",
+  "彷徨う溶ろけそうな僕らの行方は",
+  "探せばほんの少しは残っているんだろうか",
+];
+const MU_CHINESE = [
+  "但我爱的人都会一个一个死去",
+  "但我的生活还会一遍一遍继续",
+  "就求你不要孑然一身地老去",
+  "世间无常所谓轮回",
+  "离离虚无无所归",
+  "无可奈何花落去",
+  "身外尽空虚",
+  "我知道啊那些你爱我爱你的话",
+  "到最后都没有什么归处啊",
+  "就算我再怎么拼命挣扎",
+  "一百年过后什么也留不下",
+];
+
+test("a bilingual song separates its chinese verses from its japanese ones", () => {
+  // Its classical lines (无可奈何花落去, 身外尽空虚) carry no Chinese function
+  // words, so only the document context separates them from Japanese kanbun.
+  // Verified against the running app with 译 off: 16 chinese, 13 japanese.
+  const doc = resolveDocumentContext([...MU_JAPANESE, ...MU_CHINESE]);
+  assert.equal(doc.bilingual, true);
+  for (const line of MU_CHINESE) assert.equal(resolveLineRoute(line, doc), "chinese", line);
+  for (const line of MU_JAPANESE) assert.equal(resolveLineRoute(line, doc), "japanese", line);
+});
+
+test("repeated verses do not disturb a bilingual song", () => {
+  // 無 repeats both its Japanese and Chinese verses. Evidence is counted over
+  // distinct lines, so the repeats must change nothing.
   const doc = resolveDocumentContext([
-    "僕らの居場所はどこなんだ",
-    "まさか本当に所謂心の中",
-    "探せばほんの少しは残っているんだろうか",
-    "嗚呼",
-    "世間無常所謂輪迴",
-    "離離虛無無所歸",
-    "無可奈何花落去",
-    "身外尽空虚",
+    ...MU_JAPANESE, ...MU_CHINESE, ...MU_JAPANESE, ...MU_CHINESE,
   ]);
   assert.equal(doc.bilingual, true);
-  for (const line of ["世間無常所謂輪迴", "離離虛無無所歸", "無可奈何花落去", "身外尽空虚"]) {
-    assert.equal(resolveLineRoute(line, doc), "chinese", line);
-  }
-  assert.equal(resolveLineRoute("嗚呼", doc), "japanese");
+  for (const line of MU_CHINESE) assert.equal(resolveLineRoute(line, doc), "chinese", line);
+});
+
+test("traditional spelling of the same verses still routes chinese", () => {
+  // Rarer than simplified and harder: traditional overlaps heavily with
+  // Japanese kyuujitai, so of these only 離離虛無無所歸 (虛) carries
+  // Chinese-only glyph evidence, against three of four when simplified.
+  const chinese = ["世間無常所謂輪迴", "離離虛無無所歸", "無可奈何花落去", "身外尽空虚"];
+  const doc = resolveDocumentContext([...MU_JAPANESE, ...chinese]);
+  assert.equal(doc.bilingual, true);
+  for (const line of chinese) assert.equal(resolveLineRoute(line, doc), "chinese", line);
 });
 
 test("a japanese song built on four-character compounds stays japanese", () => {
@@ -126,22 +159,6 @@ test("a japanese song built on four-character compounds stays japanese", () => {
   for (const line of ["磊々落々 反戦国家", "六根清浄 大革命", "三千世界 常世之闇"]) {
     assert.equal(resolveLineRoute(line, doc), "japanese", line);
   }
-});
-
-test("the same song in simplified forms routes identically", () => {
-  // What NetEase actually ships. Simplified-only glyphs make the Chinese lines
-  // easier to identify, so this must hold at least as well as the traditional
-  // spelling above.
-  const chinese = ["世间无常所谓轮回", "离离虚无无所归", "无可奈何花落去", "身外尽空虚"];
-  const doc = resolveDocumentContext([
-    "僕らの居場所はどこなんだ",
-    "まさか本当に所謂心の中",
-    "探せばほんの少しは残っているんだろうか",
-    "嗚呼",
-    ...chinese,
-  ]);
-  assert.equal(doc.bilingual, true);
-  for (const line of chinese) assert.equal(resolveLineRoute(line, doc), "chinese", line);
 });
 
 test("a repeated chorus line is one piece of evidence, not two", () => {
@@ -182,19 +199,6 @@ test("length alone is not evidence of a second language", () => {
   assert.equal(doc.bilingual, false);
   assert.equal(resolveLineRoute("三千世界 常世之闇", doc), "japanese");
   assert.equal(resolveLineRoute("天上天下唯我独尊", doc), "japanese");
-});
-
-test("repeats do not disturb a genuinely bilingual song", () => {
-  const chinese = ["世间无常所谓轮回", "离离虚无无所归", "无可奈何花落去"];
-  const doc = resolveDocumentContext([
-    "僕らの居場所はどこなんだ",
-    "まさか本当に所謂心の中",
-    "嗚呼",
-    ...chinese,
-    ...chinese,
-  ]);
-  assert.equal(doc.bilingual, true, "duplication must not lose a real second language");
-  for (const line of chinese) assert.equal(resolveLineRoute(line, doc), "chinese", line);
 });
 
 test("japanese orthography outranks the bilingual length rule", () => {
