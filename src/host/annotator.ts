@@ -153,6 +153,15 @@ async function scan(): Promise<void> {
       line.el.setAttribute("lang", "zh");
       chinese.push(line);
     } else {
+      // A line with no script of its own — "-interlude-" in 無 — still needs a
+      // font, or it keeps NCM's default stack, which leads with 微软雅黑: a
+      // Chinese sans rendering Latin text in a song set in a Japanese serif.
+      // applyScriptFont cannot help, because it reads the line's own script and
+      // finds none; the document's branch is the only signal there is. Left
+      // unset when the document branch is undecided, which is the honest answer
+      // for a line that could belong to either.
+      if (docContext.branch === "japanese") line.el.setAttribute("lang", "ja");
+      else if (docContext.branch === "chinese") line.el.setAttribute("lang", "zh");
       markAnnotated(line.el, line.original);
     }
   }
