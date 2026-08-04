@@ -228,16 +228,25 @@ test("no space is inserted after opening punctuation", () => {
   assert.equal(annotateJapaneseLine(line, tokens).romaji, "\"kotoba\"");
 });
 
-test("a token that voices to nothing does not leave a gap", () => {
-  // 天　空 — the full-width space is its own token (　[∅]@1-2). It does not
-  // reach appendRomaji's empty check, because kanaToRomaji passes 　 through
-  // rather than returning ""; latinizeSegments is what maps it to a single
-  // space and collapses the doubles. So this pins the ideographic-space
-  // handling, and no input has yet been found that reaches the empty guard.
-  const line = "天　空";
-  const tokens = [token("天", 0, "テン"), token("　", 1, ""), token("空", 2, "ソラ")];
-  assert.equal(annotateJapaneseLine(line, tokens).romaji, "ten sora");
+test("a token that voices to nothing still separates its neighbours", () => {
+  // 夢ー空 — the analyzer emits ー as its own token (夢[∅] ー[ー] 空[ソラ]) and
+  // kanaToRomaji("ー") returns "": a lone prolonged sound mark has nothing to
+  // voice. Appending it anyway overwrites the separator its neighbours needed,
+  // and the row renders "夢sora" with the words run together.
+  const line = "夢ー空";
+  const tokens = [token("夢", 0, ""), token("ー", 1, "ー"), token("空", 2, "ソラ")];
+  const out = annotateJapaneseLine(line, tokens);
+  assert.equal(out.romaji, "夢 sora");
+  // Asserted exactly, not just "no empty text". Dropping the guard pushes a
+  // filler part for ー, and latinizeSegments then collapses the spacing so the
+  // joined line still reads "夢 sora" — the only surviving evidence is the
+  // extra segment, and the renderer walks segments, not the joined string.
+  assert.deepEqual(out.romajiSegments, [
+    { text: "夢", origin: "inferred" },
+    { text: " sora", origin: "inferred" },
+  ]);
 });
+
 
 test("furigana segments come back in document order", () => {
   // 大胆不敵に ハイカラ革命 (千本桜), tokens from the real analyzer 2026-08-05.

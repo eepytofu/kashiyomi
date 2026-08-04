@@ -273,13 +273,6 @@
     "replace": "    const authored = [];"
   },
   {
-    "id": "japanese/drop-no-space-before",
-    "file": "src/engine/japanese.ts",
-    "what": "romaji spacing ignores leading punctuation",
-    "find": "    NO_SPACE_BEFORE.test(surface) ||",
-    "replace": "    false ||"
-  },
-  {
     "id": "japanese/drop-no-space-after",
     "file": "src/engine/japanese.ts",
     "what": "romaji spacing ignores trailing punctuation",

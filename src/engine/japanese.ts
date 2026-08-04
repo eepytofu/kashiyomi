@@ -62,7 +62,6 @@ export type JapaneseLineAnnotation = {
   readonly romajiSegments: readonly RomajiSegment[];
 };
 
-const NO_SPACE_BEFORE = /^[、。，．！？!?…・：;；:）)」』ー~〜]/u;
 const NO_SPACE_AFTER = /[（(「『、。，．！？…・]$/u;
 
 /**
@@ -117,7 +116,7 @@ export function annotateJapaneseLine(
           origin: "inferred",
         });
         const { romaji, joined } = voice(numeral.reading, numeral.tokensUsed + i === tokens.length);
-        appendRomaji(romajiParts, romaji, numeral.surface, joined, "inferred");
+        appendRomaji(romajiParts, romaji, joined, "inferred");
         i += numeral.tokensUsed;
         continue;
       }
@@ -132,11 +131,11 @@ export function annotateJapaneseLine(
       const special = particleSpecial(token);
       if (special !== undefined) {
         sokuonCarry = false;
-        appendRomaji(romajiParts, special, token.surface, false, "inferred");
+        appendRomaji(romajiParts, special, false, "inferred");
       } else {
         const kana = token.readingKana !== "" ? token.readingKana : token.surface;
         const { romaji, joined } = voice(kana, i === tokens.length - 1);
-        appendRomaji(romajiParts, romaji, token.surface, joined, "inferred");
+        appendRomaji(romajiParts, romaji, joined, "inferred");
       }
       i += 1;
       continue;
@@ -180,7 +179,7 @@ export function annotateJapaneseLine(
     const suffixOk = suffix === "" || KANA_ONLY.test(suffix);
     const voicedKana = prefixOk && suffixOk ? prefix + hint.reading + suffix : hint.reading;
     const { romaji, joined } = voice(voicedKana, last === tokens.length - 1);
-    appendRomaji(romajiParts, romaji, displayText.slice(runStart, runEnd), joined, "authored");
+    appendRomaji(romajiParts, romaji, joined, "authored");
     i = last + 1;
   }
 
@@ -209,15 +208,19 @@ function particleSpecial(token: AnalyzerToken): string | undefined {
 function appendRomaji(
   parts: RomajiSegment[],
   romaji: string,
-  surface: string,
   joinPrevious: boolean,
   origin: RomajiSegment["origin"],
 ): void {
+  // A part that voices to nothing must not consume the separator its
+  // neighbours need: 夢ー空 tokenizes 夢 / ー / 空, and kanaToRomaji("ー")
+  // is "", so appending it renders "夢sora".
   if (romaji === "") return;
+  // No leading-punctuation check here: latinizeSegments strips a space before
+  // any closing mark afterwards, so one would be dead weight. The trailing
+  // check is not — latinizeSegments only handles ( and [, not 「『、。.
   const needsNoSpace =
     joinPrevious ||
     parts.length === 0 ||
-    NO_SPACE_BEFORE.test(surface) ||
     NO_SPACE_AFTER.test(parts[parts.length - 1]?.text ?? "");
   parts.push({ text: needsNoSpace ? romaji : ` ${romaji}`, origin });
 }
