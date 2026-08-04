@@ -20,20 +20,18 @@ export const PANEL_CSS = `
 .kashiyomi-config .kc-card { border-radius: 10px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
 .kashiyomi-config .kc-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 14px; cursor: pointer; }
 .kashiyomi-config .kc-row + .kc-row { border-top: 1px solid rgba(255, 255, 255, 0.06); }
-/* Toggle rows pin the switch to the label's line instead of the row's centre.
-   Centring on the row made the switch column bend wherever a description
-   wrapped: measured 9px below the label on one-line rows and 17px on two-line
-   ones. Only toggle rows are <label>, so this cannot reach the wrapping
-   input/button rows, which rely on flex-wrap. The offset centres a 20px switch
-   on the 17.55px label line (13.5px * 1.3). */
-.kashiyomi-config label.kc-row { align-items: flex-start; }
-.kashiyomi-config label.kc-row .kc-switch { margin-top: -1.2px; }
 .kashiyomi-config .kc-row:hover { background: rgba(255, 255, 255, 0.04); }
 .kashiyomi-config .kc-label { font-size: 13.5px; line-height: 1.3; }
 .kashiyomi-config .kc-desc { font-size: 12px; opacity: 0.55; margin-top: 2px; line-height: 1.35; }
 .kashiyomi-config .kc-switch { position: relative; flex: none; width: 36px; height: 20px; }
 .kashiyomi-config .kc-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
 .kashiyomi-config .kc-track { position: absolute; inset: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.22); transition: background 0.15s ease; }
+/* The knob renders 3 device pixels clear on one side and 2 on the other at
+   125% display scaling: 20px track minus 16px knob leaves 4px of gap, which is
+   5 device pixels, and an odd number cannot split evenly. Tried and reverted:
+   deriving the height from top+bottom (identical geometry) and centring with a
+   transform (Chrome snaps it anyway). The only real fix is making the leftover
+   even — a 12px knob, or a 24px track — which changes how the switch looks. */
 .kashiyomi-config .kc-track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.15s ease; }
 .kashiyomi-config .kc-switch input:checked + .kc-track { background: #ec4141; }
 /* The real checkbox is opacity:0, so without this a keyboard user tabbing
