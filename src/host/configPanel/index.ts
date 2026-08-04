@@ -123,12 +123,12 @@ function buildStatusBar(root: HTMLElement): HTMLElement {
     render(root);
   };
   rightSide.appendChild(reannotate);
-  // The language toggle goes last so its right edge pins to the container's.
-  // Ordered the other way, it sat left of a button whose label is itself
-  // translated — "Re-annotate" is 74px and 重新标注 is 50px — so switching
-  // language slid the toggle 24px sideways, a third of its own width, and the
-  // pointer landed on the option the user had just switched away from. A
-  // control may not move as a result of being used.
+  // Tried and rejected: moving this into a settings row under Advanced, which
+  // is where a preference "belongs". Two things killed it. The segments wrap
+  // (中文 broke onto two lines in the narrower row), and it lands 1500px down a
+  // 2036px scroll — so someone who opens an English panel they cannot read must
+  // scroll past every section they cannot read to reach the control that fixes
+  // it. Visibility wins over categorical tidiness for this one control.
   rightSide.appendChild(buildLangToggle(root));
   bar.appendChild(rightSide);
   return bar;
@@ -137,6 +137,11 @@ function buildStatusBar(root: HTMLElement): HTMLElement {
 function buildLangToggle(root: HTMLElement): HTMLElement {
   const wrap = document.createElement("span");
   wrap.className = "kc-lang";
+  // Sitting in the status bar with no label, this control does not say what it
+  // changes; more than one reading of "EN / 中文" next to a lyrics plugin is
+  // plausible. The settings-row experiment made the scope explicit and cost too
+  // much elsewhere, so the wording survives as the hover text.
+  wrap.title = t("panelLanguageDesc");
   const current = panelLang();
   const options: [PanelLang, string][] = [
     ["en", "EN"],
