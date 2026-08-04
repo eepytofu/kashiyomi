@@ -16,16 +16,29 @@ export const PANEL_CSS = `
 .kashiyomi-config .kc-ready .kc-dot { background: #52c41a; }
 .kashiyomi-config .kc-bad .kc-dot { background: #ff4d4f; }
 .kashiyomi-config .kc-loading .kc-dot { background: #faad14; }
-.kashiyomi-config .kc-section-title { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.55; margin: 2px 2px -6px; }
+.kashiyomi-config .kc-section-title { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.68; margin: 2px 2px -6px; }
 .kashiyomi-config .kc-card { border-radius: 10px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
 .kashiyomi-config .kc-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 14px; cursor: pointer; }
 .kashiyomi-config .kc-row + .kc-row { border-top: 1px solid rgba(255, 255, 255, 0.06); }
 .kashiyomi-config .kc-row:hover { background: rgba(255, 255, 255, 0.04); }
-.kashiyomi-config .kc-label { font-size: 13.5px; line-height: 1.3; }
-.kashiyomi-config .kc-desc { font-size: 12px; opacity: 0.55; margin-top: 2px; line-height: 1.35; }
+/* Weight separates label from description, not opacity. The two were 13.5px and
+   12px — a 1.125 ratio, near-identical — so the whole hierarchy rested on
+   opacity, which is also what sets contrast. That made the two impossible to
+   tune apart: every step towards legibility flattened the hierarchy. With the
+   label carrying its own weight, opacity is free to serve contrast alone. */
+.kashiyomi-config .kc-label { font-size: 13.5px; font-weight: 500; line-height: 1.3; }
+.kashiyomi-config .kc-desc { font-size: 12px; opacity: 0.68; margin-top: 2px; line-height: 1.35; }
 .kashiyomi-config .kc-switch { position: relative; flex: none; width: 40px; height: 24px; }
 .kashiyomi-config .kc-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
-.kashiyomi-config .kc-track { position: absolute; inset: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.22); transition: background 0.15s ease; }
+/* Off is a hollow outlined track, on is filled — so the state is legible from
+   the shape alone and does not depend on seeing the red. An inset shadow rather
+   than a border: a border would become the knob's positioning box and shift its
+   gaps back onto half pixels. */
+.kashiyomi-config .kc-track {
+  position: absolute; inset: 0; border-radius: 999px;
+  background: transparent; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.38);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
 /* Every size here is picked so the knob's two gaps stay equal at any display
    scaling. The gaps split whatever the track has left over, so that leftover
    must be an even number of device pixels: at 125%, a 20px track around a 16px
@@ -38,10 +51,14 @@ export const PANEL_CSS = `
    can. 40x24 and the 16px knob are also whole device pixels at 125% (50x30,
    20), so no edge is left straddling one. */
 .kashiyomi-config .kc-track::after { content: ""; position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.15s ease; }
-.kashiyomi-config .kc-switch input:checked + .kc-track { background: #ec4141; }
+.kashiyomi-config .kc-switch input:checked + .kc-track { background: #ec4141; box-shadow: none; }
 /* The real checkbox is opacity:0, so without this a keyboard user tabbing
-   through twelve switches gets no indication of where they are. */
-.kashiyomi-config .kc-switch input:focus-visible + .kc-track { box-shadow: 0 0 0 2px rgba(236, 65, 65, 0.6); }
+   through twelve switches gets no indication of where they are. The unchecked
+   rule keeps the outline, which is the same shadow property. */
+.kashiyomi-config .kc-switch input:focus-visible + .kc-track {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.38), 0 0 0 2px rgba(236, 65, 65, 0.75);
+}
+.kashiyomi-config .kc-switch input:checked:focus-visible + .kc-track { box-shadow: 0 0 0 2px rgba(236, 65, 65, 0.75); }
 .kashiyomi-config .kc-switch input:checked + .kc-track::after { transform: translateX(16px); }
 .kashiyomi-config .kc-button { padding: 6px 14px; border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.1); color: inherit; font-size: 12.5px; cursor: pointer; }
 .kashiyomi-config .kc-button:hover { background: rgba(255, 255, 255, 0.16); }
@@ -97,6 +114,6 @@ export const PANEL_CSS = `
 .kashiyomi-config .kc-preview-line { font-size: 19px; line-height: 1.6; }
 .kashiyomi-config .kc-preview-line .kashiyomi-row { opacity: 0.6; }
 .kashiyomi-config .kc-about { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
-.kashiyomi-config .kc-about .kc-muted { opacity: 0.55; word-break: break-all; }
+.kashiyomi-config .kc-about .kc-muted { opacity: 0.68; word-break: break-all; }
 .kashiyomi-config .kc-link { color: inherit; text-decoration: underline; cursor: pointer; opacity: 0.85; }
 `;
