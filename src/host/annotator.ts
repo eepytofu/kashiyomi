@@ -8,6 +8,8 @@ import {
   type LineTranslationState,
 } from "../engine/cjk.ts";
 import { annotateJapaneseLine, type JapaneseLineAnnotation } from "../engine/japanese.ts";
+import { applyJmdictReadings, type JmdictReadings } from "../engine/jmdictReadings.ts";
+import { ensureJmdictReadings } from "./jmdictDict.ts";
 import { romanizeMandarin } from "../engine/pinyin.ts";
 import { hasHan, hasKana } from "../engine/kana.ts";
 import { classifyLines, type ClassifiableLine } from "../engine/lineKinds.ts";
@@ -165,7 +167,11 @@ async function scan(): Promise<void> {
   }
 
   if (japanese.length > 0 && (settings.furigana || settings.romaji)) {
-    annotateJapanese(japanese);
+    // Loaded before annotating rather than during: the annotation cache keys on
+    // display text, so a line annotated before the asset arrived would be
+    // remembered without its readings and never revisited.
+    const jmdict = assetPaths ? await ensureJmdictReadings(assetPaths.jmdictPath) : undefined;
+    annotateJapanese(japanese, jmdict);
   } else {
     for (const { line } of japanese) markAnnotated(line.el, line.original);
   }
@@ -191,6 +197,7 @@ async function scan(): Promise<void> {
 
 function annotateJapanese(
   lines: readonly JapaneseWork[],
+  jmdict: JmdictReadings | undefined,
 ): void {
   const settings = getSettings();
 
@@ -227,7 +234,10 @@ function annotateJapanese(
   log.debug(`analyzed ${pendingAnalysis.length} lines (${lines.length - pendingAnalysis.length} cached)`);
   for (let i = 0; i < pendingAnalysis.length; i++) {
     const { line, displayText, analysisText, hints } = pendingAnalysis[i]!;
-    const tokens = result.lines[i] ?? [];
+    const raw = result.lines[i] ?? [];
+    // Fills readings the analyzer abstained on (磊々 → ライライ). Never
+    // overrides one it produced, so this cannot change an existing annotation.
+    const tokens = jmdict ? applyJmdictReadings(raw, jmdict) : raw;
     try {
       const annotation = annotateJapaneseLine(analysisText, tokens, hints);
       // Hints come from the line itself, so the annotation is a pure function

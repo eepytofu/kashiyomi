@@ -18,7 +18,8 @@
     "capture": "node tools/capture/lyrics.mjs",
     "fetch-dict": "node tools/fetch-dictionaries.mjs",
     "export-pinyin": "node tools/export-pinyin-dict.mjs",
-    "dev-install": "node tools/dev-install.mjs"
+    "dev-install": "node tools/dev-install.mjs",
+    "export-jmdict": "node tools/export-jmdict-readings.mjs"
   },
   "dependencies": {
     "@pinyin-pro/data": "1.3.1",

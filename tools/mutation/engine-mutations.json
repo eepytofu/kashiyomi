@@ -607,5 +607,33 @@
     "what": "the numeral reader overrides readings the analyzer already produced",
     "find": "  if (token.readingKana !== \"\" || !isNumeral(token.surface)) return undefined;",
     "replace": "  if (!isNumeral(token.surface)) return undefined;"
+  },
+  {
+    "id": "jmdict/kana-surfaces-looked-up",
+    "file": "src/engine/jmdictReadings.ts",
+    "what": "kana-only surfaces are looked up too",
+    "find": "    if (!HAN_CHAR.test(token.surface)) return token;",
+    "replace": "    if (false) return token;"
+  },
+  {
+    "id": "jmdict/reading-left-as-hiragana",
+    "file": "src/engine/jmdictReadings.ts",
+    "what": "filled reading is not converted to katakana",
+    "find": "    const reading = hiraToKata(found);",
+    "replace": "    const reading = found;"
+  },
+  {
+    "id": "kana/hira-to-kata-identity",
+    "file": "src/engine/kana.ts",
+    "what": "hiraToKata never converts",
+    "find": "      ? String.fromCodePoint(code + KATA_TO_HIRA_OFFSET)",
+    "replace": "      ? ch"
+  },
+  {
+    "id": "jmdict/overrides-instead-of-filling",
+    "file": "src/engine/jmdictReadings.ts",
+    "what": "layer overrides an analyzer reading instead of only filling abstentions",
+    "find": "    if (token.readingKana === \"\") return { ...token, readingKana: reading };\n\n    return token;",
+    "replace": "    return { ...token, readingKana: reading };"
   }
 ]

@@ -51,6 +51,7 @@ const devPaths = {
   dictPath: path.join(repo, "assets", "dict", "system_full.dic").replaceAll("\\", "/"),
   resourceDir: path.join(repo, "assets", "sudachi").replaceAll("\\", "/"),
   pinyinDictPath: path.join(repo, "assets", "pinyin", "complete.json").replaceAll("\\", "/"),
+  jmdictPath: path.join(repo, "assets", "jmdict", "readings.json").replaceAll("\\", "/"),
 };
 await writeFile(path.join(target, "dev-paths.json"), JSON.stringify(devPaths, null, 2));
 console.log(`Installed to ${target}`);

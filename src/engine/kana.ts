@@ -16,6 +16,21 @@ export function kataToHira(text: string): string {
   return out;
 }
 
+const HIRAGANA_START = 0x3041;
+const HIRAGANA_END = 0x3096;
+
+/** Convert hiragana to katakana; everything else (incl. ー) passes through. */
+export function hiraToKata(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    const code = ch.codePointAt(0)!;
+    out += code >= HIRAGANA_START && code <= HIRAGANA_END
+      ? String.fromCodePoint(code + KATA_TO_HIRA_OFFSET)
+      : ch;
+  }
+  return out;
+}
+
 export const KANA_CHAR = /[ぁ-ゖァ-ヺーゝゞヽヾ]/u;
 export const KANA_ONLY = /^[ぁ-ゖァ-ヺーゝゞヽヾ]+$/u;
 

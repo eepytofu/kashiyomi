@@ -8,6 +8,7 @@ export type AssetPaths = {
   dictPath: string;
   resourceDir: string;
   pinyinDictPath: string;
+  jmdictPath: string;
 };
 
 export function findPluginPath(): string | undefined {
@@ -33,6 +34,7 @@ export async function resolveAssetPaths(): Promise<AssetPaths | undefined> {
     dictPath: `${pluginPath}/assets/dict/system_full.dic`,
     resourceDir: `${pluginPath}/assets/sudachi`,
     pinyinDictPath: `${pluginPath}/assets/pinyin/complete.json`,
+    jmdictPath: `${pluginPath}/assets/jmdict/readings.json`,
   };
   try {
     const raw = await betterncm.fs.readFileText(`${pluginPath}/dev-paths.json`);

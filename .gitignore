@@ -3,6 +3,7 @@ dist/
 references/
 assets/dict/
 assets/pinyin/
+assets/jmdict/
 native/target/
 *.plugin
 .env

@@ -45,6 +45,7 @@ cd kashiyomi
 npm ci
 npm run fetch-dict
 npm run export-pinyin
+npm run export-jmdict
 npm run build
 cd native
 cargo build --release
@@ -52,7 +53,7 @@ cd ..
 npm run dev-install
 ```
 
-`npm run fetch-dict` 会下载约 360 MB 的 SudachiDict-full。`npm run export-pinyin` 会生成 Pinyin Pro 的完整词典文件。
+`npm run fetch-dict` 会下载约 360 MB 的 SudachiDict-full。`npm run export-pinyin` 会生成 Pinyin Pro 的完整词典文件，`npm run export-jmdict` 会生成用于补全分析器无法给出的读音的 JMdict 读音表（约 3 MB）。
 
 `npm run dev-install` 默认将 Kashiyomi 安装到 `C:\betterncm\plugins_dev\Kashiyomi`。如需使用其他目录：
 
