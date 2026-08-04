@@ -5,11 +5,27 @@
 import * as OpenCC from "opencc-js";
 
 let toJapaneseForms: ((text: string) => string) | undefined;
+let toTraditionalForms: ((text: string) => string) | undefined;
 
 /** Convert Chinese glyph forms to their Japanese equivalents. */
 export function toJapaneseGlyphs(text: string): string {
   toJapaneseForms ??= OpenCC.Converter({ from: "cn", to: "jp" });
   return toJapaneseForms(text);
+}
+
+/** Simplified Chinese to traditional. Used to tell the two apart, not to display. */
+export function toTraditionalGlyphs(text: string): string {
+  toTraditionalForms ??= OpenCC.Converter({ from: "cn", to: "t" });
+  return toTraditionalForms(text);
+}
+
+/**
+ * True when this character is a *simplified* form, i.e. it has a distinct
+ * traditional counterpart. 梦 is (traditional 夢); 繼 is not, it already is the
+ * traditional form; 見 is not, it is shared.
+ */
+export function isSimplifiedForm(ch: string): boolean {
+  return toTraditionalGlyphs(ch) !== ch;
 }
 
 /**

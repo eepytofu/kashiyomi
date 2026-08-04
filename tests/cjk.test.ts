@@ -67,10 +67,14 @@ test("chinese lines inside a japanese song are not read as japanese", () => {
 });
 
 test("repaired output must never be routed as if it were the source", () => {
-  // Kanji repair rewrites Chinese forms into Japanese ones (繼續 to 継続).
+  // Kanji repair rewrites simplified forms into Japanese ones (继续 to 継続).
   // If that output were ever read back as a line's source, the line would
   // then look Japanese and stay misrouted. Both forms must route the same.
-  const source = "但我的生活還会一遍一遍繼續";
+  //
+  // Written in simplified because that is what NetEase serves; the earlier
+  // traditional spelling of this fixture stopped being rewritten at all once
+  // repair was narrowed to simplified, so it had quietly stopped testing this.
+  const source = "但我的生活还会一遍一遍继续";
   const repaired = repairJapaneseHan(source);
   assert.notEqual(repaired, source, "fixture should actually be rewritten");
   assert.equal(resolveLineRoute(source, "japanese"), "chinese");

@@ -74,7 +74,7 @@ export function isAnnotatedFrom(el: HTMLElement, source: string): boolean {
  * Undo every annotation on the page, putting the lyric NetEase supplied back
  * on screen first.
  *
- * The order matters. Kanji repair rewrites what is on screen (繼續 → 継続) and
+ * The order matters. Kanji repair rewrites what is on screen (继续 → 継続) and
  * the untouched original only exists in SRC_ATTR, so clearing that attribute
  * while leaving the repaired text in place would make the next scan read our
  * own output as if it were the source — the one thing routing must never do. A

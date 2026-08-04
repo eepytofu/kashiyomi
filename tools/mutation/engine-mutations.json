@@ -171,22 +171,22 @@
     "id": "hanRepair/drop-length-guard",
     "file": "src/engine/hanRepair.ts",
     "what": "phrase-level OpenCC rewrites no longer rejected",
-    "find": "  if (repaired.length !== line.length) {",
-    "replace": "  if (false && repaired.length !== line.length) {"
+    "find": "  if (converted.length !== line.length) {",
+    "replace": "  if (false && converted.length !== line.length) {"
   },
   {
     "id": "hanRepair/drop-kanau-restore",
     "file": "src/engine/hanRepair.ts",
     "what": "叶う no longer restored from 葉う",
-    "find": "  repaired = repaired.replace(/葉([いうえわお])/gu, \"叶$1\");",
-    "replace": "  repaired = repaired;"
+    "find": "  return repaired.replace(/葉([いうえわお])/gu, \"叶$1\");",
+    "replace": "  return repaired;"
   },
   {
     "id": "hanRepair/kanau-restore-always",
     "file": "src/engine/hanRepair.ts",
     "what": "葉 restored to 叶 regardless of okurigana",
-    "find": "  repaired = repaired.replace(/葉([いうえわお])/gu, \"叶$1\");",
-    "replace": "  repaired = repaired.replace(/葉(.?)/gu, \"叶$1\");"
+    "find": "  return repaired.replace(/葉([いうえわお])/gu, \"叶$1\");",
+    "replace": "  return repaired.replace(/葉(.?)/gu, \"叶$1\");"
   },
   {
     "id": "furigana/drop-kana-only-guard",
@@ -391,7 +391,6 @@
     "find": "  const repaired = options.hanRepair ? repairJapaneseHan(source) : source;",
     "replace": "  const repaired = source;"
   },
-
   {
     "id": "hanForms/drop-iteration-mark",
     "file": "src/engine/hanForms.ts",
@@ -413,7 +412,6 @@
     "find": "  return toJapaneseGlyphs(line) !== line;",
     "replace": "  return toJapaneseGlyphs(line) === line;"
   },
-
   {
     "id": "latin/drop-ideographic-space",
     "file": "src/engine/latinPunctuation.ts",
@@ -449,7 +447,6 @@
     "find": "    .replace(/[ \\t]+([,.!?;:)\\]\"'])/gu, \"$1\")",
     "replace": "    .replace(/[ \\t]+([,.!?;:)\\]\"'])/gu, \" $1\")"
   },
-
   {
     "id": "latin/double-space-across-segments",
     "file": "src/engine/latinPunctuation.ts",
@@ -492,7 +489,6 @@
     "find": "  const ready = rotated.filter((key) => (cooldown.get(key) ?? 0) <= now);",
     "replace": "  const ready = rotated.filter((key) => (cooldown.get(key) ?? 0) < now);"
   },
-
   {
     "id": "tokens/drop-overlap-check",
     "file": "src/engine/tokens.ts",
@@ -514,7 +510,6 @@
     "find": "    if (!Number.isInteger(token.start) || !Number.isInteger(token.end)) {",
     "replace": "    if (false) {"
   },
-
   {
     "id": "romaji/drop-particle-wa",
     "file": "src/engine/romaji.ts",
@@ -543,7 +538,6 @@
     "find": "  return kanaToRomaji(readingKana !== \"\" ? readingKana : surface);",
     "replace": "  return kanaToRomaji(readingKana);"
   },
-
   {
     "id": "pinyin/no-tone-sandhi",
     "file": "src/engine/pinyin.ts",
@@ -571,5 +565,12 @@
     "what": "pinyin rows keep CJK punctuation",
     "find": "  return toLatinPunctuation(parts.join(\" \"));",
     "replace": "  return parts.join(\" \");"
+  },
+  {
+    "id": "hanRepair/converts-kyujitai-too",
+    "file": "src/engine/hanRepair.ts",
+    "what": "repair takes the conversion for every character, modernizing kyujitai as well",
+    "find": "    repaired += isSimplifiedForm(original) ? converted[i]! : original;",
+    "replace": "    repaired += converted[i]!;"
   }
 ]
