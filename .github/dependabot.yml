@@ -1,0 +1,33 @@
+# Dependency updates. SudachiDict is not here: it is not a package manager
+# dependency, and `npm run fetch-dict` already resolves the vendor's `-latest-`
+# alias, so it needs no pin to keep current.
+#
+# Grouped so a week of patch bumps arrives as one PR rather than six.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # These three decide what a reading looks like; review them individually.
+      reading-libraries:
+        patterns:
+          - pinyin-pro
+          - "@pinyin-pro/data"
+          - opencc-js
+      # Build tooling cannot change a reading, only whether it compiles.
+      toolchain:
+        patterns:
+          - esbuild
+          - typescript
+          - "@types/node"
+
+  - package-ecosystem: cargo
+    directory: /native
+    schedule:
+      interval: weekly
+    groups:
+      rust:
+        patterns:
+          - "*"

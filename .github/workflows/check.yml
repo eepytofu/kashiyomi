@@ -1,0 +1,41 @@
+# Runs what a change can break without a dictionary or NetEase present.
+#
+# The Sudachi dictionary is 360 MB and gitignored, so anything needing it is out
+# of scope here: the Rust smoke test that loads it is `#[ignore]`d, and the
+# engine suite runs on fixtures. `npm run capture` needs a live NCM and cannot
+# run in CI at all.
+name: check
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Type stripping in `npm test` needs 22.6+; see README requirements.
+          node-version: "22.6"
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+      # A stale mutation pattern exits non-zero here rather than being noticed
+      # by hand three weeks later, which is how two of them once went unfixed.
+      - run: npm run mutate
+
+  native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+      - run: cargo test --manifest-path native/Cargo.toml
+      - run: cargo clippy --manifest-path native/Cargo.toml --all-targets

@@ -1,12 +1,12 @@
 // Downloads the prebuilt SudachiDict binary into assets/dict/.
 // Usage: node tools/fetch-dictionaries.mjs [version] [edition]
-//   version: e.g. 20260723, or omit to resolve the newest release
+//   version: e.g. 20260723, or omit to take whatever `-latest-` resolves to
 //   edition: small | core | full (default: full)
 //
-// The S3 bucket has no "latest" alias, so the newest version is resolved from
-// the SudachiDict repo's tags. SudachiDict ships several releases a year and is
-// the actively maintained dictionary here, so pinning by hand goes stale: this
-// checkout sat on 20250515 for five releases.
+// SudachiDict ships several releases a year and is the actively maintained
+// dictionary here, so a hand-written pin goes stale — this checkout sat on
+// 20250515 for five releases. The vendor publishes a `-latest-` alias that
+// redirects to the newest build, so there is nothing to keep up to date.
 import { createWriteStream } from "node:fs";
 import { mkdir, rename, rm, stat } from "node:fs/promises";
 import { Readable } from "node:stream";
@@ -14,34 +14,28 @@ import { pipeline } from "node:stream/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 
-/** Newest release tag, e.g. "20260723". Falls back to a known-good pin. */
-async function latestVersion() {
-  const FALLBACK = "20260723";
-  try {
-    const res = await fetch("https://api.github.com/repos/WorksApplications/SudachiDict/tags?per_page=20", {
-      headers: { "User-Agent": "kashiyomi" },
-    });
-    if (!res.ok) return FALLBACK;
-    const tags = await res.json();
-    const versions = tags
-      .map((t) => /^v?(\d{8})$/.exec(t.name)?.[1])
-      .filter((v) => v !== undefined)
-      .sort();
-    return versions[versions.length - 1] ?? FALLBACK;
-  } catch {
-    // Offline or rate limited; the pin is still a real release.
-    return FALLBACK;
-  }
+const BASE = "http://sudachi.s3-website-ap-northeast-1.amazonaws.com/sudachidict";
+
+/**
+ * SudachiDict publishes a `-latest-` alias that 301s to the newest build, so
+ * the version never has to be pinned by hand. Resolve it once to learn which
+ * release that is, for the log line and the cached zip name.
+ */
+async function resolveLatest(ed) {
+  const alias = `${BASE}/sudachi-dictionary-latest-${ed}.zip`;
+  const res = await fetch(alias, { method: "HEAD", redirect: "follow" });
+  const found = /sudachi-dictionary-(\d{8})-/.exec(res.url);
+  if (!found) throw new Error(`could not resolve ${alias}`);
+  return found[1];
 }
 
-const version = process.argv[2] ?? (await latestVersion());
 const edition = process.argv[3] ?? "full";
-const url = `http://sudachi.s3-website-ap-northeast-1.amazonaws.com/sudachidict/sudachi-dictionary-${version}-${edition}.zip`;
-
 const dictDir = path.resolve(import.meta.dirname, "..", "assets", "dict");
 const target = path.join(dictDir, `system_${edition}.dic`);
-const zipPath = path.join(dictDir, `sudachi-dictionary-${version}-${edition}.zip`);
 
+// Check for the dictionary before resolving anything: there is no reason to
+// touch the network when it is already here, and exiting mid-request leaves an
+// open handle that aborts the process on Windows.
 try {
   const existing = await stat(target);
   if (existing.size > 0) {
@@ -49,6 +43,10 @@ try {
     process.exit(0);
   }
 } catch {}
+
+const version = process.argv[2] ?? (await resolveLatest(edition));
+const url = `${BASE}/sudachi-dictionary-${version}-${edition}.zip`;
+const zipPath = path.join(dictDir, `sudachi-dictionary-${version}-${edition}.zip`);
 
 await mkdir(dictDir, { recursive: true });
 console.log(`Downloading ${url} ...`);
