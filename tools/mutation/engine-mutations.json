@@ -572,5 +572,40 @@
     "what": "repair takes the conversion for every character, modernizing kyujitai as well",
     "find": "    repaired += isSimplifiedForm(original) ? converted[i]! : original;",
     "replace": "    repaired += converted[i]!;"
+  },
+  {
+    "id": "numerals/no-power-euphony",
+    "file": "src/engine/numerals.ts",
+    "what": "六百 reads ろくひゃく instead of ろっぴゃく",
+    "find": "      if (euphony) out += euphony;",
+    "replace": "      if (false) out += euphony;"
+  },
+  {
+    "id": "numerals/euphony-on-whole-number",
+    "file": "src/engine/numerals.ts",
+    "what": "counter assimilation keys on the whole numeral, so 21匹 loses it",
+    "find": "  const tail = chars[chars.length - 1]!;",
+    "replace": "  const tail = kanji;"
+  },
+  {
+    "id": "numerals/arabic-ignored",
+    "file": "src/engine/numerals.ts",
+    "what": "arabic digits are not treated as numerals",
+    "find": "  return ARABIC.test(text) ? arabicToKanji(text) : \"\";",
+    "replace": "  return \"\";"
+  },
+  {
+    "id": "numerals/leading-zero-accepted",
+    "file": "src/engine/numerals.ts",
+    "what": "an id such as 007 is read as a number",
+    "find": "  if (digits.length > 4 || digits[0] === 0) return \"\";",
+    "replace": "  if (digits.length > 4) return \"\";"
+  },
+  {
+    "id": "numerals/drop-abstention",
+    "file": "src/engine/japanese.ts",
+    "what": "the numeral reader overrides readings the analyzer already produced",
+    "find": "  if (token.readingKana !== \"\" || !isNumeral(token.surface)) return undefined;",
+    "replace": "  if (!isNumeral(token.surface)) return undefined;"
   }
 ]

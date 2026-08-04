@@ -1,7 +1,12 @@
 // Downloads the prebuilt SudachiDict binary into assets/dict/.
 // Usage: node tools/fetch-dictionaries.mjs [version] [edition]
-//   version: e.g. 20250515 (default)
+//   version: e.g. 20260723, or omit to resolve the newest release
 //   edition: small | core | full (default: full)
+//
+// The S3 bucket has no "latest" alias, so the newest version is resolved from
+// the SudachiDict repo's tags. SudachiDict ships several releases a year and is
+// the actively maintained dictionary here, so pinning by hand goes stale: this
+// checkout sat on 20250515 for five releases.
 import { createWriteStream } from "node:fs";
 import { mkdir, rename, rm, stat } from "node:fs/promises";
 import { Readable } from "node:stream";
@@ -9,7 +14,27 @@ import { pipeline } from "node:stream/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 
-const version = process.argv[2] ?? "20250515";
+/** Newest release tag, e.g. "20260723". Falls back to a known-good pin. */
+async function latestVersion() {
+  const FALLBACK = "20260723";
+  try {
+    const res = await fetch("https://api.github.com/repos/WorksApplications/SudachiDict/tags?per_page=20", {
+      headers: { "User-Agent": "kashiyomi" },
+    });
+    if (!res.ok) return FALLBACK;
+    const tags = await res.json();
+    const versions = tags
+      .map((t) => /^v?(\d{8})$/.exec(t.name)?.[1])
+      .filter((v) => v !== undefined)
+      .sort();
+    return versions[versions.length - 1] ?? FALLBACK;
+  } catch {
+    // Offline or rate limited; the pin is still a real release.
+    return FALLBACK;
+  }
+}
+
+const version = process.argv[2] ?? (await latestVersion());
 const edition = process.argv[3] ?? "full";
 const url = `http://sudachi.s3-website-ap-northeast-1.amazonaws.com/sudachidict/sudachi-dictionary-${version}-${edition}.zip`;
 

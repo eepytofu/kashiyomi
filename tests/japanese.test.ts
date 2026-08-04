@@ -179,3 +179,28 @@ test("a hint with non-kana context around it is voiced alone", () => {
 test("mismatched tokens fail closed", () => {
   assert.throws(() => annotateJapaneseLine("天へ", [token("地", 0, "チ")]));
 });
+
+test("the numeral reader only fills abstentions, never overrides the analyzer", () => {
+  // SudachiDict reads 一人 as ヒトリ on its own. The numeral module must not
+  // recompute a token that already has a reading, or a dictionary reading the
+  // rules do not know would be silently replaced. Synthetic reading here so the
+  // two paths would visibly differ.
+  const line = "三人";
+  const tokens = [token("三人", 0, "サンニン")];
+  assert.equal(annotateJapaneseLine(line, tokens).romaji, "sannin");
+
+  const odd = [token("三", 0, "ミ"), token("人", 1, "ニン", "suffix")];
+  const got = annotateJapaneseLine(line, odd);
+  assert.equal(got.romaji, "mi nin", "an analyzer reading wins over the rule");
+  assert.notEqual(got.romaji, "sannin");
+});
+
+test("a numeral the analyzer abstained on is read by rule", () => {
+  // What SudachiDict actually returns for 三人: 数詞 with no reading, then the
+  // counter. Before the numeral module this voiced as "三 nin".
+  const line = "三人";
+  const tokens = [token("三", 0, ""), token("人", 1, "ニン", "suffix")];
+  const got = annotateJapaneseLine(line, tokens);
+  assert.equal(got.romaji, "sannin");
+  assert.deepEqual(got.furigana, [{ start: 0, end: 2, reading: "さんにん", origin: "inferred" }]);
+});

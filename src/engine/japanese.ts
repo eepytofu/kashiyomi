@@ -9,6 +9,36 @@ import { KANA_ONLY, kataToHira } from "./kana.ts";
 import type { ReadingHint } from "./hints.ts";
 import { assertAnalyzerTokens, type AnalyzerToken } from "./tokens.ts";
 import { latinizeSegments } from "./latinPunctuation.ts";
+import { isNumeral, readCountedPhrase, readKanjiNumeral, readKnownPhrase } from "./numerals.ts";
+
+
+/**
+ * Reading for a numeral at `index`, taking the following counter token with it
+ * when the pair is irregular or assimilates. Returns undefined when this is not
+ * a numeral the module is confident about, so the caller falls through to the
+ * analyzer's own answer.
+ */
+function numeralReading(
+  tokens: readonly AnalyzerToken[],
+  index: number,
+): { reading: string; surface: string; end: number; tokensUsed: number } | undefined {
+  const token = tokens[index]!;
+  // Only step in where the analyzer abstained; a numeral it can read already
+  // (二十歳 → ハタチ) is not ours to second-guess.
+  if (token.readingKana !== "" || !isNumeral(token.surface)) return undefined;
+
+  const next = tokens[index + 1];
+  if (next) {
+    const paired = readKnownPhrase(token.surface + next.surface)
+      || readCountedPhrase(token.surface, next.surface, kataToHira(next.readingKana));
+    if (paired !== "") {
+      return { reading: paired, surface: token.surface + next.surface, end: next.end, tokensUsed: 2 };
+    }
+  }
+  const alone = readKanjiNumeral(token.surface);
+  if (alone === "") return undefined;
+  return { reading: alone, surface: token.surface, end: token.end, tokensUsed: 1 };
+}
 
 export type LineFuriganaSegment = {
   /** Range in the display line (UTF-16 units). */
@@ -73,6 +103,24 @@ export function annotateJapaneseLine(
     const token = tokens[i]!;
     const hint = hints.find((h) => h.start < token.end && h.end > token.start);
     if (!hint) {
+      // SudachiDict returns numerals as 数詞 with no reading at all, so 三人
+      // arrives as 三[∅] 人[ニン]: ruby lands on the counter alone and the
+      // romaji row shows the bare kanji. Numerals are rule-governed, so read
+      // them here, taking the following counter with them when the pair has a
+      // sound change (三匹 is さんびき, not さん + ひき).
+      const numeral = numeralReading(tokens, i);
+      if (numeral) {
+        furigana.push({
+          start: token.start,
+          end: numeral.end,
+          reading: numeral.reading,
+          origin: "inferred",
+        });
+        const { romaji, joined } = voice(numeral.reading, numeral.tokensUsed + i === tokens.length);
+        appendRomaji(romajiParts, romaji, numeral.surface, joined, "inferred");
+        i += numeral.tokensUsed;
+        continue;
+      }
       for (const segment of alignFurigana(token.surface, token.readingKana)) {
         furigana.push({
           start: token.start + segment.start,
