@@ -3,7 +3,7 @@
 // line, this one writes a single <style> element from settings.
 
 import { ROW_CLASS } from "./render.ts";
-import { getSettings } from "./settings.ts";
+import { getSettings, MAX_FURIGANA_SIZE, MIN_FURIGANA_SIZE } from "./settings.ts";
 
 /**
  * (Re)build the injected stylesheet from current settings. Cheap; call after
@@ -17,7 +17,12 @@ export function applyStyles(): void {
     style.id = "kashiyomi-style";
     document.head.appendChild(style);
   }
-  const size = Math.min(100, Math.max(10, Math.round(settings.furiganaSize)));
+  // Clamps here too, not just at the slider: a settings file written before the
+  // floor was raised still holds a smaller value.
+  const size = Math.min(
+    MAX_FURIGANA_SIZE,
+    Math.max(MIN_FURIGANA_SIZE, Math.round(settings.furiganaSize)),
+  );
   let fontRule = "";
   if (settings.useJpFont && settings.jpFontStack.trim() !== "") {
     fontRule += `ul.lyric li p[lang="ja"] { font-family: ${settings.jpFontStack} !important; }\n`;

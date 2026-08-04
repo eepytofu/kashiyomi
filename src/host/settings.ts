@@ -41,6 +41,16 @@ export const DEFAULT_ZH_FONT_STACK =
 
 const KEY = "kashiyomi:settings";
 
+/**
+ * Furigana size as a percentage of the lyric text, bounded so the slider cannot
+ * be dragged into a setting that looks like a bug. NCM renders lyrics at 22px,
+ * so 50% is 11px and the old floor of 10% was 2.2px (measured 2026-08-04).
+ * Kanji carry far more strokes per em than Latin, so ruby stops being readable
+ * well above the size at which Latin still is.
+ */
+export const MIN_FURIGANA_SIZE = 50;
+export const MAX_FURIGANA_SIZE = 100;
+
 const DEFAULTS: Settings = {
   furigana: true,
   romaji: true,

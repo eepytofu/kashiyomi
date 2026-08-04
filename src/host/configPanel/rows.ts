@@ -6,7 +6,13 @@ import { resetAnalysisCache } from "../analysisCache.ts";
 import { resetTranslation } from "../translationLane.ts";
 import { t, type StringKey } from "../i18n.ts";
 import { applyStyles } from "../styles.ts";
-import { getSettings, updateSettings, type Settings } from "../settings.ts";
+import {
+  getSettings,
+  MAX_FURIGANA_SIZE,
+  MIN_FURIGANA_SIZE,
+  updateSettings,
+  type Settings,
+} from "../settings.ts";
 
 export type BooleanSettingKey = {
   [K in keyof Settings]-?: Settings[K] extends boolean ? K : never;
@@ -112,10 +118,12 @@ export function sizeRow(refreshPreview: () => void): HTMLElement {
   value.style.cssText = "font-size:12px;opacity:0.7;min-width:38px;text-align:right;";
   const slider = document.createElement("input");
   slider.type = "range";
-  slider.min = "10";
-  slider.max = "100";
+  slider.min = String(MIN_FURIGANA_SIZE);
+  slider.max = String(MAX_FURIGANA_SIZE);
   slider.step = "5";
-  slider.value = String(getSettings().furiganaSize);
+  // A stored value below the floor would otherwise leave the readout showing a
+  // size the stylesheet has already clamped away.
+  slider.value = String(Math.max(MIN_FURIGANA_SIZE, getSettings().furiganaSize));
   value.textContent = `${slider.value}%`;
   slider.oninput = () => {
     value.textContent = `${slider.value}%`;
