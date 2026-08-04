@@ -23,16 +23,21 @@ export const PANEL_CSS = `
 .kashiyomi-config .kc-row:hover { background: rgba(255, 255, 255, 0.04); }
 .kashiyomi-config .kc-label { font-size: 13.5px; line-height: 1.3; }
 .kashiyomi-config .kc-desc { font-size: 12px; opacity: 0.55; margin-top: 2px; line-height: 1.35; }
-.kashiyomi-config .kc-switch { position: relative; flex: none; width: 36px; height: 20px; }
+.kashiyomi-config .kc-switch { position: relative; flex: none; width: 40px; height: 24px; }
 .kashiyomi-config .kc-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
 .kashiyomi-config .kc-track { position: absolute; inset: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.22); transition: background 0.15s ease; }
-/* The knob renders 3 device pixels clear on one side and 2 on the other at
-   125% display scaling: 20px track minus 16px knob leaves 4px of gap, which is
-   5 device pixels, and an odd number cannot split evenly. Tried and reverted:
-   deriving the height from top+bottom (identical geometry) and centring with a
-   transform (Chrome snaps it anyway). The only real fix is making the leftover
-   even — a 12px knob, or a 24px track — which changes how the switch looks. */
-.kashiyomi-config .kc-track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.15s ease; }
+/* Every size here is picked so the knob's two gaps stay equal at any display
+   scaling. The gaps split whatever the track has left over, so that leftover
+   must be an even number of device pixels: at 125%, a 20px track around a 16px
+   knob left 4px = 5 device pixels, which cannot halve, and all 12 switches
+   rendered 3px one side and 2px the other. 8px of leftover works everywhere,
+   because Windows scales in quarter steps and 8 x (n/4) is always even — 4px
+   only survives 100/150/200% and breaks at 125% and 175%.
+   Wording cannot fix this: deriving the height from top+bottom is identical
+   geometry, and centring with a transform still gets snapped. Only the numbers
+   can. 40x24 and the 16px knob are also whole device pixels at 125% (50x30,
+   20), so no edge is left straddling one. */
+.kashiyomi-config .kc-track::after { content: ""; position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.15s ease; }
 .kashiyomi-config .kc-switch input:checked + .kc-track { background: #ec4141; }
 /* The real checkbox is opacity:0, so without this a keyboard user tabbing
    through twelve switches gets no indication of where they are. */
