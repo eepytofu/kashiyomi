@@ -115,7 +115,6 @@ function buildStatusBar(root: HTMLElement): HTMLElement {
 
   const rightSide = document.createElement("div");
   rightSide.className = "kc-status-right";
-  rightSide.appendChild(buildLangToggle(root));
   const reannotate = document.createElement("button");
   reannotate.className = "kc-button";
   reannotate.textContent = t("reannotate");
@@ -124,6 +123,13 @@ function buildStatusBar(root: HTMLElement): HTMLElement {
     render(root);
   };
   rightSide.appendChild(reannotate);
+  // The language toggle goes last so its right edge pins to the container's.
+  // Ordered the other way, it sat left of a button whose label is itself
+  // translated — "Re-annotate" is 74px and 重新标注 is 50px — so switching
+  // language slid the toggle 24px sideways, a third of its own width, and the
+  // pointer landed on the option the user had just switched away from. A
+  // control may not move as a result of being used.
+  rightSide.appendChild(buildLangToggle(root));
   bar.appendChild(rightSide);
   return bar;
 }
