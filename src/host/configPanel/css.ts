@@ -20,6 +20,14 @@ export const PANEL_CSS = `
 .kashiyomi-config .kc-card { border-radius: 10px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
 .kashiyomi-config .kc-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 14px; cursor: pointer; }
 .kashiyomi-config .kc-row + .kc-row { border-top: 1px solid rgba(255, 255, 255, 0.06); }
+/* Toggle rows pin the switch to the label's line instead of the row's centre.
+   Centring on the row made the switch column bend wherever a description
+   wrapped: measured 9px below the label on one-line rows and 17px on two-line
+   ones. Only toggle rows are <label>, so this cannot reach the wrapping
+   input/button rows, which rely on flex-wrap. The offset centres a 20px switch
+   on the 17.55px label line (13.5px * 1.3). */
+.kashiyomi-config label.kc-row { align-items: flex-start; }
+.kashiyomi-config label.kc-row .kc-switch { margin-top: -1.2px; }
 .kashiyomi-config .kc-row:hover { background: rgba(255, 255, 255, 0.04); }
 .kashiyomi-config .kc-label { font-size: 13.5px; line-height: 1.3; }
 .kashiyomi-config .kc-desc { font-size: 12px; opacity: 0.55; margin-top: 2px; line-height: 1.35; }
@@ -28,6 +36,9 @@ export const PANEL_CSS = `
 .kashiyomi-config .kc-track { position: absolute; inset: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.22); transition: background 0.15s ease; }
 .kashiyomi-config .kc-track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.15s ease; }
 .kashiyomi-config .kc-switch input:checked + .kc-track { background: #ec4141; }
+/* The real checkbox is opacity:0, so without this a keyboard user tabbing
+   through twelve switches gets no indication of where they are. */
+.kashiyomi-config .kc-switch input:focus-visible + .kc-track { box-shadow: 0 0 0 2px rgba(236, 65, 65, 0.6); }
 .kashiyomi-config .kc-switch input:checked + .kc-track::after { transform: translateX(16px); }
 .kashiyomi-config .kc-button { padding: 6px 14px; border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.1); color: inherit; font-size: 12.5px; cursor: pointer; }
 .kashiyomi-config .kc-button:hover { background: rgba(255, 255, 255, 0.16); }
@@ -49,7 +60,11 @@ export const PANEL_CSS = `
 .kashiyomi-config .kc-select::after {
   content: ""; position: absolute; right: 12px; pointer-events: none;
   width: 6px; height: 6px; border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor; transform: translateY(-2px) rotate(45deg);
+  border-bottom: 1.5px solid currentColor;
+  /* Anchored to the box centre rather than left to its static position, which
+     put it ~3px high. The extra -10% offsets the chevron's visual mass, which
+     sits below the square's centre once rotated. */
+  top: 50%; transform: translateY(-60%) rotate(45deg);
   opacity: 0.6;
 }
 .kashiyomi-config .kc-input {
@@ -58,7 +73,20 @@ export const PANEL_CSS = `
   font-family: inherit; outline: none;
 }
 .kashiyomi-config .kc-input:focus { border-color: rgba(236, 65, 65, 0.7); }
-.kashiyomi-config input[type="range"] { accent-color: #ec4141; }
+/* accent-color is Chrome 93+ and this runs on CEF 91, where it silently does
+   nothing and the slider renders in the default blue. Style the pseudo-elements
+   instead — those Chrome has had since long before 91. */
+.kashiyomi-config input[type="range"] {
+  -webkit-appearance: none; appearance: none;
+  height: 4px; border-radius: 999px; outline: none;
+  background: rgba(255, 255, 255, 0.22);
+}
+.kashiyomi-config input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 14px; height: 14px; border-radius: 50%; border: none;
+  background: #ec4141; cursor: pointer;
+}
+.kashiyomi-config input[type="range"]:focus-visible { box-shadow: 0 0 0 2px rgba(236, 65, 65, 0.45); }
 .kashiyomi-config .kc-lang { display: flex; border-radius: 8px; overflow: hidden; }
 .kashiyomi-config .kc-lang button { padding: 6px 10px; border: none; background: rgba(255, 255, 255, 0.08); color: inherit; font-size: 12px; cursor: pointer; }
 .kashiyomi-config .kc-lang button.kc-active { background: #ec4141; }
