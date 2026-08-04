@@ -168,3 +168,16 @@ test("a parenthesized lyric is not a singer marker", () => {
   assert.equal(isPartMarkerLine("【合】白马过了离原"), false);
   assert.equal(isPartMarkerLine("白马过了离原"), false);
 });
+
+test("a label longer than the bound is not a credit, however valid its parts", () => {
+  // CREDIT_LINE caps the label at 40 characters as a cheap prefilter before the
+  // role lookup runs. The bound is the only thing rejecting this: every part is
+  // a real role, so the compound check would otherwise accept it. Raising the
+  // cap to 400 lets a 47-character label through, which is how a long lyric
+  // containing a colon starts being eaten as a credit.
+  const long = "作词 & 作曲 & 编曲 & 混音 & 母带 & 后期 & 录音 & 调校 & 曲绘 & 视频";
+  assert.equal(long.length, 47);
+  assert.equal(isCreditLine(`${long}: A`), false);
+  // The same construction inside the bound is still recognized.
+  assert.equal(isCreditLine("作词 & 作曲: A"), true);
+});

@@ -204,3 +204,62 @@ test("a numeral the analyzer abstained on is read by rule", () => {
   assert.equal(got.romaji, "sannin");
   assert.deepEqual(got.furigana, [{ start: 0, end: 2, reading: "さんにん", origin: "inferred" }]);
 });
+
+test("no space is inserted before closing punctuation", () => {
+  // 言葉、夢 — tokens from the real analyzer 2026-08-05:
+  //   言葉[コトバ]@0-2 、[∅]@2-3 夢[ユメ]@3-4
+  // 、 latinizes to a comma, and a comma preceded by a space reads as a typo.
+  //
+  // This pins the output, not the guard. `NO_SPACE_BEFORE` in appendRomaji is
+  // redundant: latinizeSegments strips a space before any closing mark anyway,
+  // so removing the guard changes nothing (verified over 69 lines). The test
+  // still earns its place — it would catch a regression in latinizeSegments,
+  // which is now the only thing holding this up.
+  const line = "言葉、夢";
+  const tokens = [token("言葉", 0, "コトバ"), token("、", 2, ""), token("夢", 3, "ユメ")];
+  assert.equal(annotateJapaneseLine(line, tokens).romaji, "kotoba, yume");
+});
+
+test("no space is inserted after opening punctuation", () => {
+  // 「言葉」 — 「[∅]@0-1 言葉[コトバ]@1-3 」[∅]@3-4, latinized to quotes.
+  // Pins NO_SPACE_AFTER; without it the row renders '" kotoba"'.
+  const line = "「言葉」";
+  const tokens = [token("「", 0, ""), token("言葉", 1, "コトバ"), token("」", 3, "")];
+  assert.equal(annotateJapaneseLine(line, tokens).romaji, "\"kotoba\"");
+});
+
+test("a token that voices to nothing does not leave a gap", () => {
+  // 天　空 — the full-width space is its own token (　[∅]@1-2). It does not
+  // reach appendRomaji's empty check, because kanaToRomaji passes 　 through
+  // rather than returning ""; latinizeSegments is what maps it to a single
+  // space and collapses the doubles. So this pins the ideographic-space
+  // handling, and no input has yet been found that reaches the empty guard.
+  const line = "天　空";
+  const tokens = [token("天", 0, "テン"), token("　", 1, ""), token("空", 2, "ソラ")];
+  assert.equal(annotateJapaneseLine(line, tokens).romaji, "ten sora");
+});
+
+test("furigana segments come back in document order", () => {
+  // 大胆不敵に ハイカラ革命 (千本桜), tokens from the real analyzer 2026-08-05.
+  // The renderer walks segments left to right and slices the untouched text
+  // between them, so an out-of-order list does not merely look wrong — it
+  // interleaves ruby with the wrong characters. Nothing pinned this before:
+  // reversing the sort changed the output and every test still passed.
+  const line = "大胆不敵に ハイカラ革命";
+  const tokens = [
+    token("大胆", 0, "ダイタン"),
+    token("不敵", 2, "フテキ"),
+    token("に", 4, "ニ", "particle"),
+    token(" ", 5, ""),
+    token("ハイカラ", 6, "ハイカラ"),
+    token("革命", 10, "カクメイ"),
+  ];
+  const { furigana } = annotateJapaneseLine(line, tokens);
+  assert.deepEqual(
+    furigana.map((s) => [s.start, s.end, s.reading]),
+    [[0, 2, "だいたん"], [2, 4, "ふてき"], [10, 12, "かくめい"]],
+  );
+  for (let i = 1; i < furigana.length; i++) {
+    assert.ok(furigana[i]!.start >= furigana[i - 1]!.end, "segments must not overlap or regress");
+  }
+});

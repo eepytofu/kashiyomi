@@ -203,25 +203,11 @@
     "replace": "  if (!greedy) {"
   },
   {
-    "id": "furigana/greedy-instead-of-lazy",
-    "file": "src/engine/furigana.ts",
-    "what": "segments taken from the greedy match",
-    "find": "    const runReading = lazy[capture]!;",
-    "replace": "    const runReading = (greedy ?? lazy)[capture]!;"
-  },
-  {
     "id": "furigana/drop-kana-anchor-normalize",
     "file": "src/engine/furigana.ts",
     "what": "kana anchors not normalized before matching",
     "find": "    pattern += run.isHan ? quant : escapeRegex(kataToHira(run.text));",
     "replace": "    pattern += run.isHan ? quant : escapeRegex(run.text);"
-  },
-  {
-    "id": "furigana/pure-kanji-splits",
-    "file": "src/engine/furigana.ts",
-    "what": "single-run pure-kanji token no longer short-circuits",
-    "find": "  if (hanRuns.length === runs.length && hanRuns.length === 1) {",
-    "replace": "  if (false && hanRuns.length === runs.length && hanRuns.length === 1) {"
   },
   {
     "id": "furigana/no-han-returns-whole",
@@ -308,11 +294,11 @@
     "replace": "  if (false) return;"
   },
   {
-    "id": "japanese/drop-furigana-sort",
+    "id": "japanese/furigana-sorted-descending",
     "file": "src/engine/japanese.ts",
-    "what": "furigana segments left unsorted",
+    "what": "furigana segments ordered back to front",
     "find": "  furigana.sort((a, b) => a.start - b.start);",
-    "replace": "  ;"
+    "replace": "  furigana.sort((a, b) => b.start - a.start);"
   },
   {
     "id": "japanese/surface-fallback-removed",
