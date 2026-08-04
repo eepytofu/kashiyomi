@@ -10,5 +10,6 @@ native/target/
 *.log
 
 # Local-only docs: contain machine paths and personal environment details
-AGENTS.md
+CLAUDE.md
+.agents/
 docs/
