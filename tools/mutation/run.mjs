@@ -47,7 +47,7 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP", "SIGBREAK"]) {
 function runTests() {
   const r = spawnSync(
     process.execPath,
-    ["--experimental-strip-types", "--test", "--test-reporter=tap", "tests/*.test.ts"],
+    ["--test", "--test-reporter=tap", "tests/*.test.ts"],
     { cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
   const out = `${r.stdout ?? ""}\n${r.stderr ?? ""}`;

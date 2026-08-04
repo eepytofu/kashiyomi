@@ -34,7 +34,7 @@ There are no packaged releases yet.
 Requirements:
 
 * NetEase Cloud Music 3.x with BetterNCM
-* Node.js 22.6 or newer
+* Node.js 26 or newer
 * A stable Rust toolchain with the MSVC target
 
 Quit NetEase Cloud Music completely before installation, including the tray process.
