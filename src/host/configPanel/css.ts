@@ -6,12 +6,20 @@ export const PANEL_CSS = `
 .kashiyomi-config * { box-sizing: border-box; }
 .kashiyomi-config .kc-full { grid-column: 1 / -1; }
 .kashiyomi-config .kc-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* The preview follows the settings down instead of scrolling away after the
+   first section. Measured: the settings column is 1847px and this one 366px, so
+   the preview was gone by the time you reached Chinese (y=822) or Translation
+   (y=1216) — which are the settings that most need it, since "tone marks" and
+   "group pinyin by word" are hard to picture but obvious once the sample line
+   changes. Sticky on the grid item itself: the grid area spans the full row
+   height, so with align-self:start the item has 1481px to travel through. */
+.kashiyomi-config .kc-col-side { position: sticky; top: 8px; align-self: start; }
 .kashiyomi-config .kc-status {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 10px 14px; border-radius: 10px;
   background: rgba(255, 255, 255, 0.06); font-size: 13px;
 }
-.kashiyomi-config .kc-status-right { display: flex; align-items: center; gap: 8px; }
+.kashiyomi-config .kc-status-right { display: flex; align-items: center; gap: 14px; }
 .kashiyomi-config .kc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: #999; }
 .kashiyomi-config .kc-ready .kc-dot { background: #52c41a; }
 .kashiyomi-config .kc-bad .kc-dot { background: #ff4d4f; }
@@ -107,9 +115,19 @@ export const PANEL_CSS = `
   background: #ec4141; cursor: pointer;
 }
 .kashiyomi-config input[type="range"]:focus-visible { box-shadow: 0 0 0 2px rgba(236, 65, 65, 0.45); }
-.kashiyomi-config .kc-lang { display: flex; border-radius: 8px; overflow: hidden; }
-.kashiyomi-config .kc-lang button { padding: 6px 10px; border: none; background: rgba(255, 255, 255, 0.08); color: inherit; font-size: 12px; cursor: pointer; }
+/* Ringed as one segmented control with transparent segments, rather than two
+   filled chips. Sitting next to Re-annotate, two separately filled chips of the
+   same size read as three peer buttons; the ring says "one control, two
+   options, that one is selected". Red already means active here (toggles,
+   slider, focus) and grey means action, so the colours were never the problem —
+   the grouping was. */
+.kashiyomi-config .kc-lang { display: flex; border-radius: 8px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
+.kashiyomi-config .kc-lang button { padding: 6px 10px; border: none; background: transparent; color: inherit; font-size: 12px; cursor: pointer; }
+.kashiyomi-config .kc-lang button:hover:not(.kc-active) { background: rgba(255, 255, 255, 0.08); }
 .kashiyomi-config .kc-lang button.kc-active { background: #ec4141; }
+/* The switches got a focus ring earlier; these are the remaining tab stops. */
+.kashiyomi-config .kc-button:focus-visible,
+.kashiyomi-config .kc-lang button:focus-visible { outline: 2px solid rgba(236, 65, 65, 0.75); outline-offset: 2px; }
 .kashiyomi-config .kc-preview { padding: 16px 14px 12px; display: flex; flex-direction: column; gap: 14px; }
 .kashiyomi-config .kc-preview-line { font-size: 19px; line-height: 1.6; }
 .kashiyomi-config .kc-preview-line .kashiyomi-row { opacity: 0.6; }

@@ -36,7 +36,7 @@ function render(root: HTMLElement): void {
   const left = document.createElement("div");
   left.className = "kc-col";
   const right = document.createElement("div");
-  right.className = "kc-col";
+  right.className = "kc-col kc-col-side";
 
   const refreshPreview = buildPreviewCard(right);
 
