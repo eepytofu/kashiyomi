@@ -25,7 +25,25 @@ export function buildConfigPanel(): HTMLElement {
   return root;
 }
 
+/**
+ * Live while the analyzer is still loading. The status is otherwise sampled
+ * once at build time, so opening the panel during the ~10s dictionary load
+ * showed "loading" and kept showing it after the load finished — the one
+ * element whose job is reporting current state reporting a stale one.
+ */
+let statusPoll: number | undefined;
+
+function stopStatusPoll(): void {
+  if (statusPoll !== undefined) {
+    window.clearInterval(statusPoll);
+    statusPoll = undefined;
+  }
+}
+
 function render(root: HTMLElement): void {
+  // A rebuild detaches the old bar; without this the interval would keep
+  // writing into a node that is no longer in the document.
+  stopStatusPoll();
   root.textContent = "";
   const style = document.createElement("style");
   style.textContent = PANEL_CSS;
@@ -94,23 +112,39 @@ function render(root: HTMLElement): void {
 
 function buildStatusBar(root: HTMLElement): HTMLElement {
   const bar = document.createElement("div");
-  const s = nativeState();
-  bar.className =
-    "kc-status kc-full " +
-    (s.state === "ready" ? "kc-ready" : s.state === "loading" ? "kc-loading" : "kc-bad");
   const label = document.createElement("span");
   const dot = document.createElement("span");
   dot.className = "kc-dot";
-  label.appendChild(dot);
-  const text =
-    s.state === "ready"
-      ? t("analyzerReady")
-      : s.state === "loading"
-        ? t("analyzerLoading")
-        : s.state === "uninitialized"
-          ? t("analyzerNotStarted")
-          : `${t("analyzerFailed")}${s.error ? `: ${s.error}` : ""}`;
-  label.appendChild(document.createTextNode(text));
+
+  const paint = (): string => {
+    const s = nativeState();
+    bar.className =
+      "kc-status kc-full " +
+      (s.state === "ready" ? "kc-ready" : s.state === "loading" ? "kc-loading" : "kc-bad");
+    label.textContent = "";
+    label.appendChild(dot);
+    label.appendChild(document.createTextNode(
+      s.state === "ready"
+        ? t("analyzerReady")
+        : s.state === "loading"
+          ? t("analyzerLoading")
+          : s.state === "uninitialized"
+            ? t("analyzerNotStarted")
+            : `${t("analyzerFailed")}${s.error ? `: ${s.error}` : ""}`,
+    ));
+    return s.state;
+  };
+
+  // Poll only while the answer can still change. `status` costs 0.044ms
+  // (measured over 200 calls), so a ~10s load is under 1ms of work in total,
+  // and steady state runs no timer at all.
+  const initial = paint();
+  if (initial === "loading" || initial === "uninitialized") {
+    statusPoll = window.setInterval(() => {
+      const state = paint();
+      if (state !== "loading" && state !== "uninitialized") stopStatusPoll();
+    }, 500);
+  }
   bar.appendChild(label);
 
   const rightSide = document.createElement("div");

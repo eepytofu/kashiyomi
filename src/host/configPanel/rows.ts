@@ -52,10 +52,16 @@ export function rowText(label: string, description: string): HTMLElement {
   labelEl.className = "kc-label";
   labelEl.textContent = label;
   text.appendChild(labelEl);
-  const desc = document.createElement("div");
-  desc.className = "kc-desc";
-  desc.textContent = description;
-  text.appendChild(desc);
+  // A description that only restates its label is noise, and it also makes the
+  // row taller than its neighbours for nothing. Those are blanked per language
+  // in i18n.ts rather than deleted, so a translation can keep one where the
+  // label alone does not carry.
+  if (description !== "") {
+    const desc = document.createElement("div");
+    desc.className = "kc-desc";
+    desc.textContent = description;
+    text.appendChild(desc);
+  }
   return text;
 }
 
