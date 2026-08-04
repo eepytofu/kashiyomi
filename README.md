@@ -2,52 +2,71 @@
 
 English | [简体中文](README.zh-CN.md)
 
-A [BetterNCM](https://github.com/std-microblock/BetterNCM) plugin for NetEase Cloud Music that adds readings on top of the normal lyrics page. It annotates the lyrics NCM already shows instead of replacing them with its own player.
-
-![刹那芳华](previews/刹那芳华.avif)
+A [BetterNCM](https://github.com/std-microblock/BetterNCM) plugin that adds furigana, romaji, pinyin, and optional AI translation directly to the native lyrics page.
 
 ![一梦红尘](previews/一梦红尘.avif)
 
-## What it does
+## Features
 
-Readings are generated on your machine. No account, no reading service, nothing leaves the app. AI translation is the one exception, and it is off until you add your own API key: when it runs, the lyrics of the current song go to the endpoint you configured.
+- Furigana above kanji and romaji below Japanese lyrics, generated locally with [sudachi.rs](https://github.com/WorksApplications/sudachi.rs) and SudachiDict-full. Unknown readings are left unchanged.
+- Lyric-provided readings can override the dictionary. For example, `天(そら)` is displayed as `天` with `そら` as its furigana and romaji reading. Authored readings use a different color from inferred readings.
+- Pinyin below Chinese lyrics, generated with [Pinyin Pro](https://github.com/zh-lx/pinyin-pro) and its complete dictionary. Tone marks and word grouping can be toggled separately.
+- Optional AI translation below the original lyrics. It supports Gemini and OpenAI-compatible `chat/completions` endpoints, with configurable models, target languages, base URLs, and extra instructions. Results are cached locally, and multiple API keys can be used for automatic fallback.
+- Separate font stacks for Japanese and Chinese text to avoid incorrect glyph forms caused by [Han Unification](https://heistak.github.io/your-code-displays-japanese-wrong/). The Chinese font also applies to NCM's Chinese translation rows.
 
-- Furigana above kanji and a romaji line under Japanese lyrics, analyzed locally with [Sudachi](https://github.com/WorksApplications/sudachi.rs) and its full dictionary.
-- Japanese lyrics can include reading hints such as 天(そら). The そら in parentheses is hidden from the main line, then used as the furigana and as the basis for romaji. Source-provided readings use a different color from inferred ones.
-- Pinyin under Chinese lyrics with [Pinyin Pro](https://github.com/zh-lx/pinyin-pro)'s complete dictionary, with optional tone marks and word-based Pinyin spacing (syllables that belong to one detected Mandarin word stay together).
-- Kanji repair for Japanese lyrics that were stored with Chinese glyph forms, so 梦见ては displays as 夢見ては.
-- Stylized lyrics that write their okurigana in katakana (夜ニ紛レ, 君ノ声モ届カナイヨ) are still read correctly.
-- Songs that mix Japanese and Chinese are handled line by line, so a Chinese line inside a Japanese song gets pinyin instead of being read as kanji. This works even for literary Chinese lines that contain no obviously Chinese words.
-- Production credits at the top of a lyric file (作詞:, 编曲：, Vocal:) are recognized and left alone, so they don't get readings or a translation. Lines that only name who sings next (【合】, 【海伊】) are skipped the same way.
-- Copying a lyric line gives you the lyric. The furigana and the reading rows stay out of the clipboard.
-- AI translation below the original line, like the built-in translation. Works with an OpenAI-compatible endpoint or with Gemini, and needs your own API key. One request covers the whole song, results are cached per song, and NCM's own translation is never replaced. You can add several keys, one per line, and a key that hits a rate limit hands over to the next one.
-- The same Han character can be drawn with a Chinese or a Japanese glyph ([Han unification](https://heistak.github.io/your-code-displays-japanese-wrong/)), so you can set a font for Japanese lines and another for Chinese text, including the Chinese translation under a foreign song.
+### QoL
+
+- Simplified Chinese forms used in Japanese lyrics can be repaired before annotation, so `梦见ては` is displayed as `夢見ては`.
+- Japanese and Chinese are detected per line in mixed-language songs.
+- Katakana okurigana, such as `夜ニ紛レ`, is normalized only during analysis. The displayed lyric stays unchanged.
+- Production credits are skipped by default, while standalone singer and section markers are always ignored. Readings for credit lines can be enabled.
+- Copying lyrics excludes the furigana, romaji, pinyin, and translation rows added by Kashiyomi.
 - Furigana size is adjustable, and the settings panel is available in English and Simplified Chinese.
 
 ## Status
 
-Early development. It works on my machine and on the songs I listen to; expect rough edges elsewhere.
+Early development. It works on the songs I test, but mixed-language routing and uncommon readings can still be wrong.
 
-## Install from source
+There are no packaged releases yet.
 
-There are no packaged releases yet. You need NetEase Cloud Music 3.x with BetterNCM, Node.js 20.11 or newer, and a stable Rust toolchain (MSVC).
+## Build and install from source
+
+Requirements:
+
+* NetEase Cloud Music 3.x with BetterNCM
+* Node.js 22.6 or newer
+* A stable Rust toolchain with the MSVC target
+
+Quit NetEase Cloud Music completely before installation, including the tray process.
 
 ```powershell
 git clone https://github.com/eepytofu/kashiyomi.git
 cd kashiyomi
 npm ci
 npm run fetch-dict
+npm run export-pinyin
 npm run build
 cd native
 cargo build --release
+cd ..
+npm run dev-install
 ```
 
-`npm run fetch-dict` downloads the Sudachi dictionary (about 360 MB) into `assets/dict`. Proper install and packaging instructions will come once the plugin actually works.
+`npm run fetch-dict` downloads SudachiDict-full, about 360 MB. `npm run export-pinyin` prepares Pinyin Pro's complete dictionary.
+
+By default, `npm run dev-install` installs Kashiyomi to `C:\betterncm\plugins_dev\Kashiyomi`. To use another directory:
+
+```powershell
+npm run dev-install -- "D:/path/to/plugins_dev/Kashiyomi"
+```
+
+Restart NetEase Cloud Music after installation.
 
 ## Development
 
 ```powershell
 npm test
+npm run typecheck
 cd native
 cargo test
 ```
@@ -55,10 +74,10 @@ cargo test
 ## Credits
 
 - [sudachi.rs](https://github.com/WorksApplications/sudachi.rs) and [SudachiDict](https://github.com/WorksApplications/SudachiDict) (Apache-2.0) for Japanese analysis.
-- [Pinyin Pro](https://github.com/zh-lx/pinyin-pro) and [opencc-js](https://github.com/nk2028/opencc-js) for Chinese readings and conversion.
+- [Pinyin Pro](https://github.com/zh-lx/pinyin-pro) and [opencc-js](https://github.com/nk2028/opencc-js) for Chinese readings and simplified-form repair.
 - [InfLink-rs](https://github.com/apoint123/inflink-rs) for showing how a Rust native plugin talks to BetterNCM.
-- [Furigana-api-fixed](https://github.com/Hxjjxg/Furigana-api-fixed) and [MuttonString/Furigana](https://github.com/MuttonString/Furigana) as prior art for annotating NCM's lyrics.
-- My [spicy-lyrics fork](https://github.com/eepytofu/spicy-lyrics) (Spicetify), where most of these features were first built.
+- [Furigana-api-fixed](https://github.com/Hxjjxg/Furigana-api-fixed) and [MuttonString/Furigana](https://github.com/MuttonString/Furigana) as prior work on annotating NCM lyrics.
+- My [spicy-lyrics fork](https://github.com/eepytofu/spicy-lyrics) for earlier versions of many of these features.
 
 ## License
 

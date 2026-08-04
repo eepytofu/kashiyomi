@@ -2,63 +2,82 @@
 
 [English](README.md) | 简体中文
 
-一个在网易云音乐原生歌词页上添加注音的 [BetterNCM](https://github.com/std-microblock/BetterNCM) 插件。它直接在网易云已经显示的歌词上做标注，不会另外创建或替换播放页面。
-
-![刹那芳华](previews/刹那芳华.avif)
+一个直接在网易云原生歌词页上添加振假名、罗马音、拼音和可选 AI 翻译的 [BetterNCM](https://github.com/std-microblock/BetterNCM) 插件。
 
 ![一梦红尘](previews/一梦红尘.avif)
 
 ## 功能
 
-注音全部在本机生成，不需要账号，不经过任何注音服务。AI 翻译是唯一的例外，并且在你填入自己的 API key 之前不会启用：启用后，当前歌曲的歌词会发送到你配置的接口。
+- 在日语歌词的汉字上方显示振假名，并在下方显示罗马音。读音由本地的 [sudachi.rs](https://github.com/WorksApplications/sudachi.rs) 和 SudachiDict-full 生成，无法识别的部分会保留原样。
+- 支持歌词自带的读音提示。例如 `天(そら)` 会显示为 `天`，并使用 `そら` 作为振假名和罗马音。歌词原有读音会用不同颜色标出。
+- 在中文歌词下方显示由 [Pinyin Pro](https://github.com/zh-lx/pinyin-pro) 完整词典生成的拼音。声调符号和按词连写可以分别开关。
+- 在原文下方显示可选的 AI 翻译。支持 Gemini 和 OpenAI 兼容的 `chat/completions` 接口，可设置模型、目标语言、Base URL 和额外指令。翻译结果会缓存在本地，也可以填写多个 API key 以自动切换。
+- 日语和中文可以使用不同的字体栈，避免[汉字统一](https://heistak.github.io/your-code-displays-japanese-wrong/)导致的错误字形。中文字体也会应用到网易云自带的中文翻译行。
 
-- 日语歌词的汉字上方显示振假名，下方显示一行小号罗马音，由本地的 [Sudachi](https://github.com/WorksApplications/sudachi.rs) 完整词典分析。
-- 识别歌词自带的读音提示，例如 天(そら)：括号里的 そら 会从正文隐藏，用作这个词的振假名和罗马音。歌词自带的读音和自动推断的读音会以不同颜色显示。
-- 中文歌词下方显示拼音，使用 [Pinyin Pro](https://github.com/zh-lx/pinyin-pro) 的完整词典，可选声调标注和按词分组（同一个词的音节保持在一起）。
-- 汉字修复：使用中文汉字字形的日语歌词可以正确显示，例如 梦见ては 显示为 夢見ては。
-- 用片假名书写送假名的特殊写法（夜ニ紛レ、君ノ声モ届カナイヨ）也能正确读出。
-- 日中混排的歌曲按行处理，日语歌曲里的中文行会显示拼音，而不会被当成日语汉字来注音。即使是缺少明显现代汉语特征的文言句子，也能正确识别。
-- 歌词开头的制作信息（作詞:、编曲：、Vocal: 等）会被识别并跳过，不会被注音，也不会被翻译。单独一行的演唱者标记（【合】、【海伊】）同样会被跳过。
-- 复制歌词时得到的是歌词本身，注音和读音行不会被复制进剪贴板。
-- AI 翻译显示在原文下方，与内置翻译的样式类似。支持 OpenAI 兼容接口或 Gemini，需要自己的 API key。每首歌只发送一次请求，结果按歌曲缓存，并且不会覆盖网易云自带的翻译。可以每行填一个 key，某个 key 触发限流时会自动换用下一个。
-- 同一个汉字可能显示成中文或日文字形（[汉字统一](https://heistak.github.io/your-code-displays-japanese-wrong/)），因此可以分别为日语行和中文文本设置字体，中文文本也包括外语歌曲下方的中文翻译行。
-- 振假名大小可调，设置面板提供英文和简体中文两种语言。
+### 细节优化
+
+- 修复日语歌词中误用的简体字，例如将 `梦见ては` 显示为 `夢見ては`。
+- 日中混排歌曲会按行判断语言。
+- `夜ニ紛レ` 这类片假名送假名只会在分析时临时转换，显示内容不会改变。
+- 制作信息默认不注音，单独一行的演唱者和段落标记会直接跳过。需要时可以为制作信息开启注音。
+- 复制歌词时不会带上 Kashiyomi 添加的振假名、罗马音、拼音和翻译行。
+- 振假名大小可调，设置面板提供英文和简体中文。
 
 ## 状态
 
-早期开发中。在我自己的设备和我常听的歌上可以正常使用，其他情况可能还有问题。
+项目仍处于早期开发阶段。目前在我测试的歌曲上可以正常使用，但日中混排判断和少见读音仍可能出错。
 
-## 从源码安装
+目前没有打包发布版本。
 
-目前没有打包发布。你需要装有 BetterNCM 的网易云音乐 3.x、Node.js 20.11 或更高版本，以及稳定版 Rust 工具链（MSVC）。
+## 从源码构建并安装
+
+需要以下环境：
+
+* 安装了 BetterNCM 的网易云音乐 3.x
+* Node.js 22.6 或更高版本
+* 稳定版 Rust 工具链（MSVC）
+
+安装前请完全退出网易云音乐，包括托盘进程。
 
 ```powershell
 git clone https://github.com/eepytofu/kashiyomi.git
 cd kashiyomi
 npm ci
 npm run fetch-dict
+npm run export-pinyin
 npm run build
 cd native
 cargo build --release
+cd ..
+npm run dev-install
 ```
 
-`npm run fetch-dict` 会下载 Sudachi 词典（约 360 MB）到 `assets/dict`。等插件真正可用后会补充正式的安装和打包说明。
+`npm run fetch-dict` 会下载约 360 MB 的 SudachiDict-full。`npm run export-pinyin` 会生成 Pinyin Pro 的完整词典文件。
+
+`npm run dev-install` 默认将 Kashiyomi 安装到 `C:\betterncm\plugins_dev\Kashiyomi`。如需使用其他目录：
+
+```powershell
+npm run dev-install -- "D:/path/to/plugins_dev/Kashiyomi"
+```
+
+安装完成后，请重新启动网易云音乐。
 
 ## 开发
 
 ```powershell
 npm test
+npm run typecheck
 cd native
 cargo test
 ```
 
 ## 鸣谢
 
-- [sudachi.rs](https://github.com/WorksApplications/sudachi.rs) 与 [SudachiDict](https://github.com/WorksApplications/SudachiDict)（Apache-2.0），日语形态分析。
-- [Pinyin Pro](https://github.com/zh-lx/pinyin-pro) 与 [opencc-js](https://github.com/nk2028/opencc-js)，中文注音与转换。
-- [InfLink-rs](https://github.com/apoint123/inflink-rs)，展示了 Rust 原生插件与 BetterNCM 的对接方式。
-- [Furigana-api-fixed](https://github.com/Hxjjxg/Furigana-api-fixed) 与 [MuttonString/Furigana](https://github.com/MuttonString/Furigana)，网易云歌词注音的先行者。
-- 我的 [spicy-lyrics fork](https://github.com/eepytofu/spicy-lyrics)（Spicetify），这些功能最初是在该项目中实现的。
+- [sudachi.rs](https://github.com/WorksApplications/sudachi.rs) 与 [SudachiDict](https://github.com/WorksApplications/SudachiDict)（Apache-2.0），用于日语分析。
+- [Pinyin Pro](https://github.com/zh-lx/pinyin-pro) 与 [opencc-js](https://github.com/nk2028/opencc-js)，用于中文注音和简体字修复。
+- [InfLink-rs](https://github.com/apoint123/inflink-rs)，提供了 Rust 原生插件与 BetterNCM 对接的参考实现。
+- [Furigana-api-fixed](https://github.com/Hxjjxg/Furigana-api-fixed) 与 [MuttonString/Furigana](https://github.com/MuttonString/Furigana)，网易云歌词注音的先行项目。
+- 我的 [spicy-lyrics fork](https://github.com/eepytofu/spicy-lyrics)，其中包含这些功能的早期实现。
 
 ## 许可证
 
