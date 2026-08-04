@@ -93,10 +93,6 @@ export function buildPreviewCard(column: HTMLElement): () => void {
     box.appendChild(jpLine);
     box.appendChild(hintLine);
 
-    // With pinyin off there is nothing to demonstrate, and the bare line reads
-    // as a rendering failure rather than as a disabled feature, so drop it.
-    if (!settings.pinyin) return;
-
     const zhLine = document.createElement("div");
     zhLine.className = "kc-preview-line";
     // 無 (立入禁止 / 歌爱ユキ / 诗岸), captured from the app. Its Chinese verses
@@ -106,17 +102,23 @@ export function buildPreviewCard(column: HTMLElement): () => void {
     if (settings.useZhFont && settings.zhFontStack.trim() !== "") {
       zhLine.style.fontFamily = settings.zhFontStack;
     }
-    const syllables: [string, string][] = [
-      ["wú", "wu"], ["kě", "ke"], ["nài", "nai"], ["hé", "he"],
-      ["huā", "hua"], ["luò", "luo"], ["qù", "qu"],
-    ];
-    const groups = settings.pinyinJoinWords
-      ? [[0, 1, 2, 3], [4], [5, 6]]
-      : [[0], [1], [2], [3], [4], [5], [6]];
-    const text = groups
-      .map((group) => group.map((i) => syllables[i]![settings.pinyinTones ? 0 : 1]).join(""))
-      .join(" ");
-    renderPinyinRow(zhLine, text);
+    // The line stays even with pinyin off: it is also the only preview of the
+    // Chinese font setting, which is independent of pinyin. The Japanese lines
+    // behave the same way — with furigana and romaji off they render as plain
+    // text rather than disappearing.
+    if (settings.pinyin) {
+      const syllables: [string, string][] = [
+        ["wú", "wu"], ["kě", "ke"], ["nài", "nai"], ["hé", "he"],
+        ["huā", "hua"], ["luò", "luo"], ["qù", "qu"],
+      ];
+      const groups = settings.pinyinJoinWords
+        ? [[0, 1, 2, 3], [4], [5, 6]]
+        : [[0], [1], [2], [3], [4], [5], [6]];
+      const text = groups
+        .map((group) => group.map((i) => syllables[i]![settings.pinyinTones ? 0 : 1]).join(""))
+        .join(" ");
+      renderPinyinRow(zhLine, text);
+    }
     box.appendChild(zhLine);
   };
   refresh();
