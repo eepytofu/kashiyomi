@@ -38,6 +38,11 @@ let observer: MutationObserver | undefined;
 let scanScheduled = false;
 let pendingRetry: number | undefined;
 
+/** Where the on-disk assets are, for panels that need one loaded on demand. */
+export function currentAssetPaths(): AssetPaths | undefined {
+  return assetPaths;
+}
+
 export function startAnnotator(paths: AssetPaths): void {
   assetPaths = paths;
   observer = new MutationObserver(scheduleScan);

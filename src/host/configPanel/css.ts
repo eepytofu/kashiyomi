@@ -130,7 +130,12 @@ export const PANEL_CSS = `
 .kashiyomi-config .kc-lang button:focus-visible { outline: 2px solid rgba(236, 65, 65, 0.75); outline-offset: 2px; }
 .kashiyomi-config .kc-preview { padding: 16px 14px 12px; display: flex; flex-direction: column; gap: 14px; }
 .kashiyomi-config .kc-preview-line { font-size: 19px; line-height: 1.6; }
-.kashiyomi-config .kc-preview-line .kashiyomi-row { opacity: 0.6; }
+/* No opacity override: the row keeps the 0.85 styles.ts gives it everywhere, so
+   the preview shows the same dimming the lyrics page does. It previously used
+   0.6, which matched neither state — measured 2026-08-05, the real row renders
+   at 0.85 on the active line (contrast 12.77) and 0.34 on inactive ones (3.12,
+   because NCM's own line is already rgba(255,255,255,0.4)). The preview stands
+   for the active line, which is the one being read. */
 .kashiyomi-config .kc-about { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
 .kashiyomi-config .kc-about .kc-muted { opacity: 0.68; word-break: break-all; }
 .kashiyomi-config .kc-link { color: inherit; text-decoration: underline; cursor: pointer; opacity: 0.85; }

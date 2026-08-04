@@ -3,9 +3,19 @@
 
 import { t } from "../i18n.ts";
 import { renderJapaneseLine, renderPinyinRow } from "../render.ts";
+import { romanizeMandarin } from "../../engine/pinyin.ts";
+import { ensurePinyinDict } from "../pinyinDict.ts";
+import { currentAssetPaths } from "../annotator.ts";
 import { getSettings } from "../settings.ts";
 import { applyStyles } from "../styles.ts";
 import { card, sectionTitle } from "./rows.ts";
+
+/**
+ * 無 (立入禁止 / 歌爱ユキ / 诗岸), captured from the app. Its Chinese verses are
+ * the ones this plugin's routing was built around. Note the segmenter treats
+ * the whole line as one word, so it shows word grouping at its most extreme.
+ */
+const ZH_SAMPLE = "无可奈何花落去";
 
 /** Builds the preview card into `column`; returns a refresh function. */
 export function buildPreviewCard(column: HTMLElement): () => void {
@@ -95,10 +105,7 @@ export function buildPreviewCard(column: HTMLElement): () => void {
 
     const zhLine = document.createElement("div");
     zhLine.className = "kc-preview-line";
-    // 無 (立入禁止 / 歌爱ユキ / 诗岸), captured from the app. Its Chinese verses
-    // are the ones this plugin's routing was built around, and 无可奈何 being a
-    // four-character idiom makes the word-grouping toggle visibly do something.
-    zhLine.textContent = "无可奈何花落去";
+    zhLine.textContent = ZH_SAMPLE;
     if (settings.useZhFont && settings.zhFontStack.trim() !== "") {
       zhLine.style.fontFamily = settings.zhFontStack;
     }
@@ -106,21 +113,25 @@ export function buildPreviewCard(column: HTMLElement): () => void {
     // Chinese font setting, which is independent of pinyin. The Japanese lines
     // behave the same way — with furigana and romaji off they render as plain
     // text rather than disappearing.
+    //
+    // Romanized by the production function, not a canned string. The canned one
+    // hardcoded the word grouping as 无可奈何 / 花 / 落去 and was simply wrong:
+    // with the complete dictionary loaded the segmenter takes the whole line as
+    // one word, so "Group Pinyin by word" really renders wúkěnàihéhuāluòqù.
+    // Word grouping needs that dictionary, which is loaded on demand — until it
+    // arrives the preview shows the ungrouped reading, then refreshes.
     if (settings.pinyin) {
-      const syllables: [string, string][] = [
-        ["wú", "wu"], ["kě", "ke"], ["nài", "nai"], ["hé", "he"],
-        ["huā", "hua"], ["luò", "luo"], ["qù", "qu"],
-      ];
-      const groups = settings.pinyinJoinWords
-        ? [[0, 1, 2, 3], [4], [5, 6]]
-        : [[0], [1], [2], [3], [4], [5], [6]];
-      const text = groups
-        .map((group) => group.map((i) => syllables[i]![settings.pinyinTones ? 0 : 1]).join(""))
-        .join(" ");
-      renderPinyinRow(zhLine, text);
+      renderPinyinRow(zhLine, romanizeMandarin(ZH_SAMPLE, {
+        tones: settings.pinyinTones,
+        joinWords: settings.pinyinJoinWords,
+      }));
     }
     box.appendChild(zhLine);
   };
   refresh();
+  // Word grouping is invisible without the complete dictionary, so pull it in
+  // and redraw once it lands rather than showing a reading that cannot group.
+  const paths = currentAssetPaths();
+  if (paths) void ensurePinyinDict(paths.pinyinDictPath).then(() => refresh());
   return refresh;
 }
