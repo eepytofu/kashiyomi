@@ -72,11 +72,24 @@ export function isCreditLine(line: string): boolean {
   // "lyrics&", which fails the direct lookup but splits to the single valid
   // part ["lyrics"], so without it a trailing separator would be accepted.
   const parts = label.split(/[&/,，、]/u).filter((part) => part !== "");
-  if (parts.length > 1 && parts.every((part) => CREDIT_LABELS.has(part))) return true;
+  if (parts.length > 1 && parts.every(isKnownRole)) return true;
   // CJK roles are also concatenated with no separator at all: 和声编写 is
   // 和声 + 编写. Listing every combination by hand does not scale — that is
   // what the "roles written as one run" block above was trying to do.
   return parts.length === 1 && decomposesIntoRoles(label);
+}
+
+/**
+ * One role: a table entry, or several concatenated with no separator.
+ *
+ * Both forms occur in the same label. 编曲/和声编写 (洛阳怀) is a table entry and
+ * a concatenation joined by a slash, and requiring every part to be a *direct*
+ * table hit dropped it — 编曲 matched, 和声编写 did not, because decomposition
+ * was only reachable when the label had no separator at all. It was annotated
+ * and sent to the translator as a lyric.
+ */
+function isKnownRole(part: string): boolean {
+  return CREDIT_LABELS.has(part) || decomposesIntoRoles(part);
 }
 
 /**

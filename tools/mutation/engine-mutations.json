@@ -143,15 +143,22 @@
     "id": "metadata/compound-any-part",
     "file": "src/engine/metadata.ts",
     "what": "compound label accepted when only some parts are credits",
-    "find": "  if (parts.length > 1 && parts.every((part) => CREDIT_LABELS.has(part))) return true;",
-    "replace": "  if (parts.length > 1 && parts.some((part) => CREDIT_LABELS.has(part))) return true;"
+    "find": "  if (parts.length > 1 && parts.every(isKnownRole)) return true;",
+    "replace": "  if (parts.length > 1 && parts.some(isKnownRole)) return true;"
+  },
+  {
+    "id": "metadata/part-must-be-table-entry",
+    "file": "src/engine/metadata.ts",
+    "what": "a compound part may not itself be a concatenation, dropping 编曲/和声编写",
+    "find": "  return CREDIT_LABELS.has(part) || decomposesIntoRoles(part);",
+    "replace": "  return CREDIT_LABELS.has(part);"
   },
   {
     "id": "metadata/compound-single-part",
     "file": "src/engine/metadata.ts",
     "what": "compound path accepts a single part",
-    "find": "  if (parts.length > 1 && parts.every((part) => CREDIT_LABELS.has(part))) return true;",
-    "replace": "  if (parts.length >= 1 && parts.every((part) => CREDIT_LABELS.has(part))) return true;"
+    "find": "  if (parts.length > 1 && parts.every(isKnownRole)) return true;",
+    "replace": "  if (parts.length >= 1 && parts.every(isKnownRole)) return true;"
   },
   {
     "id": "metadata/allow-empty-value",
@@ -334,6 +341,34 @@
     "what": "a translated opening line counts as a credit",
     "find": "      line.translation === \"untranslated\" &&",
     "replace": "      line.translation !== \"untranslated\" &&"
+  },
+  {
+    "id": "lineKinds/drop-credit-run",
+    "file": "src/engine/lineKinds.ts",
+    "what": "credit blocks are left to the translation-gated fallback alone",
+    "find": "    if (inCreditRun[index] && hasCreditShape(line.text)) return \"credit\";",
+    "replace": "    if (false && inCreditRun[index] && hasCreditShape(line.text)) return \"credit\";"
+  },
+  {
+    "id": "lineKinds/run-unanchored",
+    "file": "src/engine/lineKinds.ts",
+    "what": "a credit-shaped line opens a run with no listed credit to anchor it",
+    "find": "    if (!isCreditLine(lines[i]!.text)) continue;",
+    "replace": "    if (!continues[i]) continue;"
+  },
+  {
+    "id": "lineKinds/run-never-breaks",
+    "file": "src/engine/lineKinds.ts",
+    "what": "a run swallows the sung lines instead of stopping at the first one",
+    "find": "    for (let j = i; j < lines.length && continues[j]; j++) inRun[j] = true;",
+    "replace": "    for (let j = i; j < lines.length; j++) inRun[j] = true;"
+  },
+  {
+    "id": "lineKinds/run-grows-forward-only",
+    "file": "src/engine/lineKinds.ts",
+    "what": "a credit block is only ever found by growing down, so a block at the foot of the song is missed",
+    "find": "    for (let j = i; j >= 0 && continues[j]; j--) inRun[j] = true;",
+    "replace": ""
   },
   {
     "id": "lineKinds/doc-translations-every",
@@ -544,6 +579,34 @@
     "what": "pinyin rows keep CJK punctuation",
     "find": "  return toLatinPunctuation(parts.join(\" \"));",
     "replace": "  return parts.join(\" \");"
+  },
+  {
+    "id": "scriptLang/drop-kana-rung",
+    "file": "src/engine/scriptLang.ts",
+    "what": "kana no longer decides, so a mixed line falls through to the caller's fallback",
+    "find": "  if (hasKana(text)) return \"ja\";",
+    "replace": "  if (false) return \"ja\";"
+  },
+  {
+    "id": "scriptLang/japanese-outranks-chinese",
+    "file": "src/engine/scriptLang.ts",
+    "what": "a japanese glyph form is checked before chinese evidence",
+    "find": "  if (hasChineseOnlyGlyphs(text)) return \"zh\";\n  if (hasJapaneseOnlyGlyphs(text)) return \"ja\";",
+    "replace": "  if (hasJapaneseOnlyGlyphs(text)) return \"ja\";\n  if (hasChineseOnlyGlyphs(text)) return \"zh\";"
+  },
+  {
+    "id": "scriptLang/han-fallback-ignored",
+    "file": "src/engine/scriptLang.ts",
+    "what": "ambiguous han text is left untagged instead of taking the caller's evidence",
+    "find": "  if (hasHan(text)) return hanFallback;",
+    "replace": "  if (hasHan(text)) return undefined;"
+  },
+  {
+    "id": "scriptLang/target-not-trimmed",
+    "file": "src/engine/scriptLang.ts",
+    "what": "a target language with surrounding whitespace stops matching",
+    "find": "  const name = target.trim();",
+    "replace": "  const name = target;"
   },
   {
     "id": "pinyin/no-chengyu-hyphen",

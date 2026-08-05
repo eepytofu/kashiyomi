@@ -102,6 +102,124 @@ test("a translated opening line is a lyric even when it is credit-shaped", () =>
   assert.deepEqual(classifyLines(song), ["lyric", "lyric"]);
 });
 
+test("a credit block at the foot of the song is found too", () => {
+  // Captured 2026-08-06 with `npm run capture` from a 65-line 国风堂 track
+  // (哦漏 / KBShinya), 译 off. Four credits at the head, eleven at the foot, and
+  // the foot is where the role table failed hardest — 分轨, 企划题字, 插画, 设计
+  // and the 注： note were all annotated and queued for translation, because
+  // every position rule we had only ever looked at the top of the file.
+  //
+  // Trimmed to the two blocks and the lines that bound them: the sung middle
+  // adds no signal this test does not already have. 吉他 is kept because it is
+  // the anchor nearest the misses, and because it reaches the run through the
+  // role table rather than through shape — `hasCreditShape` vetoes it, 他 being
+  // in SENTENCE_CHARS.
+  const kinds = classifyLines(
+    untranslated(
+      "作词: 释子 / 公子无琊",
+      "文案故事：康玉婷（网易云音乐用户@糖果超级咸）",
+      "/题记/",
+      "那时节 芳草萋萋寒鸦日暮",
+      "惟愿戴荣光与你归家",
+      "分轨：向往",
+      "吉他：大牛",
+      "企划题字：毫克",
+      "插画：RedMatcha",
+      "设计：马睿",
+      "出品：网易云音乐·国风堂",
+    ),
+  );
+  assert.deepEqual(kinds, [
+    "credit",
+    // Unlisted, reached by growing forward from 作词.
+    "credit",
+    // The head block stops here: /题记/ carries no colon at all.
+    "lyric",
+    "lyric",
+    "lyric",
+    // The foot block, grown backward from 吉他 and 出品.
+    "credit",
+    "credit",
+    "credit",
+    "credit",
+    "credit",
+    "credit",
+  ]);
+});
+
+test("an unlisted role inside the opening block is a credit with 译 off", () => {
+  // 太成都 (马思唯), read off a screenshot 2026-08-05: 女声 and 录音室 got pinyin
+  // and a translation while the credits around them were skipped. Neither is in
+  // the role table, and the shape fallback above cannot reach them — NetEase
+  // never translates a Chinese song into Chinese, so `songHasTranslations` is
+  // false for the entire class of song this happens on.
+  const kinds = classifyLines(
+    untranslated(
+      "编曲: YYKBZ / Yoken_Official / Myles William",
+      "女声: Laurie",
+      "混音: 高宇豪",
+      "母带: Colin Leonard at SING Mastering",
+      "录音室: Dark Horse Studio",
+      "带你去看成都的街",
+    ),
+  );
+  assert.deepEqual(kinds, ["credit", "credit", "credit", "credit", "credit", "lyric"]);
+});
+
+test("a run ends at the first line that is not credit-shaped", () => {
+  // 悦神 (KBShinya), read off a screenshot 2026-08-06. 原著 and the two character
+  // names are unlisted roles; the bracketed line reads as a singer marker, which
+  // is skipped the same way. The run has to stop dead at 天官赐福 — that is the
+  // first sung line, and it is the only thing standing between this rule and
+  // eating a song whole.
+  const kinds = classifyLines(
+    untranslated(
+      "作词：狐周周",
+      "笛子：囚牛 二胡：辰小弦 混音：Mr.曾经",
+      "原著：墨香铜臭",
+      "谢怜：苏尚卿 花城：杨天翔",
+      "【配音鸣谢：729声工场】",
+      "天官赐福 百无禁忌",
+      "混音：某人",
+    ),
+  );
+  assert.deepEqual(kinds, [
+    "credit",
+    "credit",
+    "credit",
+    "credit",
+    "marker",
+    "lyric",
+    // Past the run, the role table still stands on its own.
+    "credit",
+  ]);
+});
+
+test("the run does not reach a credit-shaped line past the first lyric", () => {
+  // The break is only observable here. A line that is not credit-shaped stays a
+  // lyric whatever the run says, so ending the run on it changes nothing; what
+  // the break protects is the *next* shaped line. Without it the run covers the
+  // whole song and PV：某人 at the bottom is silently dropped.
+  // Caught by `lineKinds/run-never-breaks`, which survived until this case
+  // existed.
+  assert.deepEqual(classifyLines(untranslated("作词：某人", "白马过了离原", "PV：某人")), [
+    "credit",
+    "lyric",
+    "lyric",
+  ]);
+});
+
+test("shape alone cannot open a credit block", () => {
+  // Without an anchor a song whose first lines merely carry colons would lose
+  // them. 答案是：我不知道 is not credit-shaped, but PV：某人 is, and one
+  // credit-shaped opener must not be enough to start a run.
+  assert.deepEqual(classifyLines(untranslated("PV：某人", "特效：某人", "白马过了离原")), [
+    "lyric",
+    "lyric",
+    "lyric",
+  ]);
+});
+
 test("indices line up with the input", () => {
   const song = untranslated("作词：某人", "白马过了离原", "【海伊】", "三月的天");
   const kinds = classifyLines(song);

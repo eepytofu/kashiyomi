@@ -48,7 +48,26 @@ test("detects chinese credits, including numbered ones", () => {
   }
 });
 
+test("a slash-separated label may contain a concatenated role", () => {
+  // 洛阳怀, from the routed-chinese list in kashiyomi.log 2026-08-05. 编曲 is a
+  // table entry; 和声编写 is 和声 + 编写 run together. Requiring every
+  // slash-separated part to be a *direct* table hit dropped the whole line, so
+  // it was annotated with pinyin and sent to the translator as a lyric.
+  assert.equal(isCreditLine("编曲/和声编写：PoKeR"), true);
+  assert.equal(isCreditLine("编曲/和声编写:PoKeR"), true);
+  // The concatenation on its own already worked. Pinned so the two paths cannot
+  // drift apart again. 惊鹊, read off a screenshot of the running app.
+  assert.equal(isCreditLine("和声编写：雾敛"), true);
+});
+
 test("detects english credits", () => {
+  // No captured song has ever shipped an English credit label — 白马过了离原's
+  // 11-line block, 下等马, 洛阳怀 and 太成都 are all Chinese labels, with Latin
+  // only ever in the value (编曲: Fsy小诺). Kept anyway, and labelled so nobody
+  // reads this as evidence they occur: a CREDIT_LABELS entry is only matched in
+  // label position before a colon, so an unused one cannot cause a false
+  // positive, while a missing one turns a credit into an annotated, translated
+  // lyric — which is the bug 编曲/和声编写 actually was.
   for (const line of ["Lyrics: someone", "Composer: Hu Duoduo", "Vocal：Luo Tianyi"]) {
     assert.equal(isCreditLine(line), true, line);
   }
