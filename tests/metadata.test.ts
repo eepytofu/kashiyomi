@@ -60,6 +60,62 @@ test("a slash-separated label may contain a concatenated role", () => {
   assert.equal(isCreditLine("和声编写：雾敛"), true);
 });
 
+test("a label spaced between characters is still one label", () => {
+  // Uploads sometimes space CJK labels out. Stripping matters more than it
+  // looks under a ratio: 作 词 作 曲 is seven characters of which four are
+  // covered, so unstripped it scores 0.57 and falls under the threshold, while
+  // stripped it is 1.00. Caught by `metadata/drop-space-strip`, which survived
+  // until this existed — every other spaced label in the suite is English,
+  // where the words are long enough that the stray space barely moves the
+  // ratio ("Composed by" is 0.91 either way).
+  assert.equal(isCreditLine("作 词 作 曲：某人"), true);
+  assert.equal(isCreditLine("作 词：某人"), true);
+});
+
+test("a compound role is recognized without being listed", () => {
+  // Every one of these was a reported miss under the old whole-label table, and
+  // not one of them is an entry now either — they are covered by their pieces.
+  // 女声 is 女 + 声; 录音室 is 录音 with 室 left over; 企划题字 is 企划 + 题字.
+  for (const line of [
+    "女声: Laurie",
+    "录音室: Dark Horse Studio",
+    "分轨：向往",
+    "插画：RedMatcha",
+    "设计：马睿",
+    "企划题字：毫克",
+    "和声编写：雾敛",
+    "混音师：某人",
+  ]) {
+    assert.equal(isCreditLine(line), true, line);
+  }
+});
+
+test("the cover threshold is inclusive, and 录音室 sits exactly on it", () => {
+  // 录音 covers two of three characters. This is the label the threshold was
+  // derived from, so if the comparison ever becomes exclusive it is the first
+  // thing to break — and it would break silently, back into the behaviour this
+  // replaced.
+  assert.equal(isCreditLine("录音室：某人"), true);
+  // One character further from a role and it is not a label any more. Both of
+  // these are two thirds *uncovered*.
+  assert.equal(isCreditLine("录音室外：某人"), false);
+  assert.equal(isCreditLine("声嘶力竭：还是喊了"), false);
+});
+
+test("a speaker label is not a role, however role-shaped its characters are", () => {
+  // 人 is not a morpheme in the table, so these score 0.50 and stay lyrics. It
+  // was one, and 女人/男人/主人 all came back as credits at 1.00 — which in a
+  // song with spoken parts drops the speaker line *and the dialogue on it*.
+  // The 声 compounds beside them are what 人 was there to reach, and they are
+  // reached without it.
+  for (const line of ["女人：你要去哪", "男人：我不知道", "主人：请进"]) {
+    assert.equal(isCreditLine(line), false, line);
+  }
+  for (const line of ["女声：某人", "男声：某人", "童声：某人", "人声：某人"]) {
+    assert.equal(isCreditLine(line), true, line);
+  }
+});
+
 test("detects english credits", () => {
   // No captured song has ever shipped an English credit label — 白马过了离原's
   // 11-line block, 下等马, 洛阳怀 and 太成都 are all Chinese labels, with Latin
@@ -143,12 +199,22 @@ test("a label with no value is not a credit", () => {
   assert.equal(isCreditLine("作詞"), false);
 });
 
-test("credit shape accepts an unlisted role but refuses a lyric", () => {
-  // The shape test is the weaker signal a caller combines with position and
-  // translation state, so it must not swallow lyrics on its own.
-  for (const line of ["PV: someone", "Mastering Engineer: someone", "特效：某人"]) {
+test("credit shape accepts a label the vocabulary cannot, but refuses a lyric", () => {
+  // The shape test is the weaker signal a caller combines with position, so it
+  // must not swallow lyrics on its own. All three are captured: 谢怜 and 花城
+  // are characters credited to their voice actors in 悦神, and 注 heads the
+  // closing note on the 国风堂 track. None is a role word and none can ever be
+  // one — they are a name, a name, and a punctuation-like marker — so the
+  // vocabulary must keep refusing them however far it grows. Position is the
+  // only thing that can recognize these, which is the credit run's whole job.
+  for (const line of ["谢怜：苏尚卿", "花城：杨天翔", "注：本故事来自国风堂"]) {
     assert.equal(hasCreditShape(line), true, line);
     assert.equal(isCreditLine(line), false, line);
+  }
+  // These three used to sit in the list above as "unlisted roles". They are
+  // real roles, and the morpheme table reaches them now.
+  for (const line of ["PV: someone", "Mastering Engineer: someone", "特效：某人"]) {
+    assert.equal(isCreditLine(line), true, line);
   }
   // Kana in the label means a sentence, not a role.
   assert.equal(hasCreditShape("君に言った: さよなら"), false);

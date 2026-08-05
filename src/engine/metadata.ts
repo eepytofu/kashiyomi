@@ -12,41 +12,111 @@ function normalizeLabel(label: string): string {
   return label.replace(/[\s·・]/gu, "").toLowerCase();
 }
 
-// Credit labels seen in Chinese, Japanese and English lyric headers,
-// including the Vocaloid-specific production roles. Normalized on the way in:
-// the lookup key has its spaces stripped, so an entry written with a space
-// could never be matched otherwise. That silently disabled every multi-word
-// English role ("composed by", "special thanks", …); "originalsong" below is
-// a leftover hand-workaround for the same problem.
-const CREDIT_LABELS = new Set([
-  // Chinese
-  "作词", "作詞", "填词", "填詞", "作曲", "谱曲", "譜曲", "编曲", "編曲",
-  "词", "詞", "曲", "编", "編", "唱", "演唱", "原唱", "翻唱", "主唱", "和声", "和聲",
-  "歌手", "歌手名", "表演者", "制作人", "製作人", "出品", "出品人", "监制", "監製",
-  "统筹", "統籌", "策划", "策劃", "企划", "企劃", "宣传", "宣傳", "发行", "發行",
-  "混音", "母带", "母帶", "后期", "後期", "录音", "錄音", "调校", "調校", "调教", "調教",
-  "曲绘", "曲繪", "美工", "视频", "視頻", "动画", "動畫", "导唱", "導唱", "导唱协力",
-  "特别感谢", "特別感謝", "鸣谢", "鳴謝", "原曲", "改编", "改編", "翻译", "翻譯",
-  "吉他", "贝斯", "貝斯", "鼓", "键盘", "鍵盤", "弦乐", "弦樂", "笛子", "古筝", "古箏",
-  "二胡", "琵琶", "配器", "乐器", "樂器", "人声", "人聲", "伴奏",
-  "编写", "編寫", "演奏者", "和音", "混音师", "混音師",
-  // Roles written as one run without a separator. Kept as entries because a
-  // few are lexicalized, but decomposeIntoRoles below also handles the general
-  // case, which is how 和声编写 (和声 + 编写) is recognized.
-  "作词作曲", "作詞作曲", "作曲作词", "作曲作詞", "词曲", "詞曲", "曲词", "曲詞",
-  "作编曲", "作編曲", "词曲编", "詞曲編",
-  // Japanese
-  "訳詞", "唄", "歌", "歌唱", "ボーカル", "ヴォーカル", "コーラス",
-  "ミックス", "マスタリング", "レコーディング", "イラスト", "動画", "映像",
-  "調声", "調教", "編集", "演奏", "楽曲", "制作", "企画", "originalsong",
-  // English
-  "lyrics", "lyric", "composer", "composed by", "arranger", "arrangement",
-  "arranged by", "vocal", "vocals", "vocalist", "singer", "artist", "music",
-  "written by", "producer", "produced by", "mix", "mixing", "mastering",
-  "recording", "illustration", "illust", "movie", "video", "guitar", "bass",
-  "drums", "piano", "keyboard", "strings", "chorus", "tuning", "encoding",
-  "special thanks", "translation", "translated by", "original",
+/**
+ * The pieces credit labels are built from, not the labels themselves.
+ *
+ * This used to be a list of whole labels, and every miss reported against it
+ * was the same shape: a real role the list did not happen to contain. 录音 was
+ * listed and 录音室 was not; 和声 and 编写 were listed and 和声编写 was not; 声
+ * appeared only inside 人声 and 和声, so 女声 was a lyric. Chinese role labels
+ * are compounds, so enumerating them is enumerating a product set — the list
+ * grows forever and is never finished.
+ *
+ * Listing the *morphemes* instead makes the compounds fall out. Entries longer
+ * than one character are here because they do not decompose (吉他, 琵琶,
+ * イラスト) or because their parts are too weak to carry a label alone (工作室,
+ * 特别感谢).
+ */
+const ROLE_MORPHEMES = new Set([
+  // Chinese, one character: the productive pieces. 声 alone covers 女声/男声/
+  // 童声/和声/人声, which is six table entries the old list needed separately.
+  "词", "詞", "曲", "编", "編", "写", "寫", "唱", "声", "聲", "音", "作", "填",
+  "谱", "譜", "制", "製", "演", "奏", "混", "录", "錄", "调", "調", "校", "教",
+  "绘", "繪", "画", "畫", "著", "效", "轨", "軌", "字", "鼓", "笛", "琴", "胡",
+  // Modifiers that specify a role rather than name one. They never stand alone
+  // as a label: at the 2/3 threshold 女 or 主 on its own leaves a two-character
+  // label at 0.50 and it stays a lyric.
+  //
+  // 人 is deliberately absent, and 人声 listed whole instead. As a morpheme it
+  // made 女人, 男人 and 主人 into credits at 1.00, so a song with spoken parts
+  // would lose the labelled line and the dialogue on it. It is the one modifier
+  // here that is also an everyday noun.
+  "主", "女", "男", "童", "合", "伴", "领", "領", "独", "獨", "配", "原",
+  "和", "翻", "改", "特", "总", "總", "副",
+  "人声", "人聲",
+  // Chinese, multi-character: no usable decomposition, or the parts are too
+  // weak. 子 in 笛子 and 室 in 录音室 are not roles in any other label.
+  "笛子", "吉他", "贝斯", "貝斯", "琵琶", "古筝", "古箏", "二胡", "唢呐", "尺八",
+  "古琴", "扬琴", "提琴", "弦乐", "弦樂", "键盘", "鍵盤", "乐器", "樂器", "乐队",
+  "樂隊", "单簧管", "萨克斯", "打击乐", "合成器", "工作室",
+  "母带", "母帶", "后期", "後期", "分轨", "缩混", "縮混", "插画", "插畫", "插图",
+  "插圖", "美工", "视频", "視頻", "动画", "動畫", "影像", "海报", "海報", "封面",
+  "设计", "設計", "视觉", "視覺", "摄影", "攝影", "题字", "題字",
+  "出品", "监制", "監製", "统筹", "統籌", "策划", "策劃", "企划", "企劃", "宣传",
+  "宣傳", "发行", "發行", "推广", "推廣", "营销", "營銷", "经纪", "經紀", "艺人",
+  "藝人", "运营", "運營", "商务", "商務", "厂牌", "廠牌", "平台", "单位", "單位",
+  "团队", "團隊", "顾问", "顧問",
+  "鸣谢", "鳴謝", "感谢", "感謝", "协力", "協力", "助理", "文案", "编辑", "編輯",
+  "监督", "監督", "念白", "旁白", "声优", "聲優", "别", "別", "谢", "謝",
+  "歌手", "表演者", "演唱者", "演奏者",
+  // Japanese. Katakana roles do not decompose at all.
+  "訳", "唄", "歌", "ボーカル", "ヴォーカル", "コーラス", "ミックス", "マスタリング",
+  "レコーディング", "イラスト", "映像", "編集", "楽曲", "企画", "調声",
+  // English. Kept as whole words: a morpheme cut does nothing here, and the
+  // cover ratio counts characters, so "by" and "special" have to be listed for
+  // "composed by" and "special thanks" to reach the threshold.
+  "lyrics", "lyric", "composer", "composed", "arranger", "arrangement",
+  "arranged", "vocal", "vocals", "vocalist", "singer", "artist", "music",
+  "written", "writer", "producer", "produced", "production", "mix", "mixing",
+  "mixed", "mastering", "master", "recording", "record", "illustration",
+  "illust", "movie", "video", "guitar", "bass", "drums", "drum", "piano",
+  "keyboard", "strings", "string", "chorus", "tuning", "encoding", "special",
+  "thanks", "translation", "translated", "original", "song", "engineer",
+  "engineering", "percussion", "programming", "programing", "by", "pv", "sp",
+  "op", "mv",
 ].map(normalizeLabel));
+
+/**
+ * How much of a label is accounted for by role morphemes, 0 to 1.
+ *
+ * Longest-cover dynamic program: `best[i]` is the most characters coverable in
+ * the first `i`. Uncovered characters are skipped rather than failing the
+ * label, which is the whole difference from the exact decomposition this
+ * replaces — 录音室 scores 0.67 instead of failing outright on 室.
+ */
+function roleCoverRatio(label: string): number {
+  const chars = [...label];
+  if (chars.length === 0) return 0;
+  const best: number[] = new Array(chars.length + 1).fill(0);
+  for (let start = 0; start < chars.length; start++) {
+    if (best[start]! > best[start + 1]!) best[start + 1] = best[start]!;
+    for (let end = start + 1; end <= chars.length; end++) {
+      if (!ROLE_MORPHEMES.has(chars.slice(start, end).join(""))) continue;
+      const covered = best[start]! + (end - start);
+      if (covered > best[end]!) best[end] = covered;
+    }
+  }
+  return best[chars.length]! / chars.length;
+}
+
+/**
+ * Two thirds, and it is derived rather than tuned: it is exactly the ratio of
+ * 录音室 (录音 + 室), the label that forced this rewrite. Read as a rule it says
+ * a two-character label needs both characters covered, a three-character label
+ * needs two, a four needs three.
+ *
+ * It sits high on purpose. A label this test *misses* is still recovered by the
+ * credit run in `lineKinds.ts`, which needs no vocabulary at all; a label it
+ * wrongly *accepts* is recovered by nothing and silently drops a sung line. So
+ * the bound is set by the weakest real credit we want to anchor a run, not by
+ * the strongest counterexample — at 0.50 the two-character case collapses, and
+ * 词穷 becomes indistinguishable from 女声.
+ *
+ * Measured over 33 labels observed in captures and screenshots: 0.67 accepts
+ * 28, and the five below it (文案故事 at 0.50 is the clearest) are all inside a
+ * credit block, where the run reaches them anyway.
+ */
+const ROLE_COVER_MIN = 2 / 3;
 
 // A short label, optionally numbered, followed by a colon and a value. The
 // bound is only a cheap prefilter — every part still has to be a known role —
@@ -66,51 +136,16 @@ export function isCreditLine(line: string): boolean {
   // The capture group starts with [\p{L}\p{N}] and normalizeLabel only strips
   // spaces and interpuncts, so the label is never empty here.
   const label = normalizeLabel(match[1] ?? "");
-  if (CREDIT_LABELS.has(label)) return true;
-  // Compound labels such as 作词作曲 or 词/曲 list several roles at once. The
-  // count check is load-bearing, not redundant: "Lyrics&:" normalizes to
-  // "lyrics&", which fails the direct lookup but splits to the single valid
-  // part ["lyrics"], so without it a trailing separator would be accepted.
-  const parts = label.split(/[&/,，、]/u).filter((part) => part !== "");
-  if (parts.length > 1 && parts.every(isKnownRole)) return true;
-  // CJK roles are also concatenated with no separator at all: 和声编写 is
-  // 和声 + 编写. Listing every combination by hand does not scale — that is
-  // what the "roles written as one run" block above was trying to do.
-  return parts.length === 1 && decomposesIntoRoles(label);
-}
-
-/**
- * One role: a table entry, or several concatenated with no separator.
- *
- * Both forms occur in the same label. 编曲/和声编写 (洛阳怀) is a table entry and
- * a concatenation joined by a slash, and requiring every part to be a *direct*
- * table hit dropped it — 编曲 matched, 和声编写 did not, because decomposition
- * was only reachable when the label had no separator at all. It was annotated
- * and sent to the translator as a lyric.
- */
-function isKnownRole(part: string): boolean {
-  return CREDIT_LABELS.has(part) || decomposesIntoRoles(part);
-}
-
-/**
- * True when the label splits cleanly into two or more known roles with nothing
- * left over. Shortest-path over split points, so 词曲编 finds 词 + 曲 + 编.
- */
-function decomposesIntoRoles(label: string): boolean {
-  const chars = [...label];
-  if (chars.length < 2) return false;
-  // reachable[i] = fewest roles that exactly cover the first i characters.
-  const reachable: number[] = new Array(chars.length + 1).fill(-1);
-  reachable[0] = 0;
-  for (let start = 0; start < chars.length; start++) {
-    if (reachable[start] === -1) continue;
-    for (let end = start + 1; end <= chars.length; end++) {
-      if (!CREDIT_LABELS.has(chars.slice(start, end).join(""))) continue;
-      const count = reachable[start]! + 1;
-      if (reachable[end] === -1 || count < reachable[end]!) reachable[end] = count;
-    }
-  }
-  return reachable[chars.length]! >= 2;
+  // A label may list several roles at once: 词/曲, 编曲/和声编写, Lyrics & Music.
+  // Each side has to stand on its own, so that 作词/张三 — a role beside a name,
+  // which is a lyric-side slash — is not accepted because half of it matched.
+  // Empty parts are kept rather than filtered. A trailing or doubled separator
+  // ("Lyrics&", 作词、) leaves one, it covers nothing, and so it fails the
+  // threshold on its own — which is what stops a role plus a stray separator
+  // from being read as a credit. Filtering them first is what made the old code
+  // need a separate part-count check.
+  const parts = label.split(/[&/,，、]/u);
+  return parts.every((part) => roleCoverRatio(part) >= ROLE_COVER_MIN);
 }
 
 /**

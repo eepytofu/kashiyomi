@@ -36,11 +36,12 @@ test("a parenthesized lyric line stays a lyric", () => {
 });
 
 test("the shape fallback needs all three signals", () => {
-  // PV: is a real credit the role table does not list. On its own the shape is
-  // not enough — it is only a credit when the song is being translated and
-  // this line was passed over.
+  // 谢怜：苏尚卿 credits a character to a voice actor (悦神). No vocabulary can
+  // ever reach it — both halves are names — so shape is all there is. On its
+  // own that is not enough: it is a credit only because the song is being
+  // translated and this line was passed over.
   const song: ClassifiableLine[] = [
-    { text: "PV：某人", translation: "untranslated" },
+    { text: "谢怜：苏尚卿", translation: "untranslated" },
     { text: "白马过了离原", translation: "translated" },
   ];
   assert.deepEqual(classifyLines(song), ["credit", "lyric"]);
@@ -50,7 +51,7 @@ test("the shape fallback is inert when the song carries no translations", () => 
   // With 译 off every line reads as untranslated, so "untranslated" carries no
   // information and the fallback has to switch itself off. Otherwise any
   // colon-bearing opening line would be dropped from a song nobody translated.
-  assert.deepEqual(classifyLines(untranslated("PV：某人", "白马过了离原")), ["lyric", "lyric"]);
+  assert.deepEqual(classifyLines(untranslated("谢怜：苏尚卿", "白马过了离原")), ["lyric", "lyric"]);
 });
 
 test("the shape fallback reaches six lines in and no further", () => {
@@ -68,7 +69,7 @@ test("the shape fallback reaches six lines in and no further", () => {
     for (let i = 0; i < 8; i++) {
       lines.push(
         i === position
-          ? { text: "PV：某人", translation: "untranslated" }
+          ? { text: "谢怜：苏尚卿", translation: "untranslated" }
           : { text: "白马过了离原", translation: "translated" },
       );
     }
@@ -96,16 +97,17 @@ test("a translated opening line is a lyric even when it is credit-shaped", () =>
   // The player translating it is what says it is not a credit — NetEase never
   // translates the credit block.
   const song: ClassifiableLine[] = [
-    { text: "PV：某人", translation: "translated" },
+    { text: "谢怜：苏尚卿", translation: "translated" },
     { text: "白马过了离原", translation: "translated" },
   ];
   assert.deepEqual(classifyLines(song), ["lyric", "lyric"]);
 });
 
 test("a credit block at the foot of the song is found too", () => {
-  // Captured 2026-08-06 with `npm run capture` from a 65-line 国风堂 track
-  // (哦漏 / KBShinya), 译 off. Four credits at the head, eleven at the foot, and
-  // the foot is where the role table failed hardest — 分轨, 企划题字, 插画, 设计
+  // 归家 (哦漏 / KBShinya, 网易云音乐·国风堂), captured 2026-08-06 with
+  // `npm run capture`, 65 lines, 译 off. Four credits at the head and eleven at
+  // the foot, and the foot is where the role table failed hardest — 分轨,
+  // 企划题字, 插画, 设计
   // and the 注： note were all annotated and queued for translation, because
   // every position rule we had only ever looked at the top of the file.
   //
@@ -145,6 +147,24 @@ test("a credit block at the foot of the song is found too", () => {
     "credit",
     "credit",
   ]);
+});
+
+test("a block whose first line is shape-only is still found whole", () => {
+  // The only case where growing *backward* is observable, and the morpheme
+  // table is what made it so: 分轨 became a role, so it anchors the foot block
+  // in the capture above by itself and forward growth suffices there. Backward
+  // growth earns its place when a block opens on a line no vocabulary can ever
+  // reach.
+  //
+  // Constructed, not captured — but from an observed pattern: 悦神 credits
+  // characters to voice actors exactly like this, and both halves are names, so
+  // no table will ever contain them. Placed at the foot because that is where a
+  // block can open on one; at the head 作词 almost always comes first.
+  // Caught by `lineKinds/run-grows-forward-only`.
+  const kinds = classifyLines(
+    untranslated("白马过了离原", "谢怜：苏尚卿", "花城：杨天翔", "出品：网易云音乐"),
+  );
+  assert.deepEqual(kinds, ["lyric", "credit", "credit", "credit"]);
 });
 
 test("an unlisted role inside the opening block is a credit with 译 off", () => {
@@ -202,7 +222,7 @@ test("the run does not reach a credit-shaped line past the first lyric", () => {
   // whole song and PV：某人 at the bottom is silently dropped.
   // Caught by `lineKinds/run-never-breaks`, which survived until this case
   // existed.
-  assert.deepEqual(classifyLines(untranslated("作词：某人", "白马过了离原", "PV：某人")), [
+  assert.deepEqual(classifyLines(untranslated("作词：某人", "白马过了离原", "谢怜：苏尚卿")), [
     "credit",
     "lyric",
     "lyric",
@@ -213,7 +233,7 @@ test("shape alone cannot open a credit block", () => {
   // Without an anchor a song whose first lines merely carry colons would lose
   // them. 答案是：我不知道 is not credit-shaped, but PV：某人 is, and one
   // credit-shaped opener must not be enough to start a run.
-  assert.deepEqual(classifyLines(untranslated("PV：某人", "特效：某人", "白马过了离原")), [
+  assert.deepEqual(classifyLines(untranslated("谢怜：苏尚卿", "花城：杨天翔", "白马过了离原")), [
     "lyric",
     "lyric",
     "lyric",

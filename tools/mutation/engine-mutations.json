@@ -143,22 +143,29 @@
     "id": "metadata/compound-any-part",
     "file": "src/engine/metadata.ts",
     "what": "compound label accepted when only some parts are credits",
-    "find": "  if (parts.length > 1 && parts.every(isKnownRole)) return true;",
-    "replace": "  if (parts.length > 1 && parts.some(isKnownRole)) return true;"
+    "find": "  return parts.every((part) => roleCoverRatio(part) >= ROLE_COVER_MIN);",
+    "replace": "  return parts.some((part) => roleCoverRatio(part) >= ROLE_COVER_MIN);"
   },
   {
-    "id": "metadata/part-must-be-table-entry",
+    "id": "metadata/cover-threshold-halved",
     "file": "src/engine/metadata.ts",
-    "what": "a compound part may not itself be a concatenation, dropping 编曲/和声编写",
-    "find": "  return CREDIT_LABELS.has(part) || decomposesIntoRoles(part);",
-    "replace": "  return CREDIT_LABELS.has(part);"
+    "what": "a label only a third covered by role morphemes counts as a credit",
+    "find": "const ROLE_COVER_MIN = 2 / 3;",
+    "replace": "const ROLE_COVER_MIN = 1 / 3;"
   },
   {
-    "id": "metadata/compound-single-part",
+    "id": "metadata/cover-threshold-exclusive",
     "file": "src/engine/metadata.ts",
-    "what": "compound path accepts a single part",
-    "find": "  if (parts.length > 1 && parts.every(isKnownRole)) return true;",
-    "replace": "  if (parts.length >= 1 && parts.every(isKnownRole)) return true;"
+    "what": "a label covered exactly to the threshold is rejected, dropping 录音室",
+    "find": "  return parts.every((part) => roleCoverRatio(part) >= ROLE_COVER_MIN);",
+    "replace": "  return parts.every((part) => roleCoverRatio(part) > ROLE_COVER_MIN);"
+  },
+  {
+    "id": "metadata/cover-without-skip",
+    "file": "src/engine/metadata.ts",
+    "what": "cover must be contiguous, so an uncoverable character fails the whole label as it did before",
+    "find": "    if (best[start]! > best[start + 1]!) best[start + 1] = best[start]!;",
+    "replace": ""
   },
   {
     "id": "metadata/allow-empty-value",
@@ -306,13 +313,6 @@
     "what": "tokens with no reading voice as empty instead of their surface",
     "find": "        const kana = token.readingKana !== \"\" ? token.readingKana : token.surface;",
     "replace": "        const kana = token.readingKana;"
-  },
-  {
-    "id": "metadata/label-table-not-normalized",
-    "file": "src/engine/metadata.ts",
-    "what": "credit label table stored verbatim, so spaced multi-word roles never match",
-    "find": "].map(normalizeLabel));",
-    "replace": "]);"
   },
   {
     "id": "lineKinds/drop-marker-check",
