@@ -101,6 +101,12 @@ async function scan(): Promise<void> {
   const kinds = classifyLines(scanned);
 
   const pending: PendingLine[] = [];
+  // Lines we will not annotate but must still give a font to. They cannot be
+  // labelled here: the document branch is the fallback for a line with no
+  // script of its own, and it is not known until `allTexts` below is complete.
+  // Labelling them in this loop is why 【KBShinya 】 kept NCM's default stack
+  // while 【哦漏】 two lines above it did not — same song, same kind of line.
+  const unrouted: OriginalLine[] = [];
   const allTexts: string[] = [];
   const translationStates: LineTranslationState[] = [];
   const originals: OriginalLine[] = [];
@@ -109,8 +115,7 @@ async function scan(): Promise<void> {
     const kind = kinds[index]!;
     // Markers are never annotated, whatever the credits setting says.
     if (kind === "marker") {
-      applyScriptFont(el, text);
-      markAnnotated(el, text);
+      unrouted.push({ el, text });
       continue;
     }
     if (kind === "lyric") {
@@ -118,18 +123,14 @@ async function scan(): Promise<void> {
       originals.push({ el, text });
       translationStates.push(line.translation);
     } else if (!settings.annotateCredits) {
-      // Skipped lines are never routed, so they would otherwise be the only
-      // lines on the page without a lang attribute, and would render in NCM's
-      // default font while everything around them uses the user's stack.
-      applyScriptFont(el, text);
-      markAnnotated(el, text);
+      unrouted.push({ el, text });
       continue;
     }
     if (isAnnotatedFrom(el, text)) continue;
     pending.push({ el, original: text, translation: line.translation });
   }
 
-  if (pending.length === 0) {
+  if (pending.length === 0 && unrouted.length === 0) {
     // Steady state: every visible line is annotated. Attach (and, when
     // enabled, request) AI translations now so they never race annotation.
     maybeTranslate(originals, scheduleScan);
@@ -141,6 +142,11 @@ async function scan(): Promise<void> {
     `scan: ${pending.length} new lines, document branch: ${docContext.branch ?? "none"}` +
       (docContext.bilingual ? " (bilingual)" : ""),
   );
+
+  for (const line of unrouted) {
+    applyScriptFont(line.el, line.text, docContext.branch);
+    markAnnotated(line.el, line.text);
+  }
 
   const japanese: JapaneseWork[] = [];
   const chinese: PendingLine[] = [];

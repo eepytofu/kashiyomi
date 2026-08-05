@@ -42,6 +42,29 @@ export function labelScript(text: string, hanFallback: ScriptLang): ScriptLang {
 }
 
 /**
+ * `labelScript` for a caller that would rather guess than leave text unstyled.
+ *
+ * The difference is rung 5. `labelScript` abstains on text with no Han at all,
+ * which is right for an AI translation — untagged text inherits, and inheriting
+ * is harmless. It is wrong for a line of NCM's own lyric list, where untagged
+ * means NCM's default stack: a singer marker naming a Latin-alphabet artist,
+ * 【KBShinya 】 in 归家, rendered in 微软雅黑 between two 【哦漏】 markers that
+ * took the user's Chinese face because they happen to contain Han.
+ *
+ * So the fallback covers both inconclusive rungs — Han that could be either,
+ * and no CJK at all — and the caller passes the document's own language.
+ *
+ * What this buys is a property rather than a patch: **every line gets a font,
+ * or none does.** When the document branch is known each line resolves, through
+ * its own script or through the branch. When it is undecided this returns
+ * undefined for every line including the lyrics, so the page is uniform anyway.
+ * There is no third case, which is why no "unknown script" font is needed.
+ */
+export function scriptForFont(text: string, fallback: ScriptLang): ScriptLang {
+  return labelScript(text, fallback) ?? fallback;
+}
+
+/**
  * The AI target-language setting as a script tag, for rung 4.
  *
  * Read from the *returned translation* wherever possible and use this only as

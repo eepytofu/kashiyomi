@@ -609,6 +609,20 @@
     "replace": "  const name = target;"
   },
   {
+    "id": "scriptLang/font-fallback-abstains",
+    "file": "src/engine/scriptLang.ts",
+    "what": "a line with no CJK goes untagged, so a Latin-named marker keeps NCM's default font",
+    "find": "  return labelScript(text, fallback) ?? fallback;",
+    "replace": "  return labelScript(text, fallback);"
+  },
+  {
+    "id": "scriptLang/font-fallback-overrules",
+    "file": "src/engine/scriptLang.ts",
+    "what": "the document branch overrules the line's own script instead of filling silence",
+    "find": "  return labelScript(text, fallback) ?? fallback;",
+    "replace": "  return fallback ?? labelScript(text, fallback);"
+  },
+  {
     "id": "pinyin/no-chengyu-hyphen",
     "file": "src/engine/pinyin.ts",
     "what": "a four-syllable word joins solid instead of taking the GB/T 2+2 hyphen",

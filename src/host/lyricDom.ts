@@ -6,8 +6,9 @@
 // churn breaks. Lines are matched by text content rather than class names, so a
 // changed selector degrades to "no annotation" instead of to wrong output.
 
-import type { LineTranslationState } from "../engine/cjk.ts";
+import type { CjkDocumentBranch, LineTranslationState } from "../engine/cjk.ts";
 import { hasHan, hasKana } from "../engine/kana.ts";
+import { scriptForFont, type ScriptLang } from "../engine/scriptLang.ts";
 import { MARK_ATTR, ROW_CLASS, SRC_ATTR } from "./render.ts";
 import { log } from "./log.ts";
 
@@ -113,10 +114,35 @@ export function isOriginalLyricElement(el: HTMLElement): boolean {
  * Tag a line we are not going to annotate with the script it is written in, so
  * the Japanese/Chinese font settings still reach it. Routing normally does
  * this; lines we skip never get routed.
+ *
+ * `branch` is the document's language, used when the line carries no script of
+ * its own. Without it a singer marker naming a Latin-alphabet artist —
+ * 【KBShinya 】 in 归家 — matched neither test and kept NCM's default stack,
+ * while 【哦漏】 and 【KBShinya/哦漏】 in the same song took the Chinese font
+ * because they happen to contain Han. Three treatments, one kind of line.
+ *
+ * This is the same fallback the routing path already applies to a scriptless
+ * *lyric*; it was simply never reachable here, because skipped lines were
+ * labelled before the document branch had been resolved.
+ *
+ * The result is worth stating as an invariant: after a scan every lyric `<p>`
+ * carries a `lang`, unless the document branch is undecided — in which case no
+ * line on the page has one either, so the page is uniform regardless.
  */
-export function applyScriptFont(el: HTMLElement, text: string): void {
-  if (hasKana(text)) el.setAttribute("lang", "ja");
-  else if (hasHan(text)) el.setAttribute("lang", "zh");
+export function applyScriptFont(
+  el: HTMLElement,
+  text: string,
+  branch?: CjkDocumentBranch,
+): void {
+  const lang = scriptForFont(text, branchScript(branch));
+  if (lang !== undefined) el.setAttribute("lang", lang);
+}
+
+/** The routing branch as a font tag. Two vocabularies for the same two languages. */
+function branchScript(branch: CjkDocumentBranch): ScriptLang {
+  if (branch === "japanese") return "ja";
+  if (branch === "chinese") return "zh";
+  return undefined;
 }
 
 export function hasProviderTranslationSibling(el: HTMLElement): boolean {

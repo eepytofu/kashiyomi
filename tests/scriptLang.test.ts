@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { labelScript, targetLangScript } from "../src/engine/scriptLang.ts";
+import { labelScript, scriptForFont, targetLangScript } from "../src/engine/scriptLang.ts";
 
 // Lyric fixtures are captured lines from 下等马 (ChiliChill / 洛天依), 2026-08-05.
 // Translation fixtures are marked as constructed, because no captured song has
@@ -50,6 +50,40 @@ test("text with no han is never tagged", () => {
   // variants, so tagging it would only pick a CJK face for Latin text.
   assert.equal(labelScript("Lift up your head", "zh"), undefined);
   assert.equal(labelScript("", "zh"), undefined);
+});
+
+test("a lyric-list line falls back rather than going untagged", () => {
+  // The markers of 归家, captured 2026-08-06, in the order they appear. Under
+  // labelScript the middle one is undefined — no kana, no Han, 【】 being CJK
+  // punctuation rather than Han script — so it kept NCM's default stack while
+  // its neighbours took the user's Chinese face. Three treatments of one kind
+  // of line, in one song.
+  assert.equal(scriptForFont("【哦漏】", "zh"), "zh");
+  assert.equal(scriptForFont("【KBShinya 】", "zh"), "zh");
+  assert.equal(scriptForFont("【KBShinya/哦漏】", "zh"), "zh");
+  // Section markers from the same song, which carry no script either.
+  assert.equal(scriptForFont("-M-", "zh"), "zh");
+  assert.equal(scriptForFont("/题记/", "zh"), "zh");
+});
+
+test("the line's own script still outranks the document it sits in", () => {
+  // The fallback fills silence; it does not overrule evidence. A Japanese line
+  // inside a Chinese song keeps its own face.
+  assert.equal(scriptForFont("君に言った", "zh"), "ja");
+  assert.equal(scriptForFont("头抬起来", "ja"), "zh");
+});
+
+test("with no document branch, nothing is tagged at all", () => {
+  // The property that makes a separate 'unknown script' font unnecessary: when
+  // the branch is undecided this abstains for *every* line, lyrics included, so
+  // the page is uniform on NCM's default rather than mixed. There is no case
+  // where some lines resolve and others do not.
+  for (const text of ["【KBShinya 】", "-M-", "Lift up your head", ""]) {
+    assert.equal(scriptForFont(text, undefined), undefined, text);
+  }
+  // Except where the text speaks for itself, which is still honoured.
+  assert.equal(scriptForFont("君に言った", undefined), "ja");
+  assert.equal(scriptForFont("头抬起来", undefined), "zh");
 });
 
 test("only the panel's own CJK targets map to a script", () => {
