@@ -11,11 +11,16 @@ import { applyStyles } from "../styles.ts";
 import { card, sectionTitle } from "./rows.ts";
 
 /**
- * 無 (立入禁止 / 歌爱ユキ / 诗岸), captured from the app. Its Chinese verses are
- * the ones this plugin's routing was built around. Note the segmenter treats
- * the whole line as one word, so it shows word grouping at its most extreme.
+ * 下等马 (ChiliChill / 洛天依), captured from the app. Every group is a correct
+ * split — 在 / 悬崖 / 看 / 红霞 — so "group by word" reads as six syllables
+ * becoming four words.
+ *
+ * The previous sample, 无可奈何花落去, was one dictionary entry, so grouping
+ * rendered a single seven-syllable run and made a working setting look broken.
+ * Any replacement needs several groups that are each a real multi-syllable
+ * word, and no chengyu, neutral tone or 一/不 sandhi; see BACKLOG.md.
  */
-const ZH_SAMPLE = "无可奈何花落去";
+const ZH_SAMPLE = "在悬崖看红霞";
 
 /** Builds the preview card into `column`; returns a refresh function. */
 export function buildPreviewCard(column: HTMLElement): () => void {
@@ -114,12 +119,11 @@ export function buildPreviewCard(column: HTMLElement): () => void {
     // behave the same way — with furigana and romaji off they render as plain
     // text rather than disappearing.
     //
-    // Romanized by the production function, not a canned string. The canned one
-    // hardcoded the word grouping as 无可奈何 / 花 / 落去 and was simply wrong:
-    // with the complete dictionary loaded the segmenter takes the whole line as
-    // one word, so "Group Pinyin by word" really renders wúkěnàihéhuāluòqù.
-    // Word grouping needs that dictionary, which is loaded on demand — until it
-    // arrives the preview shows the ungrouped reading, then refreshes.
+    // Romanized by the production function, not a canned string. A canned one
+    // was wrong once already: it hardcoded a grouping the segmenter does not
+    // produce. Word grouping needs the complete dictionary, which is loaded on
+    // demand — until it arrives the preview shows the ungrouped reading, then
+    // refreshes.
     if (settings.pinyin) {
       renderPinyinRow(zhLine, romanizeMandarin(ZH_SAMPLE, {
         tones: settings.pinyinTones,
