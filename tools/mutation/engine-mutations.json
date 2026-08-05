@@ -546,6 +546,20 @@
     "replace": "  return parts.join(\" \");"
   },
   {
+    "id": "pinyin/no-chengyu-hyphen",
+    "file": "src/engine/pinyin.ts",
+    "what": "a four-syllable word joins solid instead of taking the GB/T 2+2 hyphen",
+    "find": "  if (!allHan || pieces.length !== 4) return pieces.join(\"\");",
+    "replace": "  if (true) return pieces.join(\"\");"
+  },
+  {
+    "id": "pinyin/hyphen-at-any-length",
+    "file": "src/engine/pinyin.ts",
+    "what": "the hyphen is applied to runs that are not four syllables",
+    "find": "  if (!allHan || pieces.length !== 4) return pieces.join(\"\");",
+    "replace": "  if (!allHan || pieces.length < 4) return pieces.join(\"\");"
+  },
+  {
     "id": "hanRepair/converts-kyujitai-too",
     "file": "src/engine/hanRepair.ts",
     "what": "repair takes the conversion for every character, modernizing kyujitai as well",

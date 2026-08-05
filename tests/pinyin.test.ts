@@ -20,6 +20,37 @@ test("word joining keeps segmented words together", () => {
   );
 });
 
+test("a four-syllable word is hyphenated 2+2 for readability", () => {
+  // Approximates GB/T 16159 rather than implementing it: the standard hyphenates
+  // only idioms that read as two disyllabic feet, and that distinction is not
+  // computable here. Kept because four syllables run together is the one length
+  // nobody can parse. bùyìlèhū is the known-wrong class; see pinyin.ts.
+  const j = (text: string) => romanizeMandarin(text, { tones: true, joinWords: true });
+  assert.equal(j("五味杂陈"), "wǔwèi-záchén");
+  assert.equal(j("莫名其妙"), "mòmíng-qímiào");
+  assert.equal(j("心旷神怡"), "xīnkuàng-shényí");
+  // Tone sandhi still applies across the hyphen.
+  assert.equal(j("一心一意"), "yìxīn-yíyì");
+  // Inside a line, and with the toggle off it is spaced as before.
+  assert.equal(j("才心旷神怡"), "cái xīnkuàng-shényí");
+  assert.equal(
+    romanizeMandarin("才心旷神怡", { tones: true, joinWords: false }),
+    "cái xīn kuàng shén yí",
+  );
+});
+
+test("only four syllables are hyphenated, and only Han ones", () => {
+  const j = (text: string) => romanizeMandarin(text, { tones: true, joinWords: true });
+  // Two and three syllable words are readable joined and take no hyphen.
+  assert.equal(j("在悬崖看红霞"), "zài xuányá kàn hóngxiá");
+  assert.equal(j("说不出的sorry"), "shuōbùchū de sorry");
+  // Longer runs stay joined. 无可奈何花落去 is one dictionary entry, so there is
+  // no word boundary to cut on; a length cap would be an invented constant.
+  assert.equal(j("无可奈何花落去"), "wúkěnàihéhuāluòqù");
+  // A four-character Latin run is not a four-syllable Chinese word.
+  assert.equal(j("abcd"), "abcd");
+});
+
 test("no tones", () => {
   assert.equal(romanizeMandarin("狂想", { tones: false, joinWords: false }), "kuang xiang");
 });

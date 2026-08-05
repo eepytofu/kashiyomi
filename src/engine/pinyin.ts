@@ -57,10 +57,39 @@ export function romanizeMandarin(text: string, options: PinyinOptions): string {
     const pieces = group.map((entry) => entry.result.trim()).filter((piece) => piece !== "");
     if (pieces.length === 0) continue;
     if (options.joinWords) {
-      parts.push(pieces.join(""));
+      parts.push(joinOneWord(pieces, group.every((entry) => HAN.test(entry.origin ?? ""))));
     } else {
       parts.push(...pieces);
     }
   }
   return toLatinPunctuation(parts.join(" "));
+}
+
+const HAN = /\p{Script=Han}/u;
+
+/**
+ * Hyphenate a four-syllable Han word 2+2: wǔwèi-záchén.
+ *
+ * This **approximates** GB/T 16159, it does not implement it. The standard
+ * hyphenates only an idiom that reads as two disyllabic feet and writes the
+ * rest solid (bùyìlèhū), and which class an idiom is in is prosodic, so it is
+ * not computable from the dictionary we load. Measured: across eleven idioms
+ * that do divide, asking whether each half is itself a dictionary word
+ * separated nothing — 层出不穷 and 心旷神怡 have neither half as a word, and
+ * 亡羊补牢 has one, exactly like the solid class.
+ *
+ * So the rule is unconditional and knowingly wrong for the solid minority. It
+ * ships anyway because four syllables run together is the one length nobody can
+ * parse: wǔwèi-záchén reads, wǔwèizáchén does not. When a captured lyric turns
+ * up a real bùyìlèhū, add an explicit exception set here — not a cleverer
+ * inference rule, which is the thing already measured and found not to exist.
+ * `TRANSFORMS.md` holds the bar an entry has to clear.
+ *
+ * Longer runs stay joined: they come from one dictionary entry spanning several
+ * words (无可奈何花落去 is a single entry), so there is no boundary to cut on and
+ * a length cap would just be a magic number.
+ */
+function joinOneWord(pieces: readonly string[], allHan: boolean): string {
+  if (!allHan || pieces.length !== 4) return pieces.join("");
+  return `${pieces[0]}${pieces[1]}-${pieces[2]}${pieces[3]}`;
 }
