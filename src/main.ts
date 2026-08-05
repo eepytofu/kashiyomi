@@ -2,6 +2,7 @@
 // main NCM page.
 
 import { rescan, startAnnotator } from "./host/annotator.ts";
+import { parseApiKeys } from "./engine/apiKeys.ts";
 import { log } from "./host/log.ts";
 import { nativeInit, nativeState } from "./host/native.ts";
 import { resolveAssetPaths } from "./host/paths.ts";
@@ -30,7 +31,20 @@ async function start(): Promise<void> {
   (window as unknown as Record<string, unknown>).kashiyomi = {
     state: () => nativeState(),
     rescan,
-    settings: getSettings,
+    // Redacted, because this handle is read as routine: the project's own rule
+    // is to record kashiyomi.settings() with every live observation, so its
+    // output lands in docs, transcripts and screenshots. It returned the key
+    // verbatim, and did so once. Debugging needs to know whether translation is
+    // configured, never the secret itself. The panel still edits the real value
+    // through getSettings directly.
+    settings: () => {
+      const settings = getSettings();
+      const count = parseApiKeys(settings.aiApiKey).length;
+      return {
+        ...settings,
+        aiApiKey: count === 0 ? "" : `<redacted: ${count} key${count === 1 ? "" : "s"}>`,
+      };
+    },
   };
 }
 
