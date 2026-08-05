@@ -23,12 +23,26 @@ export function applyStyles(): void {
     MAX_FURIGANA_SIZE,
     Math.max(MIN_FURIGANA_SIZE, Math.round(settings.furiganaSize)),
   );
+  // Rows first, so the [lang] rules below can override them. Both carry
+  // !important, so the winner is decided on specificity: `.row[lang="zh"]`
+  // (0,2,0) beats `.row` (0,1,0) whatever the source order, but keeping the
+  // order readable matters more than relying on that.
+  //
+  // A row is tagged only when its own text is CJK — see scriptLang.ts. An
+  // untagged row is Latin (romaji, pinyin, an English translation) and takes
+  // the reading-row font, which is the point: it stays one face across songs
+  // instead of inheriting whichever script its line happened to route to.
   let fontRule = "";
+  if (settings.useRowFont && settings.rowFontStack.trim() !== "") {
+    fontRule += `.${ROW_CLASS} { font-family: ${settings.rowFontStack} !important; }\n`;
+  }
   if (settings.useJpFont && settings.jpFontStack.trim() !== "") {
     fontRule += `ul.lyric li p[lang="ja"] { font-family: ${settings.jpFontStack} !important; }\n`;
+    fontRule += `.${ROW_CLASS}[lang="ja"] { font-family: ${settings.jpFontStack} !important; }\n`;
   }
   if (settings.useZhFont && settings.zhFontStack.trim() !== "") {
     fontRule += `ul.lyric li p[lang="zh"] { font-family: ${settings.zhFontStack} !important; }\n`;
+    fontRule += `.${ROW_CLASS}[lang="zh"] { font-family: ${settings.zhFontStack} !important; }\n`;
   }
   style.textContent = `
 .${ROW_CLASS} {

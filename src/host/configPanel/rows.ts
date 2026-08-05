@@ -144,7 +144,7 @@ export function sizeRow(refreshPreview: () => void): HTMLElement {
 }
 
 export function fontStackRow(
-  key: "jpFontStack" | "zhFontStack",
+  key: "jpFontStack" | "zhFontStack" | "rowFontStack",
   defaultValue: string,
   labelKey: StringKey,
   descKey: StringKey,

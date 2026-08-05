@@ -5,6 +5,7 @@
 // coexist, and routing reads 译 through translationStateFor, not from here.
 
 import { shouldDisplayTranslation } from "../engine/aiTranslation.ts";
+import { labelScript, targetLangScript } from "../engine/scriptLang.ts";
 import { ROW_CLASS } from "./render.ts";
 import { getSettings } from "./settings.ts";
 import { translateSong, translationConfigured } from "./translator.ts";
@@ -26,6 +27,16 @@ export function resetTranslation(): void {
 
 function attachTranslationRows(originals: readonly OriginalLine[]): void {
   if (txByText.size === 0) return;
+  // The row sits inside the lyric <p>, so without a lang of its own it inherits
+  // the *lyric's* script: a Japanese song translated to 简体中文 rendered its
+  // Chinese in Hiragino. Measured on 下等马 2026-08-05 — the row computed to
+  // Noto Serif SC with no lang attribute at all. Invisible while the target is
+  // English, because Latin has no regional variants.
+  //
+  // The target setting is only the fallback, never the answer: it has a
+  // free-text Custom option, so no name-to-tag table can be complete, and the
+  // model may ignore the instruction anyway. What came back is the ground truth.
+  const targetFallback = targetLangScript(getSettings().aiTargetLang);
   for (const { el, text } of originals) {
     const translated = txByText.get(text);
     if (!translated) continue;
@@ -42,6 +53,10 @@ function attachTranslationRows(originals: readonly OriginalLine[]): void {
     const row = document.createElement("div");
     row.className = `${ROW_CLASS} kashiyomi-tx`;
     row.textContent = translated;
+    // Undefined for a translation with no Han at all, which is left untagged so
+    // it takes the reading-row font like every other Latin row.
+    const lang = labelScript(translated, targetFallback);
+    if (lang !== undefined) row.setAttribute("lang", lang);
     el.appendChild(row);
   }
 }

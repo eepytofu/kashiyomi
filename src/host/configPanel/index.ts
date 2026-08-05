@@ -100,6 +100,10 @@ function render(root: HTMLElement): void {
 
   left.appendChild(sectionTitle(t("sectionAdvanced")));
   const adv = card();
+  // Not under Japanese or Chinese: it governs the rows under both, and putting
+  // it in either section would imply it only applies there.
+  adv.appendChild(toggleRow("useRowFont", t("rowFont"), t("rowFontDesc"), refreshPreview, false));
+  adv.appendChild(fontStackRow("rowFontStack", DEFAULT_JP_FONT_STACK, "rowFontStack", "fontStackDesc", refreshPreview));
   adv.appendChild(toggleRow("annotateCredits", t("credits"), t("creditsDesc")));
   adv.appendChild(toggleRow("debug", t("debug"), t("debugDesc"), () => {}));
   left.appendChild(adv);

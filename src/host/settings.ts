@@ -22,6 +22,16 @@ export type Settings = {
    */
   useZhFont: boolean;
   zhFontStack: string;
+  /**
+   * Font for reading rows (romaji, pinyin) and for translation rows carrying no
+   * CJK of their own. Without it a row inherits its lyric's script, so the same
+   * romaji renders in two different faces on a bilingual page — 58 rows split
+   * across both stacks on 無. Following the document branch instead was
+   * rejected: it gives one face per song but changes face *between* songs,
+   * which is worse than the inconsistency it fixes.
+   */
+  useRowFont: boolean;
+  rowFontStack: string;
   /** Settings panel language; unset follows the page locale. */
   panelLang?: "en" | "zh";
   aiAutoTranslate: boolean;
@@ -66,6 +76,10 @@ const DEFAULTS: Settings = {
   jpFontStack: DEFAULT_JP_FONT_STACK,
   useZhFont: false,
   zhFontStack: DEFAULT_ZH_FONT_STACK,
+  // Latin, so the Japanese stack is a starting point rather than a claim about
+  // the text; a mainland user can point it at the Chinese one.
+  useRowFont: true,
+  rowFontStack: DEFAULT_JP_FONT_STACK,
   aiAutoTranslate: false,
   aiProvider: "openai",
   aiBaseUrl: "https://api.openai.com/v1",
