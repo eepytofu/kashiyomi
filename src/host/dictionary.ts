@@ -32,7 +32,6 @@ import { getSettings, updateSettings } from "./settings.ts";
 import {
   nativeFreeSpace,
   nativeInstallDictionary,
-  nativeReload,
   nativeSweepPartials,
 } from "./native.ts";
 
@@ -158,18 +157,30 @@ export type DownloadPlan = {
   readonly member: string;
   /** The directory both live in, so callers stop slicing it back out of a path. */
   readonly directory: string;
+  /**
+   * A dictionary this install replaces, deleted once the new one loads.
+   *
+   * Only ever set when switching to a *different* edition — an update writes
+   * the same filename, so there is nothing left over. Without this, switching
+   * core to small left 207 MB of a dictionary nothing would open again, on a
+   * disk we had just asked the user to make room on.
+   */
+  readonly superseded?: string;
 };
 
 export function planDownload(
   release: DictionaryRelease,
   dictionaryDir: string,
+  installed: readonly DictionaryEdition[] = [],
 ): DownloadPlan {
+  const replaced = installed.filter((edition) => edition !== release.edition);
   return {
     release,
     archivePath: archivePath(dictionaryDir, release.edition, release.version),
     targetPath: dictionaryPath(dictionaryDir, release.edition),
     member: `sudachidict_${release.edition}/resources/system.dic`,
     directory: dictionaryDir,
+    superseded: replaced[0] ? dictionaryPath(dictionaryDir, replaced[0]) : undefined,
   };
 }
 
@@ -223,6 +234,8 @@ export async function downloadDictionary(
       plan.release.sha256,
       plan.member,
       plan.targetPath,
+      resourceDir,
+      plan.superseded,
     );
     if (!installed.ok) {
       // The backend already discarded the archive and any staging; the message
@@ -230,8 +243,11 @@ export async function downloadDictionary(
       log.info(`dictionary install failed: ${installed.error}`);
       return fail(/checksum/u.test(installed.error) ? "checksum" : "extract");
     }
+    if (!installed.started) return fail("load");
 
-    if (!nativeReload(plan.targetPath, resourceDir)) return fail("load");
+    // Recorded now, not after the load reports Ready. The bytes are verified
+    // and in place; forgetting the version because a load was momentarily busy
+    // used to cost another 69 MB to learn a date string we already had.
     updateSettings({
       dictEdition: plan.release.edition,
       dictVersion: plan.release.version,

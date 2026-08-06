@@ -76,7 +76,29 @@ pub fn begin_init(dict_path: String, resource_dir: String) {
             State::Uninitialized | State::Failed(_) => *guard = State::Loading,
         }
     }
-    spawn_load(dict_path, resource_dir);
+    spawn_load(dict_path, resource_dir, None);
+}
+
+/// Close the loaded dictionary, releasing the file so it can be replaced.
+///
+/// `sudachi.rs` holds the `.dic` as a memory map (`dic/storage.rs`, `File(Mmap)`)
+/// and Windows refuses to rename over a mapped file. Dropping the `Ready` state
+/// drops the last `Arc` and with it the mapping — which is the *only* way the
+/// handle is released, and why this cannot be done from the host: the state is
+/// behind this module's mutex.
+///
+/// Returns whether a dictionary was actually unloaded, so a caller can tell a
+/// replacement from a first install.
+///
+/// A concurrent `analyze_lines` holds its own `Arc` clone for the duration of
+/// the call, so the mapping outlives this by exactly that long. Both run on the
+/// renderer's single thread today; if that stops being true, the rename after
+/// this is the thing that will start failing.
+pub fn unload() -> bool {
+    let mut guard = state_cell().lock().expect("analyzer state lock");
+    let was_loaded = matches!(&*guard, State::Ready(_));
+    *guard = State::Uninitialized;
+    was_loaded
 }
 
 /// Replace a dictionary already in memory, for switching edition or updating.
@@ -98,6 +120,21 @@ pub fn begin_init(dict_path: String, resource_dir: String) {
 ///
 /// Returns false when it declined, so the caller can tell "busy" from "started".
 pub fn begin_reload(dict_path: String, resource_dir: String) -> bool {
+    begin_reload_replacing(dict_path, resource_dir, None)
+}
+
+/// As `begin_reload`, and delete `superseded` once the new dictionary is up.
+///
+/// Switching edition leaves the old `.dic` behind — 207 MB of a dictionary
+/// nothing will open again, on a disk we just asked the user to make room on.
+/// Deleting it **only after a successful load** is the point: if the new one
+/// fails, the old file is the only working dictionary on the machine, and it
+/// has to still be there.
+pub fn begin_reload_replacing(
+    dict_path: String,
+    resource_dir: String,
+    superseded: Option<String>,
+) -> bool {
     {
         let mut guard = state_cell().lock().expect("analyzer state lock");
         if matches!(&*guard, State::Loading) {
@@ -105,20 +142,32 @@ pub fn begin_reload(dict_path: String, resource_dir: String) -> bool {
         }
         *guard = State::Loading;
     }
-    spawn_load(dict_path, resource_dir);
+    spawn_load(dict_path, resource_dir, superseded);
     true
 }
 
-fn spawn_load(dict_path: String, resource_dir: String) {
+fn spawn_load(dict_path: String, resource_dir: String, superseded: Option<String>) {
     thread::Builder::new()
         .name("kashiyomi-dict-load".into())
         .spawn(move || {
             let result = load_dictionary(&dict_path, &resource_dir);
-            let mut guard = state_cell().lock().expect("analyzer state lock");
-            *guard = match result {
-                Ok(dictionary) => State::Ready(Arc::new(dictionary)),
-                Err(message) => State::Failed(message),
-            };
+            let loaded = result.is_ok();
+            {
+                let mut guard = state_cell().lock().expect("analyzer state lock");
+                *guard = match result {
+                    Ok(dictionary) => State::Ready(Arc::new(dictionary)),
+                    Err(message) => State::Failed(message),
+                };
+            }
+            if loaded {
+                if let Some(old) = superseded {
+                    // Best effort, and only now: the replacement is open and
+                    // working, so this file is genuinely spare.
+                    if old != dict_path {
+                        let _ = std::fs::remove_file(&old);
+                    }
+                }
+            }
         })
         .expect("spawn dictionary loader thread");
 }

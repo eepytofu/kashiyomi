@@ -23,14 +23,24 @@ enum Command {
         dict_path: String,
         resource_dir: String,
     },
-    /// Verify a downloaded archive and move the dictionary into place. The host
-    /// does the fetching; this does the part that must not touch the JS heap.
+    /// Verify a downloaded archive, put the dictionary in place, and load it.
+    ///
+    /// The host does the fetching; this does the part that must not touch the
+    /// JS heap — and, deliberately, **the whole tail in one call**. Unloading,
+    /// renaming and loading were split across the FFI boundary, which is how
+    /// they ended up in the wrong order: the host cannot unload, because the
+    /// analyzer's state is behind its own mutex, so the rename always ran
+    /// against a still-mapped file.
     #[serde(rename_all = "camelCase")]
     Install {
         archive: String,
         sha256: String,
         member: String,
         target: String,
+        resource_dir: String,
+        /// A dictionary this one replaces, deleted only once the new one loads.
+        #[serde(default)]
+        superseded: Option<String>,
     },
     /// Bytes free on the volume holding a directory, for checking before a
     /// download rather than after the bandwidth is spent.
@@ -91,9 +101,25 @@ pub fn handle(raw: &str) -> String {
             let started = analyzer::begin_reload(dict_path, resource_dir);
             ok(json!({ "started": started, "state": status_data().state }))
         }
-        Command::Install { archive, sha256, member, target } => {
-            match install::verify_and_install(&archive, &sha256, &member, &target) {
-                Ok(installed) => ok(json!({ "bytes": installed.bytes })),
+        Command::Install {
+            archive,
+            sha256,
+            member,
+            target,
+            resource_dir,
+            superseded,
+        } => {
+            match install::verify_and_install(&archive, &sha256, &member, &target, &|| {
+                analyzer::unload();
+            }) {
+                Ok(installed) => {
+                    // The dictionary is unloaded at this point *because* the
+                    // rename required it, so loading again is not optional —
+                    // returning without it would leave the analyzer closed.
+                    let started =
+                        analyzer::begin_reload_replacing(target, resource_dir, superseded);
+                    ok(json!({ "bytes": installed.bytes, "started": started }))
+                }
                 Err(message) => error(message),
             }
         }

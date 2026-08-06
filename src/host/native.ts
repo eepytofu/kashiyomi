@@ -55,14 +55,25 @@ export function nativeReload(dictPath: string, resourceDir: string): boolean {
   return (response.data as { started?: boolean }).started === true;
 }
 
-export type InstallResult = { ok: true; bytes: number } | { ok: false; error: string };
+export type InstallResult =
+  | { ok: true; bytes: number; started: boolean }
+  | { ok: false; error: string };
 
 /**
- * Hand a downloaded archive to the backend to verify and install.
+ * Hand a downloaded archive to the backend to verify, install **and load**.
  *
  * The fetch happens in JS because `fetch` is already HTTPS, already streams and
  * already honours the user's proxy. Everything after it happens natively,
  * because extraction produces 207 MB and that must not exist in this heap.
+ *
+ * The load is not a separate call any more. Installing closes the dictionary in
+ * order to replace it, so a caller that installed and then failed to reload
+ * would leave the analyzer shut — and the host cannot close it itself, which is
+ * how the unload and the rename ended up in the wrong order to begin with.
+ *
+ * `superseded` is a dictionary this one replaces (switching edition). The
+ * backend deletes it only once the new one has loaded, so a failed load still
+ * leaves a working dictionary on the machine.
  *
  * `sha256` is the value pinned at build time. A failure here always leaves the
  * previous dictionary untouched.
@@ -72,11 +83,22 @@ export function nativeInstallDictionary(
   sha256: string,
   member: string,
   target: string,
+  resourceDir: string,
+  superseded?: string,
 ): InstallResult {
-  const response = dispatch({ cmd: "install", archive, sha256, member, target });
+  const response = dispatch({
+    cmd: "install",
+    archive,
+    sha256,
+    member,
+    target,
+    resourceDir,
+    superseded: superseded ?? null,
+  });
   if (!response) return { ok: false, error: "the analyzer backend is unavailable" };
   if (response.status === "error") return { ok: false, error: response.message };
-  return { ok: true, bytes: Number((response.data as { bytes?: number }).bytes ?? 0) };
+  const data = response.data as { bytes?: number; started?: boolean };
+  return { ok: true, bytes: Number(data.bytes ?? 0), started: data.started === true };
 }
 
 /**

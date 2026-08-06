@@ -16,6 +16,7 @@ import { panelLang, t } from "../i18n.ts";
 import {
   dictionaryStatus,
   downloadDictionary,
+  installedEditions,
   onDictionaryStatusChange,
   planDownload,
   resolveRelease,
@@ -171,7 +172,9 @@ export function dictionaryRow(): HTMLElement {
         return;
       }
 
-      const plan: DownloadPlan = planDownload(release, dir);
+      // Ask the disk what is there, so switching edition can hand the backend
+      // the file it supersedes and reclaim its 207 MB once the new one loads.
+      const plan: DownloadPlan = planDownload(release, dir, await installedEditions(dir));
       const result = await downloadDictionary(plan, paths.resourceDir);
       // A new dictionary changes every reading in the song. The annotation
       // cache is keyed by line text, so rescan alone would put every line back

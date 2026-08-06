@@ -22,6 +22,12 @@ sha2 = "0.11.0"
 sudachi = { git = "https://github.com/WorksApplications/sudachi.rs.git", rev = "f4dd8f20a774bd71d34a7d4ffa00d987b8946f9e", default-features = false }
 zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 
+[dev-dependencies]
+# Already in the tree via sudachi, which holds the .dic as `Storage::File(Mmap)`.
+# Tests use it to hold a real mapping, so "unload before renaming" is checked
+# against the OS rather than against a comment.
+memmap2 = "0.9"
+
 [profile.release]
 opt-level = 3
 lto = true

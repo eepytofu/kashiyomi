@@ -36,6 +36,7 @@ pub fn verify_and_install(
     expected_sha256: &str,
     member: &str,
     target: &str,
+    unload: &dyn Fn(),
 ) -> Result<Installed, String> {
     let actual = sha256_file(archive)?;
     if !actual.eq_ignore_ascii_case(expected_sha256.trim()) {
@@ -56,14 +57,39 @@ pub fn verify_and_install(
         remove_quietly(&staged.to_string_lossy());
     })?;
 
-    // The caller unloads the dictionary before this point; on Windows the old
-    // file cannot be replaced while it is still open.
-    fs::rename(&staged, target).map_err(|e| {
-        remove_quietly(&staged.to_string_lossy());
-        format!("could not move the dictionary into place: {e}")
-    })?;
+    swap(&staged, target, unload)?;
     remove_quietly(archive);
     Ok(Installed { bytes: extracted })
+}
+
+/// Put the staged file in place, closing the loaded dictionary first.
+///
+/// This function exists because the ordering used to be split across the FFI
+/// boundary: a comment here claimed "the caller unloads the dictionary before
+/// this point", and **the caller could not** — the analyzer's state is behind
+/// its own mutex, reachable only from `analyzer`. So the rename always ran
+/// against a still-mapped file.
+///
+/// That was expected to break in-place updates and does not: measured on
+/// Windows 11 with current Rust, renaming over a mapped file succeeds (see
+/// `renaming_over_a_mapped_dictionary_is_permitted_here`). The old file is
+/// unlinked while the live mapping keeps serving its bytes. So this is not a
+/// repair of a reproduced failure — it is removing a dependency on that being
+/// true, which holds only for the newer rename path and not for the older
+/// `MoveFileEx` one an older Windows or a FAT-family volume would take.
+///
+/// It also fixes the part that was unambiguously wrong: after the old code
+/// renamed, the previous mapping stayed open with nothing arranging to close
+/// it until the host separately asked for a reload.
+///
+/// `unload` is injected rather than called directly so the ordering is testable
+/// without a 207 MB dictionary.
+pub fn swap(staged: &Path, target: &str, unload: &dyn Fn()) -> Result<(), String> {
+    unload();
+    fs::rename(staged, target).map_err(|e| {
+        remove_quietly(&staged.to_string_lossy());
+        format!("could not move the dictionary into place: {e}")
+    })
 }
 
 fn sha256_file(path: &str) -> Result<String, String> {
@@ -176,7 +202,18 @@ pub fn sweep_partials(directory: &str) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::RefCell;
     use std::io::Write;
+
+    /// Nothing to unload: the first install has no dictionary open.
+    fn no_unload() {}
+
+    /// What sudachi.rs holds on a loaded dictionary — a memory map of the file.
+    fn map_file(path: &Path) -> memmap2::Mmap {
+        let file = File::open(path).expect("open for mapping");
+        // SAFETY: the test owns the file and nothing else writes it while mapped.
+        unsafe { memmap2::Mmap::map(&file).expect("map the dictionary") }
+    }
 
     fn temp_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("kashiyomi-install-{name}"));
@@ -209,6 +246,7 @@ mod tests {
             &hash,
             "pkg/resources/system.dic",
             &target.to_string_lossy(),
+            &no_unload,
         )
         .expect("install");
 
@@ -231,6 +269,7 @@ mod tests {
             &"a".repeat(64),
             "pkg/resources/system.dic",
             &target.to_string_lossy(),
+            &no_unload,
         );
 
         assert!(result.is_err(), "must refuse");
@@ -255,11 +294,112 @@ mod tests {
             &hash,
             "pkg/resources/system.dic",
             &target.to_string_lossy(),
+            &no_unload,
         );
 
         assert!(result.is_err());
         assert_eq!(fs::read(&target).expect("read target"), b"the previous dictionary");
         assert!(!dir.join("system_core.dic.part").exists(), "staging is cleaned up");
+    }
+
+    /// The regression that made **Update** fail while **Switch** worked.
+    ///
+    /// An update writes the same filename the analyzer already has mapped, so
+    /// it is the only case where the rename meets a mapped file. It surfaced as
+    /// "could not unpack the download" after a download that verified.
+    #[test]
+    fn an_update_replaces_a_dictionary_that_is_currently_mapped() {
+        let dir = temp_dir("update-mapped");
+        let archive = dir.join("d.whl.part");
+        let target = dir.join("system_core.dic");
+        fs::write(&target, b"the previous dictionary").expect("seed target");
+        write_archive(&archive, "pkg/resources/system.dic", b"the new dictionary");
+        let hash = sha256_file(&archive.to_string_lossy()).expect("hash");
+
+        let mapped = RefCell::new(Some(map_file(&target)));
+
+        let installed = verify_and_install(
+            &archive.to_string_lossy(),
+            &hash,
+            "pkg/resources/system.dic",
+            &target.to_string_lossy(),
+            &|| {
+                mapped.borrow_mut().take();
+            },
+        )
+        .expect("an update over a mapped dictionary must succeed");
+
+        assert_eq!(installed.bytes, 18);
+        assert_eq!(fs::read(&target).expect("read target"), b"the new dictionary");
+        assert!(!archive.exists(), "the archive is removed once installed");
+    }
+
+    /// What the OS actually does, measured rather than assumed.
+    ///
+    /// This was written expecting the rename to **fail** while the target is
+    /// mapped — the belief that "Update is broken and Switch works". It does
+    /// not fail: Rust's `rename` on current Windows replaces a file that still
+    /// has a mapping, so the old dictionary is unlinked and the live mapping
+    /// keeps serving the old bytes until it is dropped.
+    ///
+    /// Kept as a test because it is the fact the ordering is designed around,
+    /// and because if a future toolchain or filesystem takes the older
+    /// `MoveFileEx` path instead, this starts failing and says so directly.
+    #[cfg(windows)]
+    #[test]
+    fn renaming_over_a_mapped_dictionary_is_permitted_here() {
+        let dir = temp_dir("rename-while-mapped");
+        let target = dir.join("system_core.dic");
+        let staged = dir.join("system_core.dic.part");
+        fs::write(&target, b"the previous dictionary").expect("seed target");
+        fs::write(&staged, b"the new dictionary").expect("seed staged");
+
+        let mapped = map_file(&target);
+
+        assert!(
+            fs::rename(&staged, &target).is_ok(),
+            "a mapped target does not block the rename on this platform",
+        );
+        assert_eq!(fs::read(&target).expect("read target"), b"the new dictionary");
+        assert_eq!(
+            mapped.as_ref(),
+            b"the previous dictionary",
+            "the live mapping still serves the unlinked bytes",
+        );
+    }
+
+    /// The ordering contract, independent of what any OS permits.
+    ///
+    /// The unload has to happen **before** the rename and exactly once. Leaving
+    /// that to the caller is what went wrong originally: the analyzer's state
+    /// is behind its own mutex, so the host could not unload even though a
+    /// comment here claimed it had.
+    #[test]
+    fn the_dictionary_is_closed_before_the_file_is_replaced() {
+        let dir = temp_dir("order");
+        let target = dir.join("system_core.dic");
+        let staged = dir.join("system_core.dic.part");
+        fs::write(&target, b"old").expect("seed target");
+        fs::write(&staged, b"new").expect("seed staged");
+
+        let unloads = RefCell::new(0u32);
+        let seen_target_when_unloaded = RefCell::new(Vec::new());
+
+        swap(&staged, &target.to_string_lossy(), &|| {
+            *unloads.borrow_mut() += 1;
+            seen_target_when_unloaded
+                .borrow_mut()
+                .extend_from_slice(&fs::read(&target).expect("read during unload"));
+        })
+        .expect("swap");
+
+        assert_eq!(*unloads.borrow(), 1, "unloaded exactly once");
+        assert_eq!(
+            &*seen_target_when_unloaded.borrow(),
+            b"old",
+            "the unload ran while the old dictionary was still the file on disk",
+        );
+        assert_eq!(fs::read(&target).expect("read target"), b"new");
     }
 
     #[test]
