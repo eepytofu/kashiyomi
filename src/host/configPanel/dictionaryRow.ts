@@ -12,7 +12,7 @@
 // clearCacheRow, a kc-button that disables while working, and the analyzer
 // status bar's kc-dot states.
 
-import { t } from "../i18n.ts";
+import { panelLang, t } from "../i18n.ts";
 import {
   dictionaryStatus,
   downloadDictionary,
@@ -33,15 +33,27 @@ const MB = 1024 * 1024;
 const mb = (bytes: number) => `${(bytes / MB).toFixed(1)} MB`;
 
 /**
- * SudachiDict versions are release dates as `20260723`. Readable here only —
- * the raw string is what version comparison uses, so it must not be normalised
- * anywhere the value is stored or compared, or an update check starts asking
- * whether "2026-07-23" equals "20260723".
+ * SudachiDict versions are release dates as `20260723`. Formatted per panel
+ * language, because the two do not agree and neither is "the superior format":
+ *
+ *   - Chinese and Japanese are **year first**, 2026年7月23日. That is not a
+ *     preference, it is the word order — 年月日 — and GB/T 7408 follows ISO 8601.
+ *   - Indonesian and most of Europe are day first, 23/07/2026. English is split,
+ *     since the US puts the month first, so day-first is the safer default for
+ *     the English panel.
+ *
+ * **Display only.** The raw string is what the update check compares, so
+ * normalising it at the source would have it asking whether "23/07/2026" equals
+ * "20260723" and re-downloading forever.
  */
-const releaseDate = (version: string): string =>
-  /^\d{8}$/u.test(version)
-    ? `${version.slice(0, 4)}-${version.slice(4, 6)}-${version.slice(6)}`
-    : version;
+const releaseDate = (version: string): string => {
+  const match = /^(\d{4})(\d{2})(\d{2})$/u.exec(version);
+  if (!match) return version;
+  const [, year, month, day] = match;
+  return panelLang() === "zh"
+    ? `${year}年${Number(month)}月${Number(day)}日`
+    : `${day}/${month}/${year}`;
+};
 
 export function dictionaryRow(): HTMLElement {
   const el = row();
