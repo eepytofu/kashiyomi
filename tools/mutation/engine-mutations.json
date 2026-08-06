@@ -381,15 +381,15 @@
     "id": "lineText/hints-off-still-strips",
     "file": "src/engine/lineText.ts",
     "what": "hints off rewrites the display instead of leaving NetEase's line alone",
-    "find": "  const displayText = options.readingHints ? projection.displayText : repaired;",
+    "find": "  const displayText = options.readingHints ? projection.displayText : shown;",
     "replace": "  const displayText = projection.displayText;"
   },
   {
     "id": "lineText/analyzer-sees-brackets",
     "file": "src/engine/lineText.ts",
     "what": "with hints off the analyzer is handed the bracketed line",
-    "find": "  const unbracketed = options.readingHints ? displayText : maskHintBrackets(displayText);",
-    "replace": "  const unbracketed = displayText;"
+    "find": "  const unbracketed = options.readingHints ? analysisShown : maskHintBrackets(analysisShown);",
+    "replace": "  const unbracketed = analysisShown;"
   },
   {
     "id": "lineText/okurigana-unconditional",
@@ -401,9 +401,16 @@
   {
     "id": "lineText/drop-han-repair",
     "file": "src/engine/lineText.ts",
-    "what": "kanji repair never runs",
-    "find": "  const repaired = options.hanRepair ? repairJapaneseHan(source) : source;",
-    "replace": "  const repaired = source;"
+    "what": "the kanji repair setting stops affecting the display, so repair never appears to run",
+    "find": "  const shown = options.hanRepair ? repaired : source;",
+    "replace": "  const shown = source;"
+  },
+  {
+    "id": "lineText/repair-gates-analysis",
+    "file": "src/engine/lineText.ts",
+    "what": "analysis follows the display setting again, so repair off means OOV and no furigana",
+    "find": "  const analysisShown = options.readingHints ? analysed.displayText : repaired;",
+    "replace": "  const analysisShown = options.readingHints ? projection.displayText : shown;"
   },
   {
     "id": "hanForms/drop-iteration-mark",
@@ -558,6 +565,97 @@
     "what": "一 and 不 keep their plain tone instead of the written change",
     "find": "    toneSandhi: true,",
     "replace": "    toneSandhi: false,"
+  },
+  {
+    "id": "heteronyms/watashi-stays-formal",
+    "file": "src/engine/japaneseHeteronyms.ts",
+    "what": "私 keeps sudachi's ワタクシ, so a first-person lyric reads in humble register",
+    "find": "  if (token.surface === \"私\" && token.readingKana !== WATASHI) return WATASHI;",
+    "replace": "  if (false) return WATASHI;"
+  },
+  {
+    "id": "heteronyms/nani-never-corrected",
+    "file": "src/engine/japaneseHeteronyms.ts",
+    "what": "何 keeps ナン everywhere, so 何も reads nan mo",
+    "find": "  if (token.surface !== \"何\" || token.readingKana !== NAN) return undefined;",
+    "replace": "  if (true) return undefined;"
+  },
+  {
+    "id": "heteronyms/nani-ignores-assimilation",
+    "file": "src/engine/japaneseHeteronyms.ts",
+    "what": "何 before a coronal is read なに, so 何だ becomes nani da",
+    "find": "  if (HAN.test(following) || CORONAL.has(following)) return undefined;",
+    "replace": "  if (HAN.test(following)) return undefined;"
+  },
+  {
+    "id": "heteronyms/nani-before-kanji",
+    "file": "src/engine/japaneseHeteronyms.ts",
+    "what": "何 before kanji is read なに, so an unabsorbed 何人 becomes nani nin",
+    "find": "  if (HAN.test(following) || CORONAL.has(following)) return undefined;",
+    "replace": "  if (CORONAL.has(following)) return undefined;"
+  },
+  {
+    "id": "heteronyms/bare-nani-stays-nan",
+    "file": "src/engine/japaneseHeteronyms.ts",
+    "what": "a line-final 何 keeps ナン, though a bare interrogative 何 is なに",
+    "find": "  if (following === \"\") return NANI;",
+    "replace": "  if (following === \"\") return undefined;"
+  },
+  {
+    "id": "dictionary/accepts-sdist",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "an sdist stub is accepted as a source, routing the download back to plaintext http",
+    "find": "    if (file.packagetype !== \"bdist_wheel\") continue;",
+    "replace": "    if (false) continue;"
+  },
+  {
+    "id": "dictionary/mirror-picks-arbitrary-version",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "the mirror index takes whichever release is listed last instead of the newest",
+    "find": "    if (release && (best === undefined || release.version > best.version)) best = release;",
+    "replace": "    if (release) best = release;"
+  },
+  {
+    "id": "dictionary/installs-without-a-hash",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "a release with no usable checksum is accepted, so unverifiable bytes can install",
+    "find": "  if (typeof sha256 !== \"string\" || !/^[0-9a-f]{64}$/u.test(sha256)) return undefined;",
+    "replace": "  if (typeof sha256 !== \"string\") return undefined;"
+  },
+  {
+    "id": "dictionary/checksum-mismatch-installs",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "a corrupt or tampered download is installed anyway",
+    "find": "  return actualSha256.toLowerCase() === expected.sha256.toLowerCase();",
+    "replace": "  return true;"
+  },
+  {
+    "id": "dictionary/free-space-ignores-extraction",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "only the archive is budgeted, so the disk fills during extraction after the bandwidth is spent",
+    "find": "  return archiveBytes + archiveBytes * EXTRACTED_RATIO + MARGIN;",
+    "replace": "  return archiveBytes + MARGIN;"
+  },
+  {
+    "id": "dictionary/space-prefers-smallest",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "a roomy disk is given the small edition, silently downgrading readings for no reason",
+    "find": "  for (const edition of [\"core\", \"small\"] as const) {",
+    "replace": "  for (const edition of [\"small\", \"core\"] as const) {"
+  },
+  {
+    "id": "dictionary/offers-unpriced-edition",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "an edition whose size never resolved is offered anyway, so the disk check is skipped",
+    "find": "    if (archive === undefined) continue;",
+    "replace": "    if (archive === undefined) return edition;"
+  },
+  {
+    "id": "dictionary/dead-end-offers-retry",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "every failure offers a retry, including the one where retrying repeats the same two refusals",
+    "find": "  return reason !== \"no-source\";",
+    "replace": "  return true;"
   },
   {
     "id": "pinyin/modal-ying-ignored",
