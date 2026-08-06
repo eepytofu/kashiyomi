@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit",
     "mutate": "node tools/mutation/run.mjs tools/mutation/cjk-mutations.json && node tools/mutation/run.mjs tools/mutation/engine-mutations.json",
     "capture": "node tools/capture/lyrics.mjs",
+    "bench": "node tools/bench.mjs",
     "fetch-dict": "node tools/fetch-dictionaries.mjs",
     "export-pinyin": "node tools/export-pinyin-dict.mjs",
     "dev-install": "node tools/dev-install.mjs",
