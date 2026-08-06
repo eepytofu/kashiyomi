@@ -197,7 +197,7 @@ export type DownloadPlan = {
    * Only ever set when switching to a *different* edition — an update writes
    * the same filename, so there is nothing left over. Without this, switching
    * core to small left 207 MB of a dictionary nothing would open again, on a
-   * disk we had just asked the user to make room on.
+   * disk the user had just been asked to make room on.
    */
   readonly superseded?: string;
 };
@@ -283,7 +283,7 @@ export async function downloadDictionary(
 
     // Recorded now, not after the load reports Ready. The bytes are verified
     // and in place; forgetting the version because a load was momentarily busy
-    // used to cost another 69 MB to learn a date string we already had.
+    // used to cost another 69 MB to learn a date string already in hand.
     updateSettings({
       dictEdition: plan.release.edition,
       dictVersion: plan.release.version,

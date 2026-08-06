@@ -126,7 +126,7 @@ pub fn begin_reload(dict_path: String, resource_dir: String) -> bool {
 /// As `begin_reload`, and delete `superseded` once the new dictionary is up.
 ///
 /// Switching edition leaves the old `.dic` behind — 207 MB of a dictionary
-/// nothing will open again, on a disk we just asked the user to make room on.
+/// nothing will open again, on a disk the user was just asked to clear space on.
 /// Deleting it **only after a successful load** is the point: if the new one
 /// fails, the old file is the only working dictionary on the machine, and it
 /// has to still be there.

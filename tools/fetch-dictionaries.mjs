@@ -52,8 +52,8 @@ const positional = process.argv.slice(2).filter((a) => a !== "");
 const edition = positional.find((a) => EDITIONS.has(a)) ?? "core";
 const pinnedVersion = positional.find((a) => !EDITIONS.has(a));
 const dictDir = path.resolve(import.meta.dirname, "..", "assets", "dict");
-// Where *we* keep it — the plugin decides at boot which of these to open, so
-// this name has to be the one it looks for.
+// The plugin decides at boot which of these to open, so this name has to be
+// the one it looks for.
 const target = path.join(dictDir, dictionaryFileName(edition));
 
 // Check for the dictionary before resolving anything: there is no reason to
@@ -83,9 +83,9 @@ execFileSync("powershell", [
   "-Command",
   `Expand-Archive -LiteralPath "${zipPath}" -DestinationPath "${extractDir}" -Force`,
 ]);
-// Their layout, not ours: the name inside the zip is the vendor's and happens
-// to match what we call it. Kept literal so a future divergence breaks here,
-// visibly, rather than renaming the wrong file.
+// The vendor's layout: the name inside the zip happens to match the plugin's
+// own. Kept literal so a future divergence breaks here, visibly, rather than
+// renaming the wrong file.
 await rename(
   path.join(extractDir, `sudachi-dictionary-${version}`, `system_${edition}.dic`),
   target,

@@ -25,14 +25,14 @@ export const DICTIONARY_EDITIONS = ["full", "core", "small"] as const;
  *
  * `full` is not a variation on the other two, it is a different supply chain:
  * PyPI carries no wheel for it, so the archive is the vendor's own zip, laid
- * out differently inside and checked against a digest we computed rather than
- * one the publisher asserted. Modelling that as data keeps the difference in
- * one place instead of as branches through the download path.
+ * out differently inside, and checked against a digest computed at pin time
+ * rather than one the publisher asserted. Modelling that as data keeps the
+ * difference in one place instead of as branches through the download path.
  */
 export type DictionarySupply = {
   /** How the archive is named inside, which differs between wheel and zip. */
   readonly member: string;
-  /** True when only a hash we generated ourselves can vouch for the bytes. */
+  /** True when only a hash generated at pin time can vouch for the bytes. */
   readonly selfPinned: boolean;
 };
 
@@ -100,10 +100,11 @@ const WHEEL = /^sudachidict_(small|core)-(\d{8})-/;
 /**
  * Read PyPI's own JSON API response.
  *
- * Only a wheel is acceptable. An sdist is a stub that downloads from the
- * vendor's plaintext S3 at install time, which is the host this whole design
- * exists to avoid — so a release offering only an sdist is treated as absent
- * rather than as something to fall back to.
+ * Only a wheel is acceptable. An sdist is a ~9 KB stub that fetches the real
+ * archive at install time, so it carries no dictionary and its digest vouches
+ * for nothing. A release offering only an sdist is treated as absent rather
+ * than as something to fall back to. `full` is exactly that case, which is why
+ * it resolves through `resolveFullFromPypi` instead.
  */
 export function parsePypiRelease(
   edition: DictionaryEdition,
@@ -157,9 +158,9 @@ export function parseSimpleIndexRelease(
 }
 
 export type FullResolution =
-  /** The upstream release is the one we pinned a digest for, so it is installable. */
+  /** The upstream release is the pinned one, so a digest exists and it installs. */
   | { readonly kind: "pinned"; readonly release: DictionaryRelease }
-  /** A newer release exists that no digest we hold can vouch for. */
+  /** A newer release exists that no pinned digest can vouch for. */
   | { readonly kind: "newer"; readonly version: string };
 
 /**

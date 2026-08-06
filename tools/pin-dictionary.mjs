@@ -33,7 +33,7 @@ async function pinFromWheel(edition) {
  * full has no wheel — at 121 MB it exceeds PyPI's 100 MiB per-file limit — so
  * its bytes live only at the vendor's host, which publishes no digest at all.
  *
- * The only honest option is to stream it once here and record what we saw.
+ * The only honest option is to stream it once here and record what arrived.
  * That is strictly weaker than a publisher-asserted hash: it pins the bytes
  * this machine received, not the bytes upstream intended. It still buys the
  * thing that matters at install time — that the 121 MB a user downloads is

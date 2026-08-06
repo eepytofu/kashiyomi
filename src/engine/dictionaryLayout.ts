@@ -22,7 +22,7 @@ export function dictionaryPath(directory: string, edition: DictionaryEdition): s
 }
 
 /**
- * The edition a file holds, or undefined when the name is not one of ours.
+ * The edition a file holds, or undefined when the name is not the plugin's.
  *
  * Accepts a bare name or a full path, because a directory listing may return
  * either and a caller that has to normalise first would be a fifth copy of the
@@ -39,7 +39,8 @@ export function editionFromFileName(name: string): DictionaryEdition | undefined
  * The `.part` suffix is load-bearing, not decoration: the startup sweeper finds
  * abandoned downloads by that extension alone. Archives were written as plain
  * `.whl`, so a transfer killed mid-flight stranded ~69 MB that nothing ever
- * collected — us causing the full disk we otherwise report politely.
+ * collected, making the plugin the cause of the full disk it otherwise
+ * reports politely.
  */
 export function archiveFileName(edition: DictionaryEdition, version: string): string {
   return `sudachidict_${edition}-${version}.whl.part`;

@@ -52,11 +52,11 @@ const STRINGS = {
     // Deliberately no accuracy ranking anywhere: core is right on 赤巻紙, full
     // on 千本桜 and 六兆年と一夜物語, and neither wins overall.
     dictEdSmall: "Everyday words, minus the less common ones.",
-    dictEdCore: "Everyday words. Recommended — smaller, mirrored, and checksummed by the publisher.",
+    dictEdCore: "Everyday words. Recommended: smaller, mirrored, and checksummed by the publisher.",
     dictEdFull: "Also knows song titles and names, so 千本桜 reads センボンザクラ rather than センボン + サクラ.",
     // The cost of choosing full, stated before the 121 MB rather than after.
     dictEdFullWarning:
-      "Comes from the Sudachi project's own host, which is unreachable in some regions including mainland China and publishes no checksum — so it is checked against a hash shipped with Kashiyomi, and updates when Kashiyomi does.",
+      "Comes from the Sudachi project's own host, which is unreachable in some regions including mainland China and publishes no checksum. Kashiyomi checks it against a hash it ships with, and it updates when Kashiyomi does.",
     dictInstall: "Download",
     dictDownloading: "downloading",
     dictInstalling: "verifying and installing…",
@@ -155,10 +155,10 @@ const STRINGS = {
     dictionary: "日语词典",
     dictNotInstalled: "未安装",
     dictEdSmall: "日常词汇，较生僻的词条除外。",
-    dictEdCore: "日常词汇。推荐——体积较小，有镜像，且由发布方提供校验值。",
+    dictEdCore: "日常词汇。推荐：体积较小，有镜像，且由发布方提供校验值。",
     dictEdFull: "另含歌曲名与专有名词，因此 千本桜 读作 センボンザクラ，而非 センボン + サクラ。",
     dictEdFullWarning:
-      "来自 Sudachi 项目自有的下载源：该源在包括中国大陆在内的部分地区无法访问，且不提供校验值——因此只能用 Kashiyomi 内置的哈希校验，并随 Kashiyomi 更新。",
+      "来自 Sudachi 项目自有的下载源：该源在包括中国大陆在内的部分地区无法访问，且不提供校验值。只能使用 Kashiyomi 内置的哈希校验，并随 Kashiyomi 更新。",
     dictInstall: "下载",
     dictDownloading: "下载中",
     dictInstalling: "校验并安装中…",
