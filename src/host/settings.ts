@@ -11,6 +11,8 @@ export type Settings = {
   /** Annotate production credit lines (作詞: …) as if they were lyrics. */
   annotateCredits: boolean;
   debug: boolean;
+  /** Which SudachiDict edition is installed or wanted. `full` has no wheel. */
+  dictEdition: "small" | "core";
   /** rt size as a percentage of the base lyric font. */
   furiganaSize: number;
   /** Use a Japanese font stack on Japanese lyric lines (Han unification). */
@@ -73,6 +75,7 @@ const DEFAULTS: Settings = {
   readingHints: true,
   annotateCredits: false,
   debug: true,
+  dictEdition: "core",
   furiganaSize: 50,
   useJpFont: true,
   jpFontStack: DEFAULT_JP_FONT_STACK,

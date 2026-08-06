@@ -12,6 +12,7 @@ import {
   getSettings,
 } from "../settings.ts";
 import { PANEL_CSS } from "./css.ts";
+import { dictionaryRow } from "./dictionaryRow.ts";
 import { buildPreviewCard } from "./preview.ts";
 import {
   card,
@@ -68,6 +69,7 @@ function render(root: HTMLElement): void {
 
   left.appendChild(sectionTitle(t("sectionJapanese")));
   const jp = card();
+  jp.appendChild(dictionaryRow());
   jp.appendChild(toggleRow("furigana", t("furigana"), t("furiganaDesc"), refreshPreview));
   jp.appendChild(toggleRow("romaji", t("romaji"), t("romajiDesc"), refreshPreview));
   jp.appendChild(toggleRow("readingHints", t("hints"), t("hintsDesc"), refreshPreview));
