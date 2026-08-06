@@ -7,39 +7,58 @@
 //   node tools/mutation/run.mjs tools/mutation/cjk-mutations.json
 //   node tools/mutation/run.mjs tools/mutation/engine-mutations.json <id>...
 //
-// Restoration is the point of the structure here: an interrupted sweep once
-// left mutated source in the tree, silently breaking NFKC normalization.
-// Originals are snapshotted before the first write and restored in a
-// `finally`, from a process-exit handler, and on every termination signal, so
-// a killed run still cleans up.
+// **The working tree is never written to.** Everything happens in a throwaway
+// copy under the OS temp directory, and the mutated file is written there.
+//
+// It used to mutate the checkout in place and restore in a `finally`, an exit
+// handler and every signal — which still lost twice, because a hard kill runs
+// none of those and left `apiKeys.ts` holding a mutant with key rotation
+// silently disabled. Restoring correctly is a weaker property than never
+// breaking it: with a copy there is nothing to restore, the sweep no longer
+// blocks editing, building, typechecking or committing while it runs, and a
+// kill at any moment leaves the checkout exactly as it was.
+//
+// The copy is src/ + tests/ + package.json (for `"type": "module"`), with
+// node_modules as a junction rather than a copy — 480 KB against gigabytes.
 
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { cpSync, copyFileSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const originals = new Map(); // absolute path -> original text
-let dirty = false;
+const WORK = path.join(os.tmpdir(), `kashiyomi-mutate-${process.pid}`);
+const touched = new Set(); // repo-relative files this run mutated, for the summary
 
-const abs = (file) => path.resolve(REPO, file);
+/** Pristine source, always read from the checkout and never written back. */
+const pristine = (file) => readFileSync(path.resolve(REPO, file), "utf8");
+/** Where a mutation is actually written. */
+const workPath = (file) => path.resolve(WORK, file);
 
-function snapshot(file) {
-  const p = abs(file);
-  if (!originals.has(p)) originals.set(p, readFileSync(p, "utf8"));
-  return originals.get(p);
+function buildWorkspace() {
+  rmSync(WORK, { recursive: true, force: true });
+  mkdirSync(WORK, { recursive: true });
+  cpSync(path.join(REPO, "src"), path.join(WORK, "src"), { recursive: true });
+  cpSync(path.join(REPO, "tests"), path.join(WORK, "tests"), { recursive: true });
+  copyFileSync(path.join(REPO, "package.json"), path.join(WORK, "package.json"));
+  // A junction, so Windows does not need administrator rights and the several
+  // hundred megabytes under node_modules are not copied per sweep.
+  symlinkSync(path.join(REPO, "node_modules"), path.join(WORK, "node_modules"), "junction");
 }
 
-function restoreAll() {
-  if (!dirty) return;
-  for (const [p, text] of originals) writeFileSync(p, text);
-  dirty = false;
+function cleanupWorkspace() {
+  try {
+    rmSync(WORK, { recursive: true, force: true });
+  } catch {
+    // Leaving a temp directory behind is harmless; failing the sweep over it is not.
+  }
 }
 
-process.on("exit", restoreAll);
+process.on("exit", cleanupWorkspace);
 for (const sig of ["SIGINT", "SIGTERM", "SIGHUP", "SIGBREAK"]) {
   process.on(sig, () => {
-    restoreAll();
+    cleanupWorkspace();
     process.exit(130);
   });
 }
@@ -48,7 +67,7 @@ function runTests() {
   const r = spawnSync(
     process.execPath,
     ["--test", "--test-reporter=tap", "tests/*.test.ts"],
-    { cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+    { cwd: WORK, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
   const out = `${r.stdout ?? ""}\n${r.stderr ?? ""}`;
   const failed = [];
@@ -64,6 +83,8 @@ function runTests() {
 const mutations = JSON.parse(readFileSync(process.argv[2], "utf8"));
 const only = process.argv.slice(3);
 
+buildWorkspace();
+
 const baseline = runTests();
 if (baseline.crashed || baseline.failed.length > 0) {
   console.error("baseline suite is not green; the harness cannot measure anything");
@@ -77,16 +98,23 @@ try {
     if (only.length > 0 && !only.includes(m.id)) continue;
     let outcome;
     try {
-      const original = snapshot(m.file);
+      // Always from the checkout, never from the workspace: a previous
+      // mutation must not be able to seed the next one.
+      const original = pristine(m.file);
       const hits = original.split(m.find).length - 1;
       if (hits !== 1) throw new Error(`pattern matched ${hits} times, expected exactly 1`);
-      writeFileSync(abs(m.file), original.replace(m.find, m.replace));
-      dirty = true;
+      writeFileSync(workPath(m.file), original.replace(m.find, m.replace));
+      touched.add(m.file);
       outcome = { ...runTests(), id: m.id, what: m.what };
     } catch (err) {
       outcome = { id: m.id, what: m.what, error: err.message };
     } finally {
-      restoreAll();
+      // Put the workspace copy back so the next mutation starts clean.
+      try {
+        writeFileSync(workPath(m.file), pristine(m.file));
+      } catch {
+        // A mutation naming a file that does not exist already errored above.
+      }
     }
     results.push(outcome);
     const tag = outcome.error
@@ -100,7 +128,7 @@ try {
     for (const f of outcome.failed?.slice(0, 6) ?? []) console.log(`         - ${f}`);
   }
 } finally {
-  restoreAll();
+  cleanupWorkspace();
 }
 
 const survived = results.filter((r) => !r.error && !r.crashed && r.failed.length === 0);
@@ -117,15 +145,4 @@ if (errored.length > 0) {
   process.exitCode = 1;
 }
 
-// Verify against the snapshots, not against git: the tree is legitimately
-// dirty whenever the sweep is run on work in progress, which is most of the
-// time. What matters is that every file we touched is byte-identical to how
-// we found it.
-const unrestored = [...originals]
-  .filter(([p, text]) => readFileSync(p, "utf8") !== text)
-  .map(([p]) => path.relative(REPO, p));
-console.log(`\n${originals.size} file(s) touched, all restored: ${unrestored.length === 0}`);
-if (unrestored.length > 0) {
-  console.error("SOURCE LEFT MUTATED — restore before continuing:\n" + unrestored.join("\n"));
-  process.exitCode = 1;
-}
+console.log(`\n${touched.size} file(s) mutated, all in ${path.relative(os.tmpdir(), WORK)} — the checkout was never written to`);
