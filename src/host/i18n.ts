@@ -40,20 +40,17 @@ const STRINGS = {
     groupWordsDesc: "",
     dictionary: "Japanese dictionary",
     dictNotInstalled: "not installed",
-    // What each edition contains, requested as "explaining bedanya core/other"
-    // and required to be calculated rather than guessed. They are cumulative
-    // layers (small ⊂ core ⊂ full), which is why these read as one ladder.
+    // SudachiDict's own README, verbatim. The publisher describes its three
+    // editions in one line each, so the plugin quotes them instead of writing a
+    // second description that would have to be re-verified against the
+    // dictionary every release.
     //
-    // The full line carries a worked example rather than an adjective: "adds
-    // proper nouns" means nothing when choosing, and 千本桜 is a song the user
-    // has. Verified on all three dictionaries — core splits it and loses the
-    // rendaku, full keeps it whole.
-    //
-    // Deliberately no accuracy ranking anywhere: core is right on 赤巻紙, full
-    // on 千本桜 and 六兆年と一夜物語, and neither wins overall.
-    dictEdSmall: "Everyday words, minus the less common ones.",
-    dictEdCore: "Everyday words. Recommended.",
-    dictEdFull: "Also knows song titles and names, so 千本桜 reads センボンザクラ instead of センボン + サクラ.",
+    // Whatever replaces these must not rank the editions on reading accuracy.
+    // Measured on all three: core is right on 赤巻紙, full on 千本桜 and
+    // 六兆年と一夜物語. Neither wins overall.
+    dictEdSmall: "Includes only the vocabulary of UniDic.",
+    dictEdCore: "Includes basic vocabulary. Default.",
+    dictEdFull: "Includes miscellaneous proper nouns.",
     // The only part of full's supply chain a user can act on. Where it is
     // hosted, that nobody publishes a checksum for it, and that the hash is
     // pinned at build time are all real, and all the plugin's problem.
@@ -155,9 +152,9 @@ const STRINGS = {
     groupWordsDesc: "",
     dictionary: "日语词典",
     dictNotInstalled: "未安装",
-    dictEdSmall: "日常词汇，较生僻的词条除外。",
-    dictEdCore: "日常词汇。推荐。",
-    dictEdFull: "另含歌曲名与专有名词，因此 千本桜 读作 センボンザクラ，而非 センボン + サクラ。",
+    dictEdSmall: "仅收录 UniDic 的词汇。",
+    dictEdCore: "收录基本词汇。默认。",
+    dictEdFull: "另收录各类专有名词。",
     dictEdFullWarning: "在中国大陆可能无法下载。",
     dictInstall: "下载",
     dictDownloading: "下载中",
