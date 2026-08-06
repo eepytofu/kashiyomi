@@ -148,6 +148,20 @@ test("应 stays the verb yìng where it cannot be a modal", () => {
   assert.equal(p("应对危机"), "yìng duì wēi jī");
 });
 
+test("只应 is a dictionary gap that no rule could reach", () => {
+  const p = (text: string) => romanizeMandarin(text, { tones: true, joinWords: false });
+  // 应天 is a dictionary entry (the Nanjing place name) and outranks the reading
+  // this line wants, taking 天上有 apart into 应天 + 上有 on the way. 应 is never
+  // left standing alone, so readModalAsLevelTone cannot see it.
+  assert.equal(p("此曲只应天上有"), "cǐ qǔ zhǐ yīng tiān shàng yǒu");
+  assert.equal(p("只应守寂寞"), "zhǐ yīng shǒu jì mò");
+  // Nothing guards these: 应该 carries 2.1e-8 against the entry's 3e-10, so
+  // segmentation keeps 这只 "this one" whole on frequency alone.
+  assert.equal(p("这只应该给我"), "zhè zhī yīng gāi gěi wǒ");
+  assert.equal(p("一只应该够了"), "yì zhī yīng gāi gòu le");
+  assert.equal(p("两只应声倒下"), "liǎng zhī yìng shēng dǎo xià");
+});
+
 test("应和 is a dictionary gap, not a counterexample to the modal rule", () => {
   // Absent from all 828 complete-dict entries containing 应, so the segmenter
   // split it and read yìng hé — wrong in both syllables before the modal rule

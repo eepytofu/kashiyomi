@@ -19,17 +19,29 @@ export function registerCompleteDict(dict: unknown): void {
 /**
  * Words the complete dictionary is missing, layered on top of it.
  *
- * The bar is a word absent from all 828 dictionary entries for its character,
- * not a reading we would have picked differently. 应和 is the only one so far:
- * without it the segmenter splits 应 + 和 and reads `yìng hé`, wrong in both
- * syllables, and it is also the single counterexample to `readModalAsLevelTone`
- * below — which would turn it into `yīng hé`, wrong in a second way.
+ * The bar is a real word the dictionary lacks, where the absence causes a
+ * measurable misreading and adding it regresses nothing. Not a reading we would
+ * have picked differently — that is the dictionary's call, not ours.
+ *
+ * 应和 — without it the segmenter splits 应 + 和 and reads `yìng hé`, wrong in
+ * both syllables. It is also the one counterexample to `readModalAsLevelTone`
+ * below, which would turn it into `yīng hé`, wrong in a second way.
+ *
+ * 只应 — 应天 is a dictionary entry (the Nanjing place name), and it outranks the
+ * reading 此曲只应天上有 wants, taking 天上有 apart into 应天 + 上有 on the way.
+ * One entry fixes both syllables and the segmentation: `zhī yìng tiān shàng yǒu`
+ * becomes `zhǐ yīng tiān shàng yǒu`. No rule could reach it, because 应 never
+ * stands alone here.
  *
  * The number is a corpus frequency, and only its size relative to competing
- * entries matters; 应声 next door is 3.4e-10.
+ * entries matters; 应声 next door is 3.4e-10. That ordering is what makes 只应
+ * safe rather than a guard we wrote: in 这只应该给我, where 这只 means "this one",
+ * 应该 carries 2.1e-8 and wins by five orders of magnitude, so the entry never
+ * fires. Same for 一只应该 and 两只应声.
  */
 const DICT_GAPS: Record<string, [string, number]> = {
   应和: ["yìng hè", 3e-10],
+  只应: ["zhǐ yīng", 3e-10],
 };
 
 export function isCompleteDictRegistered(): boolean {
@@ -117,7 +129,8 @@ type SegmentEntry = { readonly origin?: string; readonly result: string };
  * productive 只 + predicate pattern, one reading in the single-character entry —
  * but separating 只应 "only" from 只影 "lone shadow" is verb against noun, and
  * nothing in this pipeline knows a part of speech. A rule there would be a guess
- * in the shape of a grammar rule. 此曲只应天上有 stays wrong on both syllables.
+ * in the shape of a grammar rule. Individual 只 words go in DICT_GAPS instead,
+ * where they are checked one at a time against the lines they could break.
  */
 function readModalAsLevelTone(
   group: readonly SegmentEntry[],
