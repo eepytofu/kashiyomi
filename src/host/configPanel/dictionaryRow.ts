@@ -58,6 +58,7 @@ const releaseDate = (version: string): string => {
 
 export function dictionaryRow(): HTMLElement {
   const el = row();
+  el.classList.add("kc-row-dict");
   const text = rowText(t("dictionary"), t("dictNotInstalled"));
   const description = text.querySelector(".kc-desc") ?? text.lastElementChild;
   el.appendChild(text);
@@ -71,19 +72,22 @@ export function dictionaryRow(): HTMLElement {
     option.textContent = `${value} · ${mb(pinnedRelease(value).size)}`;
     edition.appendChild(option);
   }
-  // What each edition actually gets you, under the picker rather than hidden in
-  // a tooltip. Every claim here is measured on all three dictionaries; an
-  // adjective like "more accurate" is not one of them, because core and full
-  // each win real cases and neither wins overall.
+  // What the selected edition contains, under the picker rather than hidden in
+  // a tooltip.
   const editionNote = document.createElement("div");
   editionNote.className = "kc-desc kc-dict-note";
-  el.appendChild(editionNote);
   edition.value = getSettings().dictEdition;
   el.appendChild(editionWrap);
 
   const button = document.createElement("button");
   button.className = "kc-button";
   el.appendChild(button);
+
+  // Appended last so it wraps onto its own line beneath the controls. Inline
+  // between the label and the picker it was a fourth column competing for
+  // width: measured at a 1536px window, a 175px note left the label 67px and
+  // wrapped "Japanese dictionary" over three lines.
+  el.appendChild(editionNote);
 
   let poll: number | undefined;
   // Shown briefly after an update check that found nothing newer.

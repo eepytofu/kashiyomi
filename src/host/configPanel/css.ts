@@ -36,6 +36,12 @@ export const PANEL_CSS = `
    label carrying its own weight, opacity is free to serve contrast alone. */
 .kashiyomi-config .kc-label { font-size: 13.5px; font-weight: 500; line-height: 1.3; }
 .kashiyomi-config .kc-desc { font-size: 12px; opacity: 0.68; margin-top: 2px; line-height: 1.35; }
+/* The dictionary row is the only one carrying a sentence that changes with a
+   control, so the sentence gets its own line under the controls rather than a
+   column beside them. row-gap is set apart from the 16px column gap: 16px
+   between a control and its own description reads as two separate things. */
+.kashiyomi-config .kc-row-dict { flex-wrap: wrap; row-gap: 8px; }
+.kashiyomi-config .kc-dict-note { flex: 0 0 100%; margin-top: 0; }
 .kashiyomi-config .kc-switch { position: relative; flex: none; width: 40px; height: 24px; }
 .kashiyomi-config .kc-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
 /* Off is a hollow outlined track, on is filled — so the state is legible from
