@@ -71,7 +71,7 @@ function render(root: HTMLElement): void {
   jp.appendChild(toggleRow("furigana", t("furigana"), t("furiganaDesc"), refreshPreview));
   jp.appendChild(toggleRow("romaji", t("romaji"), t("romajiDesc"), refreshPreview));
   jp.appendChild(toggleRow("readingHints", t("hints"), t("hintsDesc"), refreshPreview));
-  jp.appendChild(toggleRow("hanRepair", t("repair"), t("repairDesc")));
+  jp.appendChild(toggleRow("hanRepair", t("repair"), t("repairDesc"), refreshPreview));
   jp.appendChild(sizeRow(refreshPreview));
   jp.appendChild(toggleRow("useJpFont", t("jpFont"), t("jpFontDesc"), refreshPreview, false));
   jp.appendChild(fontStackRow("jpFontStack", DEFAULT_JP_FONT_STACK, "fontStack", "fontStackDesc", refreshPreview));
