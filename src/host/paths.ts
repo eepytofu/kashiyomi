@@ -30,8 +30,19 @@ export async function resolveAssetPaths(): Promise<AssetPaths | undefined> {
     log.warn("could not determine plugin path");
     return undefined;
   }
+  // **The dictionary lives outside the plugin folder, and that is not a
+  // preference.** A released plugin is a `.plugin` zip in `plugins\`, extracted
+  // into `plugins_runtime\` — a cache BetterNCM rebuilds from the zip on every
+  // NCM start. Anything written into the plugin's own directory is destroyed on
+  // the next launch, so a 207 MB dictionary kept there would be downloaded
+  // again every single time NCM opens.
+  //
+  // The data directory persists and is already where `kashiyomi.log` lives.
+  // Nothing in the BetterNCM wiki documents a convention for this, so the
+  // reasoning is the platform's observed behaviour rather than a rule.
+  const dataDir = `${await betterncm.app.getDataPath()}/kashiyomi`.replace(/\\/gu, "/");
   const defaults: AssetPaths = {
-    dictPath: `${pluginPath}/assets/dict/system_core.dic`,
+    dictPath: `${dataDir}/system_core.dic`,
     resourceDir: `${pluginPath}/assets/sudachi`,
     pinyinDictPath: `${pluginPath}/assets/pinyin/complete.json`,
     jmdictPath: `${pluginPath}/assets/jmdict/readings.json`,
