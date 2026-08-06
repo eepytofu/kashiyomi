@@ -8,6 +8,9 @@ import {
   parsePypiRelease,
   parseSimpleIndexRelease,
   requiredFreeBytes,
+  dictionarySupply,
+  resolveFullFromPypi,
+  vendorArchiveUrl,
   type DictionaryRelease,
 } from "../src/engine/dictionarySource.ts";
 
@@ -142,5 +145,72 @@ test("only a dead end is unretryable", () => {
   assert.equal(isRetryable("no-source"), false);
   for (const reason of ["offline", "checksum", "disk-space", "extract", "load", "cancelled"] as const) {
     assert.equal(isRetryable(reason), true, reason);
+  }
+});
+
+// --- full: a different supply chain, not a bigger download -------------------
+
+test("the zip member differs between a wheel and the vendor archive", () => {
+  assert.equal(
+    dictionarySupply("core", "20260723").member,
+    "sudachidict_core/resources/system.dic",
+  );
+  assert.equal(
+    dictionarySupply("full", "20260723").member,
+    "sudachi-dictionary-20260723/system_full.dic",
+  );
+});
+
+// full's member embeds the version; extracting it with core's layout, or with a
+// stale version, fails with "the archive does not contain ...".
+test("the vendor member tracks the version", () => {
+  assert.equal(
+    dictionarySupply("full", "20260428").member,
+    "sudachi-dictionary-20260428/system_full.dic",
+  );
+});
+
+test("only full is vouched for by a hash we generated ourselves", () => {
+  assert.equal(dictionarySupply("full", "20260723").selfPinned, true);
+  assert.equal(dictionarySupply("core", "20260723").selfPinned, false);
+  assert.equal(dictionarySupply("small", "20260723").selfPinned, false);
+});
+
+test("full downloads from the vendor, over https", () => {
+  const url = vendorArchiveUrl("full", "20260723");
+  assert.equal(
+    url,
+    "https://d2ej7fkh96fzlu.cloudfront.net/sudachidict/sudachi-dictionary-20260723-full.zip",
+  );
+  assert.ok(url.startsWith("https://"), "never plaintext");
+});
+
+const PINNED_FULL = {
+  edition: "full",
+  version: "20260723",
+  sha256: "f".repeat(64),
+  size: 126615116,
+} as const;
+
+test("full installs when upstream is still on the pinned version", () => {
+  const outcome = resolveFullFromPypi({ info: { version: "20260723" } }, PINNED_FULL);
+  assert.equal(outcome.kind, "pinned");
+  if (outcome.kind !== "pinned") return;
+  assert.equal(outcome.release.sha256, PINNED_FULL.sha256);
+  assert.ok(outcome.release.url.includes("20260723"));
+});
+
+// The point of the whole self-pinning arrangement: a newer release has no
+// digest anyone can vouch for, so it is reported rather than fetched.
+test("a newer full release is reported, never downloaded unverified", () => {
+  const outcome = resolveFullFromPypi({ info: { version: "20261115" } }, PINNED_FULL);
+  assert.equal(outcome.kind, "newer");
+  if (outcome.kind !== "newer") return;
+  assert.equal(outcome.version, "20261115");
+});
+
+test("unusable metadata falls back to the pinned release rather than failing", () => {
+  for (const body of [{}, { info: {} }, { info: { version: "" } }, null, "nonsense"]) {
+    assert.equal(resolveFullFromPypi(body, PINNED_FULL).kind, "pinned", JSON.stringify(body));
   }
 });

@@ -20,7 +20,7 @@ test("a dictionary file name carries its edition", () => {
 // loaded nothing after a restart. If these two ever disagree again, the plugin
 // opens a file that is not there.
 test("the boot path and the download target are the same file", () => {
-  for (const edition of ["core", "small"] as const) {
+  for (const edition of ["full", "core", "small"] as const) {
     assert.equal(
       dictionaryPath("C:/data/kashiyomi", edition),
       `C:/data/kashiyomi/${dictionaryFileName(edition)}`,
@@ -34,7 +34,7 @@ test("a trailing slash on the directory does not double up", () => {
 });
 
 test("an edition round-trips through its file name", () => {
-  for (const edition of ["core", "small"] as const) {
+  for (const edition of ["full", "core", "small"] as const) {
     assert.equal(editionFromFileName(dictionaryFileName(edition)), edition);
   }
 });
@@ -51,7 +51,7 @@ test("files that are not ours have no edition", () => {
   for (const name of [
     "system_core.dic.part",
     "sudachidict_core-20260723.whl.part",
-    "system_full.dic",
+    "system_tiny.dic",
     "kashiyomi.log",
     "",
   ]) {
@@ -111,4 +111,19 @@ test("booting on the wrong edition never rewrites the preference", () => {
 
 test("nothing on disk means nothing to load", () => {
   assert.deepEqual(chooseBootEdition("core", []), { load: undefined, deletable: [] });
+});
+
+// Only reachable with three editions: with two, "preference absent" implies at
+// most one other is present, so the choice was forced.
+test("with the preference absent, the largest present is loaded and none deleted", () => {
+  const choice = chooseBootEdition("full", ["core", "small"]);
+  assert.equal(choice.load, "core", "largest present, not directory order");
+  assert.deepEqual(choice.deletable, [], "neither is spare while the preference is unmet");
+});
+
+test("the preference wins over larger editions that are also present", () => {
+  assert.deepEqual(chooseBootEdition("small", ["full", "core", "small"]), {
+    load: "small",
+    deletable: ["full", "core"],
+  });
 });

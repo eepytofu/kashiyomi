@@ -1,5 +1,7 @@
 // Plugin settings persisted as one JSON blob in localStorage.
 
+import type { DictionaryEdition } from "../engine/dictionarySource.ts";
+
 export type Settings = {
   furigana: boolean;
   romaji: boolean;
@@ -11,8 +13,8 @@ export type Settings = {
   /** Annotate production credit lines (作詞: …) as if they were lyrics. */
   annotateCredits: boolean;
   debug: boolean;
-  /** Which SudachiDict edition is installed or wanted. `full` has no wheel. */
-  dictEdition: "small" | "core";
+  /** Which SudachiDict edition is installed or wanted. */
+  dictEdition: DictionaryEdition;
   /** Release date of the installed dictionary, e.g. "20260723". Empty until one is installed. */
   dictVersion: string;
   /** rt size as a percentage of the base lyric font. */

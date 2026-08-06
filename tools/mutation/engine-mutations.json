@@ -640,8 +640,8 @@
     "id": "dictionary/space-prefers-smallest",
     "file": "src/engine/dictionarySource.ts",
     "what": "the edition order is reversed, so a roomy disk is given the small edition and boot picks a different file than the one it deletes",
-    "find": "export const DICTIONARY_EDITIONS = [\"core\", \"small\"] as const;",
-    "replace": "export const DICTIONARY_EDITIONS = [\"small\", \"core\"] as const;"
+    "find": "export const DICTIONARY_EDITIONS = [\"full\", \"core\", \"small\"] as const;",
+    "replace": "export const DICTIONARY_EDITIONS = [\"small\", \"core\", \"full\"] as const;"
   },
   {
     "id": "dictionary/offers-unpriced-edition",
@@ -656,6 +656,27 @@
     "what": "every failure offers a retry, including the one where retrying repeats the same two refusals",
     "find": "  return reason !== \"no-source\";",
     "replace": "  return true;"
+  },
+  {
+    "id": "dictionary/full-extracted-as-a-wheel",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "full is read with the wheel's internal layout, so extraction fails after a verified 121 MB download",
+    "find": "      member: `sudachi-dictionary-${version}/system_full.dic`,",
+    "replace": "      member: `sudachidict_full/resources/system.dic`,"
+  },
+  {
+    "id": "dictionary/unverified-full-is-downloaded",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "a full release newer than the pinned digest is installed anyway, so 121 MB arrives with nothing able to vouch for it",
+    "find": "  return { kind: \"newer\", version };",
+    "replace": "  return { kind: \"pinned\", release: installableFull(pinned) };"
+  },
+  {
+    "id": "dictionary/vendor-download-over-plaintext",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "the vendor archive is fetched over http, so the one download with no publisher checksum also loses transport integrity",
+    "find": "export const VENDOR_BASE = \"https://d2ej7fkh96fzlu.cloudfront.net/sudachidict\";",
+    "replace": "export const VENDOR_BASE = \"http://d2ej7fkh96fzlu.cloudfront.net/sudachidict\";"
   },
   {
     "id": "dictionary/filename-drops-the-edition",

@@ -9,14 +9,7 @@
 // primary being unreachable, and the mirror speaks a different dialect:
 // PyPI's own JSON API, and PEP 691's JSON simple index which mirrors serve.
 
-/**
- * `full` is absent because it cannot use this module's source at all: its bytes
- * are not on PyPI, so it needs its own URL and its own warnings.
- *
- * core is the default for size and for having a vendor-published checksum. It
- * is **not** a claim that core reads lyrics better — that goes both ways.
- */
-export type DictionaryEdition = "small" | "core";
+export type DictionaryEdition = "small" | "core" | "full";
 
 /**
  * Every edition, **largest first**.
@@ -25,7 +18,49 @@ export type DictionaryEdition = "small" | "core";
  * first that fits, and `chooseBootEdition` uses it to pick deterministically
  * rather than trusting whatever order a directory listing arrived in.
  */
-export const DICTIONARY_EDITIONS = ["core", "small"] as const;
+export const DICTIONARY_EDITIONS = ["full", "core", "small"] as const;
+
+/**
+ * Where an edition's bytes come from.
+ *
+ * `full` is not a variation on the other two, it is a different supply chain:
+ * PyPI carries no wheel for it, so the archive is the vendor's own zip, laid
+ * out differently inside and checked against a digest we computed rather than
+ * one the publisher asserted. Modelling that as data keeps the difference in
+ * one place instead of as branches through the download path.
+ */
+export type DictionarySupply = {
+  /** How the archive is named inside, which differs between wheel and zip. */
+  readonly member: string;
+  /** True when only a hash we generated ourselves can vouch for the bytes. */
+  readonly selfPinned: boolean;
+};
+
+export function dictionarySupply(
+  edition: DictionaryEdition,
+  version: string,
+): DictionarySupply {
+  if (edition === "full") {
+    return {
+      member: `sudachi-dictionary-${version}/system_full.dic`,
+      selfPinned: true,
+    };
+  }
+  return { member: `sudachidict_${edition}/resources/system.dic`, selfPinned: false };
+}
+
+/**
+ * The vendor's own distribution host, named by SudachiDict's published sdist.
+ *
+ * Only `full` needs it, and it is the leg that fails from mainland China
+ * (measured: 5/5 vantage points, against pypi.org reachable and google.com
+ * blocked as controls), so it must never be tried ahead of PyPI or the mirror.
+ */
+export const VENDOR_BASE = "https://d2ej7fkh96fzlu.cloudfront.net/sudachidict";
+
+export function vendorArchiveUrl(edition: DictionaryEdition, version: string): string {
+  return `${VENDOR_BASE}/sudachi-dictionary-${version}-${edition}.zip`;
+}
 
 export type DictionaryRelease = {
   readonly edition: DictionaryEdition;
@@ -119,6 +154,37 @@ export function parseSimpleIndexRelease(
     if (release && (best === undefined || release.version > best.version)) best = release;
   }
   return best;
+}
+
+export type FullResolution =
+  /** The upstream release is the one we pinned a digest for, so it is installable. */
+  | { readonly kind: "pinned"; readonly release: DictionaryRelease }
+  /** A newer release exists that no digest we hold can vouch for. */
+  | { readonly kind: "newer"; readonly version: string };
+
+/**
+ * Resolve `full`, whose metadata and bytes come from different places.
+ *
+ * PyPI publishes the version but not the archive; the vendor publishes the
+ * archive but no digest. So a release is installable exactly when upstream is
+ * still on the version this build pinned a self-computed hash for. Anything
+ * newer is reported rather than fetched — downloading 121 MB that nothing can
+ * verify is the one thing this whole module exists to refuse.
+ */
+export function resolveFullFromPypi(
+  body: unknown,
+  pinned: Omit<DictionaryRelease, "url">,
+): FullResolution {
+  const version = (body as { info?: { version?: unknown } })?.info?.version;
+  if (typeof version !== "string" || version === "" || version === pinned.version) {
+    return { kind: "pinned", release: installableFull(pinned) };
+  }
+  return { kind: "newer", version };
+}
+
+/** The pinned `full` release, pointed at the vendor archive. Always installable. */
+export function installableFull(pinned: Omit<DictionaryRelease, "url">): DictionaryRelease {
+  return { ...pinned, url: vendorArchiveUrl(pinned.edition, pinned.version) };
 }
 
 function buildRelease(

@@ -13,10 +13,13 @@
 
 import {
   SIMPLE_INDEX_ACCEPT,
+  dictionarySupply,
+  installableFull,
   metadataSources,
   parsePypiRelease,
   parseSimpleIndexRelease,
   requiredFreeBytes,
+  resolveFullFromPypi,
   type DictionaryEdition,
   type DictionaryFailure,
   type DictionaryRelease,
@@ -27,6 +30,7 @@ import {
   dictionaryPath,
   installedEditionsFrom,
 } from "../engine/dictionaryLayout.ts";
+import { pinnedRelease } from "../engine/dictionaryPins.ts";
 import { log } from "./log.ts";
 import { getSettings, updateSettings } from "./settings.ts";
 import {
@@ -128,6 +132,7 @@ export function simulateDictionaryFailure(reason: DictionaryFailure | undefined)
 export async function resolveRelease(
   edition: DictionaryEdition,
 ): Promise<DictionaryRelease | undefined> {
+  if (edition === "full") return (await resolveFull()).release;
   const sources = metadataSources(edition);
   for (const [index, url] of sources.entries()) {
     const isSimpleIndex = index > 0;
@@ -146,6 +151,35 @@ export async function resolveRelease(
     }
   }
   return undefined;
+}
+
+/**
+ * Resolve `full`, which is always installable at the pinned version and never
+ * installable above it.
+ *
+ * Reports `newerVersion` when upstream has moved on, so the row can say a newer
+ * release exists and needs a plugin update — rather than either lying that it
+ * is current or fetching 121 MB nothing can verify. A metadata failure is not
+ * an error here: the pinned release is still the right thing to install.
+ */
+export async function resolveFull(): Promise<{
+  release: DictionaryRelease;
+  newerVersion?: string;
+}> {
+  const pinned = pinnedRelease("full");
+  try {
+    const response = await fetch("https://pypi.org/pypi/SudachiDict-full/json");
+    if (response.ok) {
+      const outcome = resolveFullFromPypi(await response.json(), pinned);
+      if (outcome.kind === "newer") {
+        return { release: installableFull(pinned), newerVersion: outcome.version };
+      }
+      return { release: outcome.release };
+    }
+  } catch (err) {
+    log.debug("could not check for a newer full release", err);
+  }
+  return { release: installableFull(pinned) };
 }
 
 export type DownloadPlan = {
@@ -178,7 +212,9 @@ export function planDownload(
     release,
     archivePath: archivePath(dictionaryDir, release.edition, release.version),
     targetPath: dictionaryPath(dictionaryDir, release.edition),
-    member: `sudachidict_${release.edition}/resources/system.dic`,
+    // The wheel and the vendor zip lay the dictionary out differently, so this
+    // is a lookup rather than a constant.
+    member: dictionarySupply(release.edition, release.version).member,
     directory: dictionaryDir,
     superseded: replaced[0] ? dictionaryPath(dictionaryDir, replaced[0]) : undefined,
   };

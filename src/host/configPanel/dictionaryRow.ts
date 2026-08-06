@@ -63,12 +63,21 @@ export function dictionaryRow(): HTMLElement {
   el.appendChild(text);
 
   const { wrap: editionWrap, select: edition } = styledSelect();
-  for (const value of ["core", "small"] as const) {
+  // Ordered smallest first here, unlike DICTIONARY_EDITIONS: a picker reads as
+  // a ladder, and the recommended middle option should not be last.
+  for (const value of ["small", "core", "full"] as const) {
     const option = document.createElement("option");
     option.value = value;
     option.textContent = `${value} · ${mb(pinnedRelease(value).size)}`;
     edition.appendChild(option);
   }
+  // What each edition actually gets you, under the picker rather than hidden in
+  // a tooltip. Every claim here is measured on all three dictionaries; an
+  // adjective like "more accurate" is not one of them, because core and full
+  // each win real cases and neither wins overall.
+  const editionNote = document.createElement("div");
+  editionNote.className = "kc-desc kc-dict-note";
+  el.appendChild(editionNote);
   edition.value = getSettings().dictEdition;
   el.appendChild(editionWrap);
 
@@ -132,8 +141,18 @@ export function dictionaryRow(): HTMLElement {
     }, 300);
   };
 
+  const paintEditionNote = () => {
+    const chosen = edition.value as DictionaryEdition;
+    const key = (
+      { small: "dictEdSmall", core: "dictEdCore", full: "dictEdFull" } as const
+    )[chosen];
+    editionNote.textContent =
+      chosen === "full" ? `${t(key)} ${t("dictEdFullWarning")}` : t(key);
+  };
+
   edition.onchange = () => {
     updateSettings({ dictEdition: edition.value as DictionaryEdition });
+    paintEditionNote();
     paint();
   };
 
@@ -188,6 +207,7 @@ export function dictionaryRow(): HTMLElement {
     })();
   };
 
+  paintEditionNote();
   paint();
   // Follow the status wherever it is changed from, not just this row's own
   // button: the panel is built once and would otherwise keep showing whatever

@@ -22,6 +22,11 @@ const PINS: Record<DictionaryEdition, Omit<DictionaryRelease, "edition" | "url">
     version: "20260723",
     sha256: "b3869ce6b12b4bfa09575dc19030703bb669ab41bac12a74cafcbb28c6be2498",
     size: 72275897
+  },
+  full: {
+    version: "20260723",
+    sha256: "fc87525a4c7639ea46d81a3e4e3976853240ec07e3db3991190c920a02efe107",
+    size: 126615116
   }
 };
 
