@@ -95,3 +95,29 @@ test("a line with nothing to do comes back untouched", () => {
   assert.equal(out.analysisText, "語るも無駄な　自分の言葉");
   assert.deepEqual(out.hints, []);
 });
+
+test("furigana survives with kanji repair off", () => {
+  // The setting chooses what is displayed, not whether the line can be read.
+  // It used to gate both, so turning it off handed the analyzer 梦见てる — OOV,
+  // no reading, no ruby — for a setting described as being about glyph forms.
+  const opts = { hanRepair: false, readingHints: true };
+  const prepared = prepareJapaneseLine("梦见てる なにも见てない", opts);
+  assert.equal(prepared.displayText, "梦见てる なにも见てない", "display keeps what NetEase served");
+  assert.equal(prepared.analysisText, "夢見てる なにも見てない", "analysis sees repaired glyphs");
+  assert.equal(prepared.displayText.length, prepared.analysisText.length, "offsets stay aligned");
+});
+
+test("kanji repair on changes the display too", () => {
+  const prepared = prepareJapaneseLine("梦见てる", { hanRepair: true, readingHints: true });
+  assert.equal(prepared.displayText, "夢見てる");
+  assert.equal(prepared.analysisText, "夢見てる");
+});
+
+test("repair and reading hints stay length-aligned together", () => {
+  // Brackets are not Han, so repair never moves them: both projections remove
+  // the same span and the two texts stay the same length.
+  const prepared = prepareJapaneseLine("梦见（ゆめみ）てる", { hanRepair: false, readingHints: true });
+  assert.equal(prepared.displayText.length, prepared.analysisText.length);
+  assert.equal(prepared.displayText, "梦见てる");
+  assert.equal(prepared.analysisText, "夢見てる");
+});

@@ -34,21 +34,37 @@ export function prepareJapaneseLine(
   source: string,
   options: LineTextOptions,
 ): PreparedJapaneseLine {
-  const repaired = options.hanRepair ? repairJapaneseHan(source) : source;
+  // **Repair always happens for analysis; the setting only chooses what is
+  // shown.** It used to gate both, so turning it off handed the analyzer
+  // 梦见てる, which is OOV, and the line silently lost its furigana — a setting
+  // described as being about glyph *forms* was quietly removing readings. We
+  // know which kanji those glyphs stand for, so we can still read the line.
+  //
+  // Safe for the same reason the two adjustments below are: `repairJapaneseHan`
+  // walks the string character by character, so it is 1:1 and every offset in
+  // the display still indexes the analysis.
+  const repaired = repairJapaneseHan(source);
+  const shown = options.hanRepair ? repaired : source;
 
   // With hints on, the annotation is consumed: it leaves the display and
   // becomes the reading. With hints off the lyric is left exactly as NetEase
   // serves it, brackets and all — the setting is about using the author's
   // reading, not about rewriting the line.
-  const projection = projectReadingHints(repaired);
-  const displayText = options.readingHints ? projection.displayText : repaired;
+  const projection = projectReadingHints(shown);
+  const displayText = options.readingHints ? projection.displayText : shown;
   const hints = options.readingHints ? projection.hints : [];
+
+  // The same projection over the repaired text. Bracket positions are identical
+  // in both, because repair only maps Han characters and never touches （）, so
+  // this stays the same length as `displayText`.
+  const analysed = projectReadingHints(repaired);
+  const analysisShown = options.readingHints ? analysed.displayText : repaired;
 
   // Either way the *analyzer* must not see the brackets. SudachiDict contains
   // 天（そら） as a single entry reading テン, so an untouched line produced one
   // five-character token and a てん ruby smeared across 天（そら）. Blanking just
   // the brackets keeps the length, so every offset still indexes the display.
-  const unbracketed = options.readingHints ? displayText : maskHintBrackets(displayText);
+  const unbracketed = options.readingHints ? analysisShown : maskHintBrackets(analysisShown);
 
   // Katakana-okurigana lines (夜ニ紛レ) are analyzed as hiragana; the conversion
   // is one character to one, so offsets still match what is displayed.

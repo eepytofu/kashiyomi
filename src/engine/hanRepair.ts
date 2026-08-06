@@ -1,5 +1,5 @@
 // Repairs Japanese lyrics stored with **simplified** Chinese glyphs, the
-// artifact of lyrics passing through a mainland service: 梦见ては → 夢見ては.
+// artifact of lyrics passing through a mainland service: 梦见てる → 夢見てる.
 // Display-only: callers keep the original line for matching and caching.
 // Pure; no host imports.
 //
