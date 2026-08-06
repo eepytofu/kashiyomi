@@ -1055,5 +1055,12 @@
     "what": "cancel stays enabled through the swap and load, offering to stop work that cannot be stopped",
     "find": "        job.phase === \"verifying\" || job.phase === \"extracting\",",
     "replace": "        true,"
+  },
+  {
+    "id": "rowstate/resolve-not-cancellable",
+    "file": "src/engine/dictionaryRowState.ts",
+    "what": "the update check cannot be cancelled, so a source that hangs leaves the row stuck with a dead button",
+    "find": "      return working({ kind: \"checking\" }, \"checking\", true);",
+    "replace": "      return working({ kind: \"checking\" }, \"checking\", false);"
   }
 ]

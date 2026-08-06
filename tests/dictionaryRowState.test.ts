@@ -116,6 +116,8 @@ test("resolving disables the picker and says what it is doing", () => {
   const v = view({ job: job({ kind: "resolving", edition: "core" }) });
   assert.deepEqual(v.message, { kind: "checking" });
   assert.deepEqual(v.primary, { action: { kind: "working", of: "checking" }, disabled: true });
+  // A source that is timing out is exactly when Cancel is reached for.
+  assert.deepEqual(v.cancel, { shown: true, disabled: false });
   assert.equal(v.pickerEnabled, false);
   assert.equal(v.settling, true);
 });

@@ -62,7 +62,22 @@ export type NativeInstallJob =
   | { kind: "idle" }
   | { kind: "running"; phase: "verifying" | "extracting" | "swapping" | "loading"; done: number; total: number }
   | { kind: "done"; bytes: number; started: boolean }
-  | { kind: "failed"; message: string };
+  | { kind: "failed"; message: string }
+  | { kind: "cancelled" };
+
+/**
+ * Ask a running install to stop, and report whether it agreed to.
+ *
+ * False means the worker is past the swap. By then the old dictionary is
+ * unloaded and the rename may have landed, so stopping would leave the analyzer
+ * closed over a half-replaced file. The row disables Cancel through those
+ * phases, so a refusal should not normally be reachable from the panel.
+ */
+export function nativeCancelInstall(): boolean {
+  const response = dispatch({ cmd: "cancelInstall" });
+  if (!response || response.status === "error") return false;
+  return (response.data as { accepted?: boolean }).accepted === true;
+}
 
 export type NativeDictStatus = {
   analyzer: { state: NativeState; error?: string };

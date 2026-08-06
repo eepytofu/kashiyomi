@@ -119,7 +119,10 @@ function runningView(input: RowInput): RowView | undefined {
   const { job } = input;
   switch (job.kind) {
     case "resolving":
-      return working({ kind: "checking" }, "checking", false);
+      // Cancellable: the update check is a `fetch` behind the same abort
+      // controller the transfer uses, and a source that is timing out is
+      // exactly when someone reaches for this.
+      return working({ kind: "checking" }, "checking", true);
     case "downloading":
       // The one window where cancelling is both safe and implemented: nothing
       // has been written to the live path and the transfer holds an abort

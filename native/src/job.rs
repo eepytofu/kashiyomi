@@ -9,6 +9,7 @@
 //! one race that can corrupt a good dictionary, and `begin` refusing is a
 //! cheaper guard than any amount of coordination afterwards.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -49,6 +50,41 @@ pub enum Job {
     Failed {
         message: String,
     },
+    /// Stopped on request. Distinct from `Failed` because nothing is wrong: the
+    /// row goes back to offering exactly what it offered before the press,
+    /// rather than reporting a fault the user caused deliberately.
+    Cancelled,
+}
+
+/// Set by `request_cancel`, read by the worker between chunks.
+///
+/// An `AtomicBool` rather than a field on the job, because the worker checks it
+/// thousands of times over a 207 MB extract and taking the job mutex that often
+/// would put the polling host and the worker in each other's way.
+static CANCEL: AtomicBool = AtomicBool::new(false);
+
+pub fn is_cancelled() -> bool {
+    CANCEL.load(Ordering::Relaxed)
+}
+
+/// Ask the worker to stop, or refuse because it is past the point of no return.
+///
+/// Returns false once the swap has begun. By then the old dictionary is
+/// unloaded and the rename may already have landed, so "stopping" would leave
+/// the analyzer closed over a half-replaced file, which is worse than finishing.
+pub fn request_cancel() -> bool {
+    let guard = cell().lock().expect("install job lock");
+    match &*guard {
+        Job::Running { phase: Phase::Verifying | Phase::Extracting, .. } => {
+            CANCEL.store(true, Ordering::Relaxed);
+            true
+        }
+        _ => false,
+    }
+}
+
+pub fn finish_cancelled() {
+    *cell().lock().expect("install job lock") = Job::Cancelled;
 }
 
 fn cell() -> &'static Mutex<Job> {
@@ -69,6 +105,10 @@ pub fn begin() -> bool {
     if matches!(*guard, Job::Running { .. }) {
         return false;
     }
+    // Cleared here rather than after the previous job ended: a cancel that
+    // arrived as the worker was already finishing would otherwise still be set
+    // and stop the next install before it began.
+    CANCEL.store(false, Ordering::Relaxed);
     *guard = Job::Running { phase: Phase::Verifying, done: 0, total: 0 };
     true
 }
@@ -116,5 +156,27 @@ mod tests {
         finish_err("failed".into());
         progress(Phase::Extracting, 5, 10);
         assert!(matches!(snapshot(), Job::Failed { .. }));
+
+        // Nothing is running, so there is nothing to cancel.
+        assert!(!request_cancel());
+
+        // The two long phases can be stopped.
+        assert!(begin());
+        progress(Phase::Extracting, 1, 10);
+        assert!(request_cancel());
+        assert!(is_cancelled());
+
+        // Past the swap the old dictionary is unloaded and the rename may have
+        // landed, so a cancel would leave the analyzer closed over a
+        // half-replaced file. Refused.
+        finish_cancelled();
+        assert!(begin());
+        progress(Phase::Swapping, 0, 0);
+        assert!(!request_cancel());
+
+        // Starting a job clears a stale flag, or the next install would stop
+        // before it began.
+        assert!(!is_cancelled(), "begin must clear the cancel flag");
+        finish_cancelled();
     }
 }

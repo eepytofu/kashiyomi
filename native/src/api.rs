@@ -1,6 +1,6 @@
 //! JSON command routing for `kashiyomi.dispatch`.
 //!
-//! Request:  `{"cmd": "init" | "reload" | "install" | "dictStatus" | "freeSpace" | "sweepPartials" | "status" | "analyze", ...}`
+//! Request:  `{"cmd": "init" | "reload" | "install" | "dictStatus" | "cancelInstall" | "freeSpace" | "sweepPartials" | "status" | "analyze", ...}`
 //! Response: `{"status": "ok", "data": ...}` or `{"status": "error", "message": "..."}`
 
 use serde::{Deserialize, Serialize};
@@ -55,6 +55,8 @@ enum Command {
     /// Analyzer state and install progress in one call, for polling while an
     /// install runs on its worker thread.
     DictStatus,
+    /// Ask a running install to stop. Refused once the swap has begun.
+    CancelInstall,
     Analyze {
         lines: Vec<String>,
     },
@@ -93,6 +95,7 @@ fn job_data() -> serde_json::Value {
             "started": started,
         }),
         job::Job::Failed { message } => json!({ "kind": "failed", "message": message }),
+        job::Job::Cancelled => json!({ "kind": "cancelled" }),
     }
 }
 
@@ -149,8 +152,10 @@ pub fn handle(raw: &str) -> String {
                         analyzer::unload();
                     },
                     &|phase, done, total| job::progress(phase, done, total),
+                    &job::is_cancelled,
                 );
                 match outcome {
+                    Err(install::InstallError::Cancelled) => job::finish_cancelled(),
                     Ok(installed) => {
                         // The dictionary is unloaded at this point *because* the
                         // rename required it, so loading again is not optional:
@@ -160,11 +165,15 @@ pub fn handle(raw: &str) -> String {
                             analyzer::begin_reload_replacing(target, resource_dir, superseded);
                         job::finish_ok(installed.bytes, started);
                     }
-                    Err(message) => job::finish_err(message),
+                    Err(install::InstallError::Failed(message)) => job::finish_err(message),
                 }
             });
             ok(json!({ "started": true }))
         }
+        // `accepted: false` means the worker is past the swap, not that the
+        // command failed. The row keeps its Cancel visible and disabled through
+        // those phases, so this should not normally be reachable from the UI.
+        Command::CancelInstall => ok(json!({ "accepted": job::request_cancel() })),
         // One poll for everything the host needs while an install runs: how the
         // worker is getting on, and whether the analyzer has come back up
         // afterwards. Deliberately does *not* report which editions are on disk.

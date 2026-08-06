@@ -27,6 +27,24 @@ pub struct Installed {
     pub bytes: u64,
 }
 
+/// Why an install stopped.
+///
+/// Cancellation is its own variant rather than an error string the caller
+/// pattern-matches: nothing is wrong when a user stops a download, and mapping
+/// it back out of a message would be one `contains("cancel")` away from
+/// misreading a genuine failure that happens to mention the word.
+#[derive(Debug)]
+pub enum InstallError {
+    Cancelled,
+    Failed(String),
+}
+
+impl From<String> for InstallError {
+    fn from(message: String) -> Self {
+        InstallError::Failed(message)
+    }
+}
+
 /// Hash `archive`, extract `member` from it, and move the result onto `target`.
 ///
 /// `expected_sha256` is pinned at build time rather than fetched at runtime. A
@@ -40,26 +58,37 @@ pub fn verify_and_install(
     target: &str,
     unload: &dyn Fn(),
     progress: &dyn Fn(Phase, u64, u64),
-) -> Result<Installed, String> {
-    let actual = sha256_file(archive, progress)?;
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Installed, InstallError> {
+    let actual = sha256_file(archive, progress, cancelled).inspect_err(|_| {
+        remove_quietly(archive);
+    })?;
     if !actual.eq_ignore_ascii_case(expected_sha256.trim()) {
         // Deliberately no "install anyway" path. A wasted 69 MB download is an
         // annoyance; a silently corrupted dictionary handed to the analyzer is
         // not, and neither is one an attacker chose.
         remove_quietly(archive);
-        return Err(format!(
+        return Err(InstallError::Failed(format!(
             "checksum mismatch: expected {expected_sha256}, got {actual}"
-        ));
+        )));
     }
 
     // Stage beside the target so the rename is on one volume and therefore
     // atomic. A temp directory could be on another drive, where the "rename"
     // becomes a copy and stops being atomic.
     let staged = staging_path(target);
-    let extracted = extract_member(archive, member, &staged, progress).inspect_err(|_| {
-        remove_quietly(&staged.to_string_lossy());
-    })?;
+    let extracted =
+        extract_member(archive, member, &staged, progress, cancelled).inspect_err(|_| {
+            // Both go, on cancel as much as on failure: the staged file is a
+            // partial dictionary and the archive would otherwise sit there as
+            // the abandoned download the startup sweeper exists to catch.
+            remove_quietly(&staged.to_string_lossy());
+            remove_quietly(archive);
+        })?;
 
+    // Past this line cancelling is refused, because the old dictionary is about
+    // to be unloaded and stopping between that and the rename would leave the
+    // analyzer closed over nothing.
     progress(Phase::Swapping, 0, 0);
     swap(&staged, target, unload)?;
     remove_quietly(archive);
@@ -87,7 +116,11 @@ pub fn swap(staged: &Path, target: &str, unload: &dyn Fn()) -> Result<(), String
     })
 }
 
-fn sha256_file(path: &str, progress: &dyn Fn(Phase, u64, u64)) -> Result<String, String> {
+fn sha256_file(
+    path: &str,
+    progress: &dyn Fn(Phase, u64, u64),
+    cancelled: &dyn Fn() -> bool,
+) -> Result<String, InstallError> {
     let file = File::open(path).map_err(|e| format!("cannot read the download: {e}"))?;
     let total = file.metadata().map(|m| m.len()).unwrap_or(0);
     let mut reader = BufReader::new(file);
@@ -104,6 +137,12 @@ fn sha256_file(path: &str, progress: &dyn Fn(Phase, u64, u64)) -> Result<String,
         hasher.update(&buffer[..read]);
         done += read as u64;
         progress(Phase::Verifying, done, total);
+        // Checked per chunk rather than per phase: hashing 121 MB takes long
+        // enough that a cancel honoured only at the end is a cancel that does
+        // nothing a user can perceive.
+        if cancelled() {
+            return Err(InstallError::Cancelled);
+        }
     }
     Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
 }
@@ -113,7 +152,8 @@ fn extract_member(
     member: &str,
     destination: &Path,
     progress: &dyn Fn(Phase, u64, u64),
-) -> Result<u64, String> {
+    cancelled: &dyn Fn() -> bool,
+) -> Result<u64, InstallError> {
     let file = File::open(archive).map_err(|e| format!("cannot open the archive: {e}"))?;
     let mut zip = zip::ZipArchive::new(BufReader::new(file))
         .map_err(|e| format!("the download is not a valid archive: {e}"))?;
@@ -142,6 +182,9 @@ fn extract_member(
             .map_err(|e| format!("cannot write the dictionary: {e}"))?;
         done += read as u64;
         progress(Phase::Extracting, done, total);
+        if cancelled() {
+            return Err(InstallError::Cancelled);
+        }
     }
     out.flush().map_err(|e| format!("cannot write the dictionary: {e}"))?;
     Ok(done)
@@ -234,6 +277,11 @@ mod tests {
     /// Most tests are about what lands on disk, not about the progress feed.
     fn no_progress(_: Phase, _: u64, _: u64) {}
 
+    /// Most tests never cancel; the ones that do pass their own probe.
+    fn never_cancelled() -> bool {
+        false
+    }
+
     /// What sudachi.rs holds on a loaded dictionary — a memory map of the file.
     fn map_file(path: &Path) -> memmap2::Mmap {
         let file = File::open(path).expect("open for mapping");
@@ -265,7 +313,7 @@ mod tests {
         let archive = dir.join("d.whl");
         let target = dir.join("system_core.dic");
         write_archive(&archive, "pkg/resources/system.dic", b"dictionary bytes");
-        let hash = sha256_file(&archive.to_string_lossy(), &no_progress).expect("hash");
+        let hash = sha256_file(&archive.to_string_lossy(), &no_progress, &never_cancelled).expect("hash");
 
         let installed = verify_and_install(
             &archive.to_string_lossy(),
@@ -274,6 +322,7 @@ mod tests {
             &target.to_string_lossy(),
             &no_unload,
             &no_progress,
+            &never_cancelled,
         )
         .expect("install");
 
@@ -298,7 +347,7 @@ mod tests {
         // and a per-chunk feed is distinguishable from a single final call.
         let payload = vec![b'x'; CHUNK * 2 + 7];
         write_archive(&archive, "pkg/resources/system.dic", &payload);
-        let hash = sha256_file(&archive.to_string_lossy(), &no_progress).expect("hash");
+        let hash = sha256_file(&archive.to_string_lossy(), &no_progress, &never_cancelled).expect("hash");
 
         let seen: RefCell<Vec<(&'static str, u64, u64)>> = RefCell::new(Vec::new());
         verify_and_install(
@@ -308,6 +357,7 @@ mod tests {
             &target.to_string_lossy(),
             &no_unload,
             &|phase, done, total| seen.borrow_mut().push((phase.as_str(), done, total)),
+            &never_cancelled,
         )
         .expect("install");
 
@@ -337,6 +387,48 @@ mod tests {
         }
     }
 
+    /// Cancelling mid-extract leaves the machine exactly as it was.
+    ///
+    /// The dangerous shape here is a cancel that stops the work but leaves a
+    /// half-written `.part` beside the real dictionary, or an archive nothing
+    /// collects. Both are checked, along with the working dictionary surviving.
+    #[test]
+    fn cancelling_during_extraction_installs_nothing_and_leaves_no_litter() {
+        let dir = temp_dir("cancel");
+        let archive = dir.join("d.whl");
+        let target = dir.join("system_core.dic");
+        fs::write(&target, b"the previous dictionary").expect("seed target");
+        write_archive(&archive, "pkg/resources/system.dic", &vec![b'x'; CHUNK * 3]);
+        let hash = sha256_file(&archive.to_string_lossy(), &no_progress, &never_cancelled)
+            .expect("hash");
+
+        // Cancel once extraction has actually started, so the flag is read on
+        // the path that matters rather than short-circuiting before any work.
+        let started_extracting = RefCell::new(false);
+        let result = verify_and_install(
+            &archive.to_string_lossy(),
+            &hash,
+            "pkg/resources/system.dic",
+            &target.to_string_lossy(),
+            &|| panic!("a cancelled install must never unload the dictionary"),
+            &|phase, _, _| {
+                if phase.as_str() == "extracting" {
+                    *started_extracting.borrow_mut() = true;
+                }
+            },
+            &|| *started_extracting.borrow(),
+        );
+
+        assert!(matches!(result, Err(InstallError::Cancelled)));
+        assert_eq!(
+            fs::read(&target).expect("read target"),
+            b"the previous dictionary",
+            "the working dictionary survives a cancelled install",
+        );
+        assert!(!dir.join("system_core.dic.part").exists(), "staging is cleaned up");
+        assert!(!archive.exists(), "the archive is not left for the sweeper to find");
+    }
+
     #[test]
     fn a_checksum_mismatch_installs_nothing() {
         let dir = temp_dir("badhash");
@@ -352,6 +444,7 @@ mod tests {
             &target.to_string_lossy(),
             &no_unload,
             &no_progress,
+            &never_cancelled,
         );
 
         assert!(result.is_err(), "must refuse");
@@ -369,7 +462,7 @@ mod tests {
         let target = dir.join("system_core.dic");
         fs::write(&target, b"the previous dictionary").expect("seed target");
         write_archive(&archive, "pkg/something-else", b"x");
-        let hash = sha256_file(&archive.to_string_lossy(), &no_progress).expect("hash");
+        let hash = sha256_file(&archive.to_string_lossy(), &no_progress, &never_cancelled).expect("hash");
 
         let result = verify_and_install(
             &archive.to_string_lossy(),
@@ -378,6 +471,7 @@ mod tests {
             &target.to_string_lossy(),
             &no_unload,
             &no_progress,
+            &never_cancelled,
         );
 
         assert!(result.is_err());
@@ -397,7 +491,7 @@ mod tests {
         let target = dir.join("system_core.dic");
         fs::write(&target, b"the previous dictionary").expect("seed target");
         write_archive(&archive, "pkg/resources/system.dic", b"the new dictionary");
-        let hash = sha256_file(&archive.to_string_lossy(), &no_progress).expect("hash");
+        let hash = sha256_file(&archive.to_string_lossy(), &no_progress, &never_cancelled).expect("hash");
 
         let mapped = RefCell::new(Some(map_file(&target)));
 
@@ -410,6 +504,7 @@ mod tests {
                 mapped.borrow_mut().take();
             },
             &no_progress,
+            &never_cancelled,
         )
         .expect("an update over a mapped dictionary must succeed");
 

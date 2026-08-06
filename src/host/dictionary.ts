@@ -40,6 +40,7 @@ import { log } from "./log.ts";
 import { getSettings, updateSettings } from "./settings.ts";
 import {
   nativeFreeSpace,
+  nativeCancelInstall,
   nativeDictStatus,
   nativeStartInstall,
   nativeSweepPartials,
@@ -180,11 +181,20 @@ async function refreshInventory(
 }
 
 /**
- * Stop an in-flight download. Nothing has been written to the live path by this
- * point, so cancelling is always safe and leaves the working dictionary alone.
+ * Stop whatever the current attempt is doing, wherever it has got to.
+ *
+ * Three mechanisms because there are three kinds of work, and one signal cannot
+ * reach all of them: the metadata check and the transfer are `fetch` calls
+ * behind an `AbortController`, while verifying and unpacking happen on a native
+ * worker that only sees a flag it polls between chunks.
+ *
+ * Safe at every point it is accepted. Nothing is written to the live path until
+ * the swap, and the swap is exactly where the native side stops agreeing to be
+ * cancelled.
  */
 export function cancelDictionaryDownload(): void {
   abort?.abort();
+  nativeCancelInstall();
 }
 
 /**
@@ -208,6 +218,10 @@ export function simulateDictionaryFailure(reason: DictionaryFailure | undefined)
 export async function resolveRelease(
   edition: DictionaryEdition,
 ): Promise<DictionaryRelease | undefined> {
+  // The attempt's abort signal starts here, not at the download: an update
+  // check against a source that is timing out is exactly when someone reaches
+  // for Cancel, and there was nothing to press it against.
+  abort = new AbortController();
   setJob({ kind: "resolving", edition });
   if (edition === "full") return (await resolveFull()).release;
   const sources = metadataSources(edition);
@@ -216,6 +230,7 @@ export async function resolveRelease(
     try {
       const response = await fetch(url, {
         headers: isSimpleIndex ? { accept: SIMPLE_INDEX_ACCEPT } : {},
+        signal: abort.signal,
       });
       if (!response.ok) continue;
       const body: unknown = await response.json();
@@ -224,6 +239,12 @@ export async function resolveRelease(
         : parsePypiRelease(edition, body);
       if (release) return release;
     } catch (err) {
+      // A cancel must end the whole attempt, not advance to the next source.
+      // Falling through would have Cancel walk the list one press at a time.
+      if (err instanceof Error && err.name === "AbortError") {
+        fail(edition, "cancelled");
+        return undefined;
+      }
       log.debug(`dictionary metadata source failed: ${url}`, err);
     }
   }
@@ -328,7 +349,11 @@ export async function downloadDictionary(
 ): Promise<DictionaryJob> {
   if (inFlight) return job;
   inFlight = true;
-  abort = new AbortController();
+  // Reuse the controller `resolveRelease` opened for this attempt rather than
+  // replacing it. A fresh one would drop the signal for the moment between the
+  // update check finishing and the transfer starting, where Cancel is on screen
+  // and enabled and would have quietly done nothing.
+  abort = abort ?? new AbortController();
   const edition = plan.release.edition;
   try {
     if (simulated) return fail(edition, simulated);
@@ -378,8 +403,11 @@ export async function downloadDictionary(
 
     const installed = await awaitInstall(edition);
     if (!installed.ok) {
-      // The backend already discarded the archive and any staging; the message
-      // distinguishes a corrupt download from a full disk.
+      // The backend already discarded the archive and any staging. Cancelling is
+      // reported as its own outcome by the worker rather than inferred from a
+      // message, so a genuine failure that happens to mention the word cannot
+      // be mistaken for one the user asked for.
+      if (installed.cancelled) return fail(edition, "cancelled");
       log.info(`dictionary install failed: ${installed.error}`);
       return fail(edition, /checksum/u.test(installed.error) ? "checksum" : "extract");
     }
@@ -416,9 +444,12 @@ const INSTALL_POLL_MS = 150;
  * because a 207 MB extract at 150 ms is still far more repaints than a row
  * measured in tenths of a megabyte can show.
  */
-async function awaitInstall(
-  edition: DictionaryEdition,
-): Promise<{ ok: true; started: boolean } | { ok: false; error: string }> {
+type InstallOutcome =
+  | { ok: true; started: boolean }
+  | { ok: false; cancelled: true }
+  | { ok: false; cancelled?: false; error: string };
+
+async function awaitInstall(edition: DictionaryEdition): Promise<InstallOutcome> {
   for (;;) {
     await new Promise((resolve) => window.setTimeout(resolve, INSTALL_POLL_MS));
     const status = nativeDictStatus();
@@ -434,6 +465,7 @@ async function awaitInstall(
       });
       continue;
     }
+    if (native.kind === "cancelled") return { ok: false, cancelled: true };
     if (native.kind === "failed") return { ok: false, error: native.message };
     if (native.kind === "done") return { ok: true, started: native.started };
     // `idle` here means the worker finished and something else already consumed
