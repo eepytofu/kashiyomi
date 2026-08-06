@@ -14,11 +14,13 @@
 
 import { panelLang, t } from "../i18n.ts";
 import {
-  dictionaryStatus,
+  dictionaryInventory,
+  dictionaryJob,
   downloadDictionary,
   installedEditions,
-  onDictionaryStatusChange,
+  onDictionaryChange,
   planDownload,
+  reportUpToDate,
   resolveRelease,
   type DownloadPlan,
 } from "../dictionary.ts";
@@ -76,7 +78,7 @@ export function dictionaryRow(): HTMLElement {
   // a tooltip.
   const editionNote = document.createElement("div");
   editionNote.className = "kc-desc kc-dict-note";
-  edition.value = getSettings().dictEdition;
+  edition.value = getSettings().dictPreferredEdition;
   el.appendChild(editionWrap);
 
   const button = document.createElement("button");
@@ -90,39 +92,48 @@ export function dictionaryRow(): HTMLElement {
   el.appendChild(editionNote);
 
   let poll: number | undefined;
-  // Shown briefly after an update check that found nothing newer.
-  let upToDate = false;
 
+  /**
+   * The inventory decides what the row says about the dictionary; the job only
+   * covers it while something is running. Reading them in that order is what
+   * stops a failed attempt from describing a working install as broken.
+   *
+   * Step 5 of the rework moves this into a pure `dictionaryRowState`, tested
+   * per state. It stays here for now so this commit changes the state model
+   * without also changing the view.
+   */
   const paint = () => {
-    const status = dictionaryStatus();
+    const inventory = dictionaryInventory();
+    const job = dictionaryJob();
     const chosen = edition.value as DictionaryEdition;
     const pinned = pinnedRelease(chosen);
-    let label = "";
-    let action = t("dictInstall");
+    const shown = inventory.loaded ?? inventory.installed[0];
+    const version = shown ? inventory.versions[shown] : undefined;
+
+    let label = shown
+      ? `${shown}${version ? ` · ${releaseDate(version)}` : ""}`
+      : `${t("dictNotInstalled")} · ${chosen} ${releaseDate(pinned.version)} · ${mb(pinned.size)}`;
+    let action = shown ? (shown === chosen ? t("dictUpdate") : t("dictSwitch")) : t("dictInstall");
     let busy = false;
 
-    switch (status.kind) {
-      case "absent":
-        label = `${t("dictNotInstalled")} · ${chosen} ${releaseDate(pinned.version)} · ${mb(pinned.size)}`;
-        break;
-      case "downloading":
-        label = `${t("dictDownloading")} ${mb(status.received)} / ${mb(status.total)}`;
-        busy = true;
-        break;
+    switch (job.kind) {
+      case "resolving":
       case "installing":
         label = t("dictInstalling");
         busy = true;
         break;
-      case "installed":
-        label = status.version
-          ? `${status.edition} · ${releaseDate(status.version)}`
-          : status.edition;
-        if (upToDate) label += ` · ${t("dictUpToDate")}`;
-        action = status.edition === chosen ? t("dictUpdate") : t("dictSwitch");
+      case "downloading":
+        label = `${t("dictDownloading")} ${mb(job.received)} / ${mb(job.total)}`;
+        busy = true;
         break;
       case "failed":
-        label = `${t("dictFailed")}: ${t(`dictFail_${status.reason.replace(/-/gu, "_")}` as never)}`;
+        label = `${t("dictFailed")}: ${t(`dictFail_${job.reason.replace(/-/gu, "_")}` as never)}`;
         action = t("dictRetry");
+        break;
+      case "upToDate":
+        label += ` · ${t("dictUpToDate")}`;
+        break;
+      case "idle":
         break;
     }
     if (description) description.textContent = label;
@@ -137,8 +148,8 @@ export function dictionaryRow(): HTMLElement {
     if (poll !== undefined) return;
     poll = window.setInterval(() => {
       paint();
-      const kind = dictionaryStatus().kind;
-      if (kind !== "downloading" && kind !== "installing") {
+      const kind = dictionaryJob().kind;
+      if (kind !== "downloading" && kind !== "installing" && kind !== "resolving") {
         window.clearInterval(poll);
         poll = undefined;
       }
@@ -155,7 +166,7 @@ export function dictionaryRow(): HTMLElement {
   };
 
   edition.onchange = () => {
-    updateSettings({ dictEdition: edition.value as DictionaryEdition });
+    updateSettings({ dictPreferredEdition: edition.value as DictionaryEdition });
     paintEditionNote();
     paint();
   };
@@ -179,19 +190,15 @@ export function dictionaryRow(): HTMLElement {
 
       // Nothing to do if the installed dictionary is already this release.
       // Re-downloading 69 MB to arrive at the same file is not an update, and
-      // the button was happy to do it as often as it was pressed.
-      const current = dictionaryStatus();
+      // the button was happy to do it as often as it was pressed. Asked per
+      // edition now, so switching away and back does not re-fetch a file whose
+      // version is still recorded.
+      const inventory = dictionaryInventory();
       if (
-        current.kind === "installed" &&
-        current.edition === release.edition &&
-        current.version === release.version
+        inventory.installed.includes(release.edition) &&
+        inventory.versions[release.edition] === release.version
       ) {
-        upToDate = true;
-        paint();
-        window.setTimeout(() => {
-          upToDate = false;
-          paint();
-        }, 4000);
+        reportUpToDate(release.edition);
         return;
       }
 
@@ -203,7 +210,7 @@ export function dictionaryRow(): HTMLElement {
       // cache is keyed by line text, so rescan alone would put every line back
       // with its old reading and the whole download would look like it did
       // nothing.
-      if (result.kind === "installed") {
+      if (result.kind === "idle") {
         resetAnalysisCache();
         void rescan();
       }
@@ -216,6 +223,6 @@ export function dictionaryRow(): HTMLElement {
   // Follow the status wherever it is changed from, not just this row's own
   // button: the panel is built once and would otherwise keep showing whatever
   // was true when it was opened.
-  onDictionaryStatusChange(paint);
+  onDictionaryChange(paint);
   return el;
 }

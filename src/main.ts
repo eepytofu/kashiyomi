@@ -7,11 +7,12 @@ import { log } from "./host/log.ts";
 import { nativeInit, nativeState } from "./host/native.ts";
 import {
   cancelDictionaryDownload,
-  dictionaryStatus,
+  dictionaryInventory,
+  dictionaryJob,
   downloadDictionary,
   installedEditions,
   planDownload,
-  reportInstalled,
+  reportInventory,
   resolveRelease,
   simulateDictionaryFailure,
   sweepAbandonedDownloads,
@@ -38,9 +39,9 @@ async function start(): Promise<void> {
   // — a failed install, a manual delete, a preference changed before the
   // download ran — and the disk is the only one of the two that can be opened.
   const installed = await installedEditions(paths.dictDir);
-  const boot = chooseBootEdition(getSettings().dictEdition, installed);
+  const boot = chooseBootEdition(getSettings().dictPreferredEdition, installed);
   log.info(`dictionaries on disk: [${installed.join(", ")}], loading: ${boot.load ?? "none"}`);
-  reportInstalled(boot.load);
+  reportInventory(installed, boot.load);
   const status = nativeState();
   log.info("native state:", status.state, status.error ?? "");
   if (boot.load && (status.state === "uninitialized" || status.state === "failed")) {
@@ -53,7 +54,7 @@ async function start(): Promise<void> {
   (window as unknown as Record<string, unknown>).kashiyomi = {
     state: () => nativeState(),
     rescan,
-    dictionary: () => dictionaryStatus(),
+    dictionary: () => ({ inventory: dictionaryInventory(), job: dictionaryJob() }),
     cancelDictionary: cancelDictionaryDownload,
     // Every dictionary failure state on demand, so the messages can be read in
     // the real panel without unplugging anything. Unit tests prove the state

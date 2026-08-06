@@ -20,7 +20,7 @@ import { hasHan, hasKana } from "../engine/kana.ts";
 import { classifyLines, type ClassifiableLine } from "../engine/lineKinds.ts";
 import { prepareJapaneseLine, type PreparedJapaneseLine } from "../engine/lineText.ts";
 import { nativeAnalyze } from "./native.ts";
-import { dictionaryStatus } from "./dictionary.ts";
+import { dictionaryInventory } from "./dictionary.ts";
 import { t } from "./i18n.ts";
 import { ensurePinyinDict } from "./pinyinDict.ts";
 import { ROW_CLASS, renderJapaneseLine, renderNoticeRow, renderPinyinRow } from "./render.ts";
@@ -258,8 +258,12 @@ function annotateJapanese(
     // Explain it on the first line rather than leaving the page silent. A user
     // who installed a furigana plugin and sees no furigana has no other way to
     // find out that a dictionary is missing.
+    // Asked of the inventory, never of a job. The old single status turned
+    // `absent` into `failed` the moment a download failed and left it there,
+    // so the machines with no dictionary *and* a failed attempt were the only
+    // ones told nothing at all.
     const first = pendingAnalysis[0];
-    if (first && dictionaryStatus().kind === "absent") {
+    if (first && dictionaryInventory().installed.length === 0) {
       renderNoticeRow(first.line.el, t("dictNoticeMissing"));
     }
     for (const { line } of pendingAnalysis) {

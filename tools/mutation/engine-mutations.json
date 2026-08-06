@@ -985,5 +985,33 @@
     "what": "an override only fills an abstention instead of overriding the analyzer, which is the whole feature",
     "find": "    if (reading === undefined || reading === token.readingKana) return token;",
     "replace": "    if (reading === undefined || token.readingKana !== \"\") return token;"
+  },
+  {
+    "id": "dictstate/preference-follows-the-install",
+    "file": "src/engine/dictionaryState.ts",
+    "what": "the legacy install field outranks the stored preference, so a failed switch rewrites what the user chose",
+    "find": "      asEdition(source.dictPreferredEdition) ?? asEdition(source.dictEdition) ?? \"core\",",
+    "replace": "      asEdition(source.dictEdition) ?? asEdition(source.dictPreferredEdition) ?? \"core\","
+  },
+  {
+    "id": "dictstate/empty-legacy-version-stored",
+    "file": "src/engine/dictionaryState.ts",
+    "what": "an empty legacy version becomes an entry, so a never-installed edition claims a release",
+    "find": "  if (typeof legacy === \"string\" && legacy !== \"\" && edition !== undefined) {",
+    "replace": "  if (typeof legacy === \"string\" && edition !== undefined) {"
+  },
+  {
+    "id": "dictstate/prune-keeps-absent-editions",
+    "file": "src/engine/dictionaryState.ts",
+    "what": "versions survive for editions no longer on disk, so the row dates a file nothing can open",
+    "find": "    if (!installed.includes(edition)) continue;",
+    "replace": "    if (false) continue;"
+  },
+  {
+    "id": "dictstate/switch-pending-on-empty-disk",
+    "file": "src/engine/dictionaryState.ts",
+    "what": "a machine with no dictionary reports a pending switch instead of a first install",
+    "find": "  return inventory.installed.length > 0 && !inventory.installed.includes(preferred);",
+    "replace": "  return !inventory.installed.includes(preferred);"
   }
 ]

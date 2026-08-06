@@ -23,13 +23,18 @@ import {
   type DictionaryEdition,
   type DictionaryFailure,
   type DictionaryRelease,
-  type DictionaryStatus,
 } from "../engine/dictionarySource.ts";
 import {
   archivePath,
   dictionaryPath,
   installedEditionsFrom,
 } from "../engine/dictionaryLayout.ts";
+import {
+  pruneVersions,
+  withVersion,
+  type DictionaryInventory,
+  type DictionaryJob,
+} from "../engine/dictionaryState.ts";
 import { pinnedRelease } from "../engine/dictionaryPins.ts";
 import { log } from "./log.ts";
 import { getSettings, updateSettings } from "./settings.ts";
@@ -39,17 +44,24 @@ import {
   nativeSweepPartials,
 } from "./native.ts";
 
-let status: DictionaryStatus = { kind: "absent" };
+let inventory: DictionaryInventory = { installed: [], versions: {}, loaded: undefined };
+let job: DictionaryJob = { kind: "idle" };
 let inFlight = false;
 let abort: AbortController | undefined;
 const listeners = new Set<() => void>();
 
-export function dictionaryStatus(): DictionaryStatus {
-  return status;
+/** What exists on disk and what the analyzer opened. */
+export function dictionaryInventory(): DictionaryInventory {
+  return inventory;
+}
+
+/** What an install is doing, including how the last one failed. */
+export function dictionaryJob(): DictionaryJob {
+  return job;
 }
 
 /**
- * Notify a listener whenever the status changes, whoever changed it.
+ * Notify a listener whenever either changes, whoever changed it.
  *
  * The settings row used to repaint only in response to its own button, so a
  * download started anywhere else — the debug handle, and in future an automatic
@@ -57,15 +69,36 @@ export function dictionaryStatus(): DictionaryStatus {
  * installed and working. A control whose whole job is reporting state has to
  * follow the state rather than its own last click.
  */
-export function onDictionaryStatusChange(listener: () => void): () => void {
+export function onDictionaryChange(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
-function setStatus(next: DictionaryStatus): DictionaryStatus {
-  status = next;
+function announce(): void {
   for (const listener of listeners) listener();
-  return status;
+}
+
+function setJob(next: DictionaryJob): DictionaryJob {
+  job = next;
+  announce();
+  return job;
+}
+
+/**
+ * Publish what the disk holds, pruning versions for editions no longer on it.
+ *
+ * Takes the listing rather than reading it, because boot has already read the
+ * directory to decide what to load and reading it twice invites the two answers
+ * to differ.
+ */
+export function reportInventory(
+  installed: readonly DictionaryEdition[],
+  loaded: DictionaryEdition | undefined,
+): void {
+  const versions = pruneVersions(getSettings().dictVersions, installed);
+  updateSettings({ dictVersions: versions });
+  inventory = { installed, versions, loaded };
+  announce();
 }
 
 /**
@@ -90,17 +123,19 @@ export async function installedEditions(
 }
 
 /**
- * Publish what boot found, so the row does not open on "not installed" over a
- * working dictionary.
+ * Re-read the directory and publish what is actually there.
  *
- * The version is not recoverable from the file, so it is remembered in settings
- * when a download completes. An unknown version is shown rather than treated as
- * missing: the dictionary works either way, and re-downloading 69 MB to learn a
- * date string would be a poor trade.
+ * Used after an install, where the alternative is predicting the new contents
+ * from the plan. The prediction has two branches that are easy to get wrong (a
+ * superseded edition is deleted only once the new one loads, and a rename that
+ * lands before a failed load still leaves the file) and the disk can simply be
+ * asked.
  */
-export function reportInstalled(edition: DictionaryEdition | undefined): void {
-  if (status.kind !== "absent" || edition === undefined) return;
-  setStatus({ kind: "installed", edition, version: getSettings().dictVersion });
+async function refreshInventory(
+  dictDir: string,
+  loaded: DictionaryEdition | undefined,
+): Promise<void> {
+  reportInventory(await installedEditions(dictDir), loaded);
 }
 
 /**
@@ -132,6 +167,7 @@ export function simulateDictionaryFailure(reason: DictionaryFailure | undefined)
 export async function resolveRelease(
   edition: DictionaryEdition,
 ): Promise<DictionaryRelease | undefined> {
+  setJob({ kind: "resolving", edition });
   if (edition === "full") return (await resolveFull()).release;
   const sources = metadataSources(edition);
   for (const [index, url] of sources.entries()) {
@@ -150,7 +186,21 @@ export async function resolveRelease(
       log.debug(`dictionary metadata source failed: ${url}`, err);
     }
   }
+  // Every source refused. Clear the job rather than leaving it resolving
+  // forever, which would keep the button disabled with nothing running.
+  setJob({ kind: "idle" });
   return undefined;
+}
+
+/**
+ * The update check found nothing newer.
+ *
+ * A job state rather than a flag plus a `setTimeout` in the row: `at` lets the
+ * row decide how long to say so, and a rebuilt panel cannot strand a timer that
+ * writes to a row that is gone.
+ */
+export function reportUpToDate(edition: DictionaryEdition): void {
+  setJob({ kind: "upToDate", edition, at: Date.now() });
 }
 
 /**
@@ -234,12 +284,13 @@ export function planDownload(
 export async function downloadDictionary(
   plan: DownloadPlan,
   resourceDir: string,
-): Promise<DictionaryStatus> {
-  if (inFlight) return status;
+): Promise<DictionaryJob> {
+  if (inFlight) return job;
   inFlight = true;
   abort = new AbortController();
+  const edition = plan.release.edition;
   try {
-    if (simulated) return fail(simulated);
+    if (simulated) return fail(edition, simulated);
     // Before the bandwidth, not after: the archive and its 207 MB extraction
     // exist at once, and a disk that cannot hold both should say so now.
     const dir = plan.directory;
@@ -248,7 +299,7 @@ export async function downloadDictionary(
       log.info(
         `dictionary needs ${requiredFreeBytes(plan.release.size)} bytes free, ${free} available`,
       );
-      return fail("disk-space");
+      return fail(edition, "disk-space");
     }
 
     // The data directory does not exist on a fresh install, and writeFile does
@@ -260,11 +311,11 @@ export async function downloadDictionary(
       log.debug("could not create the dictionary directory", err);
     }
 
-    setStatus({ kind: "downloading", received: 0, total: plan.release.size });
+    setJob({ kind: "downloading", edition, received: 0, total: plan.release.size });
     const archive = await fetchArchive(plan);
-    if (!archive.ok) return fail(archive.reason);
+    if (!archive.ok) return fail(edition, archive.reason);
 
-    setStatus({ kind: "installing" });
+    setJob({ kind: "installing", edition });
     const installed = nativeInstallDictionary(
       plan.archivePath,
       plan.release.sha256,
@@ -277,30 +328,28 @@ export async function downloadDictionary(
       // The backend already discarded the archive and any staging; the message
       // distinguishes a corrupt download from a full disk.
       log.info(`dictionary install failed: ${installed.error}`);
-      return fail(/checksum/u.test(installed.error) ? "checksum" : "extract");
+      return fail(edition, /checksum/u.test(installed.error) ? "checksum" : "extract");
     }
-    if (!installed.started) return fail("load");
 
-    // Recorded now, not after the load reports Ready. The bytes are verified
-    // and in place; forgetting the version because a load was momentarily busy
-    // used to cost another 69 MB to learn a date string already in hand.
+    // Recorded before the load is judged, not after. The bytes are verified and
+    // in place by this point, so forgetting the version because a load was
+    // momentarily busy used to cost another 69 MB to learn a date string
+    // already on the disk. The preference is deliberately not touched: it is
+    // the user's, and an install is not a statement about what they want.
     updateSettings({
-      dictEdition: plan.release.edition,
-      dictVersion: plan.release.version,
+      dictVersions: withVersion(getSettings().dictVersions, edition, plan.release.version),
     });
-    return setStatus({
-      kind: "installed",
-      edition: plan.release.edition,
-      version: plan.release.version,
-    });
+    await refreshInventory(plan.directory, installed.started ? edition : undefined);
+    if (!installed.started) return fail(edition, "load");
+    return setJob({ kind: "idle" });
   } finally {
     inFlight = false;
     abort = undefined;
   }
 }
 
-function fail(reason: DictionaryFailure): DictionaryStatus {
-  return setStatus({ kind: "failed", reason });
+function fail(edition: DictionaryEdition, reason: DictionaryFailure): DictionaryJob {
+  return setJob({ kind: "failed", edition, reason, at: Date.now() });
 }
 
 /**
@@ -323,7 +372,12 @@ async function fetchArchive(plan: DownloadPlan): Promise<{ ok: true } | { ok: fa
       if (!value) continue;
       chunks.push(value);
       received += value.byteLength;
-      setStatus({ kind: "downloading", received, total: plan.release.size });
+      setJob({
+        kind: "downloading",
+        edition: plan.release.edition,
+        received,
+        total: plan.release.size,
+      });
     }
     await betterncm.fs.writeFile(plan.archivePath, new Blob(chunks as BlobPart[]));
     return { ok: true };

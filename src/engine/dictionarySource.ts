@@ -250,13 +250,6 @@ export function largestEditionThatFits(
   return undefined;
 }
 
-export type DictionaryStatus =
-  | { readonly kind: "absent" }
-  | { readonly kind: "downloading"; readonly received: number; readonly total: number }
-  | { readonly kind: "installing" }
-  | { readonly kind: "installed"; readonly edition: DictionaryEdition; readonly version: string }
-  | { readonly kind: "failed"; readonly reason: DictionaryFailure };
-
 /**
  * Why an install stopped. Separate from the message shown, because the same
  * reason reads differently on a first download and on a failed update — and

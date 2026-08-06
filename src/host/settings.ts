@@ -1,6 +1,11 @@
 // Plugin settings persisted as one JSON blob in localStorage.
 
 import type { DictionaryEdition } from "../engine/dictionarySource.ts";
+import {
+  migrateDictionarySettings,
+  type DictionarySetupSeen,
+  type DictionaryVersions,
+} from "../engine/dictionaryState.ts";
 
 export type Settings = {
   furigana: boolean;
@@ -13,10 +18,16 @@ export type Settings = {
   /** Annotate production credit lines (作詞: …) as if they were lyrics. */
   annotateCredits: boolean;
   debug: boolean;
-  /** Which SudachiDict edition is installed or wanted. */
-  dictEdition: DictionaryEdition;
-  /** Release date of the installed dictionary, e.g. "20260723". Empty until one is installed. */
-  dictVersion: string;
+  /**
+   * Which SudachiDict edition the user wants. **Never written by the install
+   * path**: it records a choice, and an install that failed or was interrupted
+   * used to overwrite it with whatever actually landed.
+   */
+  dictPreferredEdition: DictionaryEdition;
+  /** Release date per edition on disk, e.g. `{ core: "20260723" }`. */
+  dictVersions: DictionaryVersions;
+  /** Whether the first-run setup has been answered, and how. */
+  dictSetupSeen: DictionarySetupSeen;
   /** rt size as a percentage of the base lyric font. */
   furiganaSize: number;
   /** Use a Japanese font stack on Japanese lyric lines (Han unification). */
@@ -79,8 +90,9 @@ const DEFAULTS: Settings = {
   readingHints: true,
   annotateCredits: false,
   debug: true,
-  dictEdition: "core",
-  dictVersion: "",
+  dictPreferredEdition: "core",
+  dictVersions: {},
+  dictSetupSeen: "",
   furiganaSize: 50,
   useJpFont: true,
   jpFontStack: DEFAULT_JP_FONT_STACK,
@@ -106,7 +118,16 @@ export function getSettings(): Settings {
   if (!current) {
     try {
       const raw = localStorage.getItem(KEY);
-      current = raw ? { ...DEFAULTS, ...(JSON.parse(raw) as Partial<Settings>) } : { ...DEFAULTS };
+      const stored: unknown = raw ? JSON.parse(raw) : {};
+      // The dictionary fields go through a migration rather than a spread: they
+      // changed shape (one edition plus one version string became a preference
+      // plus a version per edition) and an install predating that would
+      // otherwise read as a fresh one and re-download what is already there.
+      current = {
+        ...DEFAULTS,
+        ...(stored as Partial<Settings>),
+        ...migrateDictionarySettings(stored),
+      };
     } catch {
       current = { ...DEFAULTS };
     }
