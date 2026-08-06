@@ -20,8 +20,10 @@ import { hasHan, hasKana } from "../engine/kana.ts";
 import { classifyLines, type ClassifiableLine } from "../engine/lineKinds.ts";
 import { prepareJapaneseLine, type PreparedJapaneseLine } from "../engine/lineText.ts";
 import { nativeAnalyze } from "./native.ts";
+import { dictionaryStatus } from "./dictionary.ts";
+import { t } from "./i18n.ts";
 import { ensurePinyinDict } from "./pinyinDict.ts";
-import { ROW_CLASS, renderJapaneseLine, renderPinyinRow } from "./render.ts";
+import { ROW_CLASS, renderJapaneseLine, renderNoticeRow, renderPinyinRow } from "./render.ts";
 import {
   applyScriptFont,
   clearAnnotations,
@@ -253,6 +255,13 @@ function annotateJapanese(
   }
   if (result.kind === "unavailable") {
     log.warn("native analyzer unavailable", result.error ?? "");
+    // Explain it on the first line rather than leaving the page silent. A user
+    // who installed a furigana plugin and sees no furigana has no other way to
+    // find out that a dictionary is missing.
+    const first = pendingAnalysis[0];
+    if (first && dictionaryStatus().kind === "absent") {
+      renderNoticeRow(first.line.el, t("dictNoticeMissing"));
+    }
     for (const { line } of pendingAnalysis) {
       markAnnotated(line.el, line.original);
     }

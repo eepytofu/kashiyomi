@@ -80,6 +80,25 @@ function romajiRow(annotation: JapaneseLineAnnotation): HTMLElement {
   return row;
 }
 
+/**
+ * Say why a Japanese line has no reading, in the place the reading would be.
+ *
+ * Without this the answer to "I opened the lyrics and there is no furigana" is
+ * silence, and the only way to find out is to open settings and guess. This is
+ * not a modal or a new surface — it is the row we already inject, carrying a
+ * sentence instead of a reading, and it disappears on its own once a dictionary
+ * is installed.
+ *
+ * Rendered once for the whole song rather than per line: sixty copies of the
+ * same sentence is not more informative than one, it is just louder.
+ */
+export function renderNoticeRow(el: HTMLElement, message: string): void {
+  const row = document.createElement("div");
+  row.className = `${ROW_CLASS} kashiyomi-notice`;
+  row.textContent = message;
+  el.appendChild(row);
+}
+
 export function renderPinyinRow(el: HTMLElement, pinyinText: string): void {
   el.setAttribute("lang", "zh");
   el.appendChild(readingRow(pinyinText));

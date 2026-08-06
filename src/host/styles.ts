@@ -54,6 +54,13 @@ export function applyStyles(): void {
   line-height: 1.35;
   margin-top: 2px;
 }
+/* The one row that is not a reading. Italic and dimmer so it reads as the
+   plugin talking rather than as part of the song, and it only ever appears
+   once per page, on the first line. */
+.kashiyomi-notice {
+  font-style: italic;
+  opacity: 0.55;
+}
 /* A reading wider than its word overhangs the ruby box and can collide with
    the next reading. Every case ever measured is a **phrase boundary**, where
    the two words are separated by a single space: -6.5px on 千本桜 夜ニ紛レ,

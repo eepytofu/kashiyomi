@@ -53,6 +53,8 @@ export function dictionaryRow(): HTMLElement {
   el.appendChild(button);
 
   let poll: number | undefined;
+  // Shown briefly after an update check that found nothing newer.
+  let upToDate = false;
 
   const paint = () => {
     const status = dictionaryStatus();
@@ -76,6 +78,7 @@ export function dictionaryRow(): HTMLElement {
         break;
       case "installed":
         label = status.version ? `${status.edition} · ${status.version}` : status.edition;
+        if (upToDate) label += ` · ${t("dictUpToDate")}`;
         action = status.edition === chosen ? t("dictUpdate") : t("dictSwitch");
         break;
       case "failed":
@@ -120,13 +123,30 @@ export function dictionaryRow(): HTMLElement {
       // Resolve live so an update gets the newest release; fall back to the
       // pinned one, which is always installable even with every source blocked.
       const release = await resolveRelease(chosen);
-      const plan: DownloadPlan | undefined = release
-        ? planDownload(release, dir)
-        : undefined;
-      if (!plan) {
+      if (!release) {
         paint();
         return;
       }
+
+      // Nothing to do if the installed dictionary is already this release.
+      // Re-downloading 69 MB to arrive at the same file is not an update, and
+      // the button was happy to do it as often as it was pressed.
+      const current = dictionaryStatus();
+      if (
+        current.kind === "installed" &&
+        current.edition === release.edition &&
+        current.version === release.version
+      ) {
+        upToDate = true;
+        paint();
+        window.setTimeout(() => {
+          upToDate = false;
+          paint();
+        }, 4000);
+        return;
+      }
+
+      const plan: DownloadPlan = planDownload(release, dir);
       const result = await downloadDictionary(plan, paths.resourceDir);
       // A new dictionary changes every reading in the song. The annotation
       // cache is keyed by line text, so rescan alone would put every line back

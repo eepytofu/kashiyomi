@@ -44,6 +44,12 @@ const STRINGS = {
     dictDownloading: "downloading",
     dictInstalling: "verifying and installing…",
     dictUpdate: "Update",
+    dictUpToDate: "already the newest release",
+    // Shown on the lyrics page itself when a Japanese line has no dictionary to
+    // read it with. A fact and where to fix it, in that order, in one line: the
+    // convention across published plugins is an inline notice in your own
+    // surface, never a popup, and a statement rather than an instruction.
+    dictNoticeMissing: "No Japanese dictionary installed. Download it in Kashiyomi settings.",
     dictSwitch: "Switch",
     dictRetry: "Retry",
     dictFailed: "failed",
@@ -135,6 +141,8 @@ const STRINGS = {
     dictDownloading: "下载中",
     dictInstalling: "校验并安装中…",
     dictUpdate: "更新",
+    dictUpToDate: "已是最新版本",
+    dictNoticeMissing: "尚未安装日语词典，请在 Kashiyomi 设置中下载。",
     dictSwitch: "切换",
     dictRetry: "重试",
     dictFailed: "失败",
