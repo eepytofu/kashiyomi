@@ -219,17 +219,23 @@ function buildAboutCard(column: HTMLElement): void {
   name.textContent = `Kashiyomi（歌詞読み）${version ? ` v${version}` : ""}`;
   box.appendChild(name);
 
-  const repo = document.createElement("span");
-  repo.className = "kc-link";
-  repo.textContent = t("aboutRepo");
-  repo.onclick = () => {
-    try {
-      betterncm.ncm.openUrl(REPO_URL);
-    } catch {
-      window.open(REPO_URL);
-    }
+  // Both links are required for listing: the store asks for the source and a
+  // way to report a bug, each reachable from inside the plugin's own settings.
+  const link = (label: string, url: string) => {
+    const el = document.createElement("span");
+    el.className = "kc-link";
+    el.textContent = label;
+    el.onclick = () => {
+      try {
+        betterncm.ncm.openUrl(url);
+      } catch {
+        window.open(url);
+      }
+    };
+    box.appendChild(el);
   };
-  box.appendChild(repo);
+  link(t("aboutRepo"), REPO_URL);
+  link(t("aboutIssues"), `${REPO_URL}/issues`);
 
   const logPath = document.createElement("div");
   logPath.className = "kc-muted";

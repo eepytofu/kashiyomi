@@ -1,11 +1,12 @@
 {
+    "$schema": "https://raw.githubusercontent.com/BetterNCM/BetterNCM-Plugins/refs/heads/master/manifest-schema.json",
     "manifest_version": 1,
     "name": "Kashiyomi",
     "slug": "kashiyomi",
     "version": "0.1.0",
     "author": "eepytofu",
-    "author_links": ["https://github.com/eepytofu"],
-    "description": "Local readings on the native lyrics page: furigana and romaji via Sudachi, Mandarin pinyin, and AI translation.",
+    "author_link": "https://github.com/eepytofu",
+    "description": "在原生歌词页上添加振假名、罗马音、拼音与 AI 翻译",
     "betterncm_version": ">=1.0.0",
     "ncm3-compatible": true,
     "injects": {
