@@ -113,8 +113,10 @@ async function scan(): Promise<void> {
   for (const [index, line] of scanned.entries()) {
     const { el, text } = line;
     const kind = kinds[index]!;
-    // Markers are never annotated, whatever the credits setting says.
-    if (kind === "marker") {
+    // Markers and rights notices are never annotated, whatever the credits
+    // setting says. A credit answers "who made this"; these two answer nothing
+    // and have nothing to read.
+    if (kind === "marker" || kind === "notice") {
       unrouted.push({ el, text });
       continue;
     }

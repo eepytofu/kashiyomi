@@ -1,6 +1,11 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { hasCreditShape, isCreditLine, isPartMarkerLine } from "../src/engine/metadata.ts";
+import {
+  hasCreditShape,
+  isCopyrightNotice,
+  isCreditLine,
+  isPartMarkerLine,
+} from "../src/engine/metadata.ts";
 
 test("detects the credits a japanese song actually ships with", () => {
   // Captured from the running app on 2026-08-03. NetEase writes the role
@@ -239,6 +244,41 @@ test("concatenated roles are recognized without being listed", () => {
   assert.equal(isCreditLine("笛子：囚牛"), true);
   // Nonsense that merely contains a role character stays a lyric.
   assert.equal(isCreditLine("春风漫草野：某人"), false);
+});
+
+test("a rights notice is recognized without a label or a colon", () => {
+  // Standard boilerplate, not a capture: no song held here has ever carried
+  // one, and the user reports they turn up. Written from the forms the notices
+  // actually take rather than invented, but do not read this as evidence of
+  // what NetEase serves — replace it the first time a capture shows one.
+  for (const line of [
+    "未经许可不得使用",
+    "未经著作权人许可，不得翻唱、翻录或使用",
+    "版权所有 侵权必究",
+    "本歌曲版权由某某音乐娱乐集团享有",
+    "未经授权请勿转载",
+  ]) {
+    assert.equal(isCopyrightNotice(line), true, line);
+  }
+});
+
+test("one ordinary word is never enough to make a notice", () => {
+  // 不得 is the reason the vocabulary is split in two. It is everywhere in
+  // literary Chinese lyrics, so on its own it must count for nothing — one
+  // false positive here deletes a sung line outright.
+  for (const line of [
+    "舍不得你走",
+    "不得不说再见",
+    "我不得已才离开",
+    "使用这把剑",
+    "白马过了离原，三月的天，春风漫草野",
+    "醉卧 万里沙场 太行风霜 少年自天涯",
+  ]) {
+    assert.equal(isCopyrightNotice(line), false, line);
+  }
+  // Two of them together is the threshold, and the legal words stand alone.
+  assert.equal(isCopyrightNotice("未经许可"), true);
+  assert.equal(isCopyrightNotice("版权"), true);
 });
 
 test("singer markers are not lyrics", () => {

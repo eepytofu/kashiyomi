@@ -7,9 +7,14 @@
 // decided one line at a time the way `isCreditLine` can.
 
 import type { LineTranslationState } from "./cjk.ts";
-import { hasCreditShape, isCreditLine, isPartMarkerLine } from "./metadata.ts";
+import {
+  hasCreditShape,
+  isCopyrightNotice,
+  isCreditLine,
+  isPartMarkerLine,
+} from "./metadata.ts";
 
-export type LineKind = "lyric" | "credit" | "marker";
+export type LineKind = "lyric" | "credit" | "marker" | "notice";
 
 export type ClassifiableLine = {
   text: string;
@@ -46,6 +51,12 @@ export function classifyLines(lines: readonly ClassifiableLine[]): LineKind[] {
 
   return lines.map((line, index) => {
     if (isPartMarkerLine(line.text)) return "marker";
+    // Its own kind rather than a credit, because a credit is annotated when the
+    // user asks for credits and a rights notice never should be — there is
+    // nothing in it to read. Kept out of the run entirely: a notice sits with
+    // the credits but proves nothing about its neighbours, and it carries no
+    // colon, so it cannot continue a run either way.
+    if (isCopyrightNotice(line.text)) return "notice";
     if (isCreditLine(line.text)) return "credit";
     if (inCreditRun[index] && hasCreditShape(line.text)) return "credit";
     if (

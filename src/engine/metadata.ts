@@ -149,6 +149,43 @@ export function isCreditLine(line: string): boolean {
 }
 
 /**
+ * True when the line is a rights notice rather than a lyric — 未经许可不得使用,
+ * 本歌曲版权由…享有, 版权所有 侵权必究.
+ *
+ * These carry no label and no colon, so neither credit test can see them: they
+ * are whole sentences, and they get pinyin and a translation request like any
+ * other line.
+ *
+ * Matching is by term count rather than by containment, because the vocabulary
+ * splits cleanly in two and treating it as one set would misfire. 版权, 侵权 and
+ * 著作权 are legal words that no lyric uses, so one is enough. The rest are
+ * ordinary Chinese — 不得 in particular is everywhere in literary lyrics
+ * (不得不, 舍不得) — so they only count in company.
+ */
+export function isCopyrightNotice(line: string): boolean {
+  for (const term of RIGHTS_TERMS) {
+    if (line.includes(term)) return true;
+  }
+  let hits = 0;
+  for (const term of NOTICE_TERMS) {
+    if (line.includes(term) && ++hits === 2) return true;
+  }
+  return false;
+}
+
+/** Legal vocabulary. One is decisive; a lyric has no use for these words. */
+const RIGHTS_TERMS = ["版权", "版權", "侵权", "侵權", "著作权", "著作權"];
+
+/**
+ * Ordinary words that only mean something together. Every standard notice
+ * carries at least two: 未经许可不得使用 has four, 未经授权请勿转载 has three.
+ */
+const NOTICE_TERMS = [
+  "未经", "未經", "许可", "許可", "授权", "授權", "不得", "请勿", "請勿",
+  "翻录", "翻錄", "转载", "轉載", "商业用途", "商業用途", "保留一切权利",
+];
+
+/**
  * True when the whole line is a singer or section marker: 【合】, 【海伊】,
  * [Chorus]. Duet uploads put these on their own line to say who sings next.
  * They are not lyrics — romanizing 【合】 as "hé" and translating it is noise —
