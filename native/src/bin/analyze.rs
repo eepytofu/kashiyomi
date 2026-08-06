@@ -34,7 +34,7 @@ fn main() {
     // can read the same lines through full, core and small and the difference
     // is the dictionary rather than anything else.
     let dict = std::env::var("KASHIYOMI_DICT")
-        .unwrap_or_else(|_| format!("{root}/../assets/dict/system_full.dic"));
+        .unwrap_or_else(|_| format!("{root}/../assets/dict/system_core.dic"));
     let resources = format!("{root}/../assets/sudachi");
     if !std::path::Path::new(&dict).exists() {
         eprintln!("dictionary missing: {dict}\nrun: npm run fetch-dict");

@@ -208,13 +208,13 @@ mod tests {
     use super::*;
     use std::time::Duration;
 
-    /// Requires assets/dict/system_full.dic (npm run fetch-dict).
+    /// Requires assets/dict/system_core.dic (npm run fetch-dict).
     /// Run with: cargo test -- --ignored
     #[test]
     #[ignore]
     fn smoke_real_dictionary() {
         let root = env!("CARGO_MANIFEST_DIR");
-        let dict = format!("{root}/../assets/dict/system_full.dic");
+        let dict = format!("{root}/../assets/dict/system_core.dic");
         let resources = format!("{root}/../assets/sudachi");
         assert!(std::path::Path::new(&dict).exists(), "dictionary missing: {dict}");
 

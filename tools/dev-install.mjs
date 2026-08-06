@@ -48,7 +48,7 @@ await cp(path.join(repo, "assets", "sudachi"), path.join(target, "assets", "suda
   recursive: true,
 });
 const devPaths = {
-  dictPath: path.join(repo, "assets", "dict", "system_full.dic").replaceAll("\\", "/"),
+  dictPath: path.join(repo, "assets", "dict", "system_core.dic").replaceAll("\\", "/"),
   resourceDir: path.join(repo, "assets", "sudachi").replaceAll("\\", "/"),
   pinyinDictPath: path.join(repo, "assets", "pinyin", "complete.json").replaceAll("\\", "/"),
   jmdictPath: path.join(repo, "assets", "jmdict", "readings.json").replaceAll("\\", "/"),

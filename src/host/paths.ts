@@ -31,7 +31,7 @@ export async function resolveAssetPaths(): Promise<AssetPaths | undefined> {
     return undefined;
   }
   const defaults: AssetPaths = {
-    dictPath: `${pluginPath}/assets/dict/system_full.dic`,
+    dictPath: `${pluginPath}/assets/dict/system_core.dic`,
     resourceDir: `${pluginPath}/assets/sudachi`,
     pinyinDictPath: `${pluginPath}/assets/pinyin/complete.json`,
     jmdictPath: `${pluginPath}/assets/jmdict/readings.json`,
