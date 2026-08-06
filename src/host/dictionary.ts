@@ -59,10 +59,13 @@ export async function detectInstalledDictionary(dictPath: string): Promise<void>
     return;
   }
   const settings = getSettings();
+  // An empty version is shown as no version at all rather than a placeholder:
+  // a dictionary installed before the version was recorded still works, and a
+  // dash beside the edition reads like missing data rather than an unknown date.
   status = {
     kind: "installed",
     edition: settings.dictEdition,
-    version: settings.dictVersion || "—",
+    version: settings.dictVersion,
   };
 }
 

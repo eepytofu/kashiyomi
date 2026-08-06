@@ -63,7 +63,7 @@ export function dictionaryRow(): HTMLElement {
 
     switch (status.kind) {
       case "absent":
-        label = `${t("dictNotInstalled")} — ${chosen} · ${pinned.version} · ${mb(pinned.size)}`;
+        label = `${t("dictNotInstalled")} · ${chosen} ${pinned.version} · ${mb(pinned.size)}`;
         break;
       case "downloading":
         label = `${t("dictDownloading")} ${mb(status.received)} / ${mb(status.total)}`;
@@ -74,11 +74,11 @@ export function dictionaryRow(): HTMLElement {
         busy = true;
         break;
       case "installed":
-        label = `${status.edition} · ${status.version}`;
+        label = status.version ? `${status.edition} · ${status.version}` : status.edition;
         action = status.edition === chosen ? t("dictUpdate") : t("dictSwitch");
         break;
       case "failed":
-        label = `${t("dictFailed")} — ${t(`dictFail_${status.reason.replace(/-/gu, "_")}` as never)}`;
+        label = `${t("dictFailed")}: ${t(`dictFail_${status.reason.replace(/-/gu, "_")}` as never)}`;
         action = t("dictRetry");
         break;
     }
