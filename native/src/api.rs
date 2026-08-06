@@ -1,12 +1,12 @@
 //! JSON command routing for `kashiyomi.dispatch`.
 //!
-//! Request:  `{"cmd": "init" | "reload" | "status" | "analyze", ...}`
+//! Request:  `{"cmd": "init" | "reload" | "install" | "sweepPartials" | "status" | "analyze", ...}`
 //! Response: `{"status": "ok", "data": ...}` or `{"status": "error", "message": "..."}`
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::analyzer;
+use crate::{analyzer, install};
 
 #[derive(Deserialize)]
 #[serde(tag = "cmd", rename_all = "camelCase")]
@@ -22,6 +22,19 @@ enum Command {
     Reload {
         dict_path: String,
         resource_dir: String,
+    },
+    /// Verify a downloaded archive and move the dictionary into place. The host
+    /// does the fetching; this does the part that must not touch the JS heap.
+    #[serde(rename_all = "camelCase")]
+    Install {
+        archive: String,
+        sha256: String,
+        member: String,
+        target: String,
+    },
+    /// Delete `.part` files abandoned by an interrupted download.
+    SweepPartials {
+        directory: String,
     },
     Status,
     Analyze {
@@ -72,6 +85,15 @@ pub fn handle(raw: &str) -> String {
             // two threads racing to replace the same dictionary.
             let started = analyzer::begin_reload(dict_path, resource_dir);
             ok(json!({ "started": started, "state": status_data().state }))
+        }
+        Command::Install { archive, sha256, member, target } => {
+            match install::verify_and_install(&archive, &sha256, &member, &target) {
+                Ok(installed) => ok(json!({ "bytes": installed.bytes })),
+                Err(message) => error(message),
+            }
+        }
+        Command::SweepPartials { directory } => {
+            ok(json!({ "removed": install::sweep_partials(&directory) }))
         }
         Command::Status => ok(json!(status_data())),
         Command::Analyze { lines } => match analyzer::analyze_lines(&lines) {

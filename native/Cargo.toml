@@ -17,8 +17,10 @@ path = "src/bin/analyze.rs"
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.11.0"
 # Not published on crates.io; pinned to the commit whose API this code targets.
 sudachi = { git = "https://github.com/WorksApplications/sudachi.rs.git", rev = "f4dd8f20a774bd71d34a7d4ffa00d987b8946f9e", default-features = false }
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 
 [profile.release]
 opt-level = 3

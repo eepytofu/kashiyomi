@@ -11,6 +11,7 @@
 
 pub mod analyzer;
 mod api;
+pub mod install;
 pub mod pos;
 pub mod text;
 
