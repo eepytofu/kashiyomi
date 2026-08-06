@@ -1,0 +1,51 @@
+# Builds the shipped artefacts on a tag.
+#
+# This exists because the plugin store requires a native plugin's binary to be
+# compiled by GitHub Actions rather than uploaded from a developer machine.
+# `check.yml` runs cargo on ubuntu, which cannot produce a Windows cdylib, so
+# nothing there satisfies that rule.
+#
+# Deliberately stops at the artefacts. It does not assemble the final .plugin
+# bundle, because what goes inside still depends on an open decision about how
+# the 343 MB Sudachi dictionary ships.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  # Buildable on demand, so the DLL can be produced without cutting a tag.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-native:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      # The cdylib. NCM loads this at startup and it is the artefact the store
+      # rule is about.
+      - run: cargo build --release --manifest-path native/Cargo.toml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kashiyomi-windows
+          if-no-files-found: error
+          path: |
+            native/target/release/backend.dll
+            dist/main.js
+            manifest.json
+            assets/sudachi
