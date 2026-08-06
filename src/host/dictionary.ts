@@ -14,7 +14,7 @@
 import {
   SIMPLE_INDEX_ACCEPT,
   dictionarySupply,
-  installableFull,
+  downloadUrls,
   metadataSources,
   parsePypiRelease,
   parseSimpleIndexRelease,
@@ -215,15 +215,28 @@ export function simulateDictionaryFailure(reason: DictionaryFailure | undefined)
  * learns it exists. Returns undefined only when every source refused, which is
  * the one failure with no in-plugin recovery.
  */
-export async function resolveRelease(
-  edition: DictionaryEdition,
-): Promise<DictionaryRelease | undefined> {
+export type ResolvedRelease = {
+  readonly release: DictionaryRelease;
+  /**
+   * False when every metadata source refused and this is the build-time pin.
+   *
+   * The distinction is the whole of `no-source`: an install can go ahead on the
+   * pin, but an *update check* cannot honestly report "already the newest" when
+   * nothing answered the question.
+   */
+  readonly checked: boolean;
+};
+
+export async function resolveRelease(edition: DictionaryEdition): Promise<ResolvedRelease> {
   // The attempt's abort signal starts here, not at the download: an update
   // check against a source that is timing out is exactly when someone reaches
   // for Cancel, and there was nothing to press it against.
   abort = new AbortController();
   setJob({ kind: "resolving", edition });
-  if (edition === "full") return (await resolveFull()).release;
+  if (edition === "full") {
+    const full = await resolveFull();
+    return { release: full.release, checked: full.checked };
+  }
   const sources = metadataSources(edition);
   for (const [index, url] of sources.entries()) {
     const isSimpleIndex = index > 0;
@@ -237,21 +250,23 @@ export async function resolveRelease(
       const release = isSimpleIndex
         ? parseSimpleIndexRelease(edition, body)
         : parsePypiRelease(edition, body);
-      if (release) return release;
+      if (release) return { release, checked: true };
     } catch (err) {
       // A cancel must end the whole attempt, not advance to the next source.
       // Falling through would have Cancel walk the list one press at a time.
       if (err instanceof Error && err.name === "AbortError") {
         fail(edition, "cancelled");
-        return undefined;
+        return { release: pinnedRelease(edition), checked: false };
       }
       log.debug(`dictionary metadata source failed: ${url}`, err);
     }
   }
-  // Every source refused. Clear the job rather than leaving it resolving
-  // forever, which would keep the button disabled with nothing running.
+  // Every source refused. The pinned release is still installable, because the
+  // pin now carries its own URL, so a blocked upstream no longer means no
+  // dictionary at all.  is what stops the caller reporting
+  // "already the newest" off the back of a question nothing answered.
   setJob({ kind: "idle" });
-  return undefined;
+  return { release: pinnedRelease(edition), checked: false };
 }
 
 /**
@@ -266,6 +281,18 @@ export function reportUpToDate(edition: DictionaryEdition): void {
 }
 
 /**
+ * The update check itself failed, with this edition already at the pinned
+ * version so there is nothing to install instead.
+ *
+ * The only place  is set. It used to be declared and never
+ * reachable, which meant the row could never say the difference between
+ * "nothing newer exists" and "nobody answered".
+ */
+export function reportNoSource(edition: DictionaryEdition): void {
+  setJob({ kind: "failed", edition, reason: "no-source", at: Date.now() });
+}
+
+/**
  * Resolve `full`, which is always installable at the pinned version and never
  * installable above it.
  *
@@ -276,6 +303,7 @@ export function reportUpToDate(edition: DictionaryEdition): void {
  */
 export async function resolveFull(): Promise<{
   release: DictionaryRelease;
+  checked: boolean;
   newerVersion?: string;
 }> {
   const pinned = pinnedRelease("full");
@@ -284,14 +312,14 @@ export async function resolveFull(): Promise<{
     if (response.ok) {
       const outcome = resolveFullFromPypi(await response.json(), pinned);
       if (outcome.kind === "newer") {
-        return { release: installableFull(pinned), newerVersion: outcome.version };
+        return { release: pinned, checked: true, newerVersion: outcome.version };
       }
-      return { release: outcome.release };
+      return { release: outcome.release, checked: true };
     }
   } catch (err) {
     log.debug("could not check for a newer full release", err);
   }
-  return { release: installableFull(pinned) };
+  return { release: pinned, checked: false };
 }
 
 export type DownloadPlan = {
@@ -482,9 +510,31 @@ async function awaitInstall(edition: DictionaryEdition): Promise<InstallOutcome>
  * can move while a 69 MB transfer is in flight — a progress bar that only moves
  * at the end is worse than none.
  */
-async function fetchArchive(plan: DownloadPlan): Promise<{ ok: true } | { ok: false; reason: DictionaryFailure }> {
+async function fetchArchive(
+  plan: DownloadPlan,
+): Promise<{ ok: true } | { ok: false; reason: DictionaryFailure }> {
+  // The metadata has fallen back across sources since the beginning; the bytes
+  // never did. Reaching PyPI's API and then failing at its CDN was a dead
+  // download with a working mirror sitting one host swap away.
+  const urls = downloadUrls(plan.release, pinnedRelease(plan.release.edition).version);
+  let last: { ok: false; reason: DictionaryFailure } = { ok: false, reason: "offline" };
+  for (const url of urls) {
+    const attempt = await fetchArchiveFrom(plan, url);
+    if (attempt.ok) return attempt;
+    // A cancel is the user's answer, not this source's. Trying the next host
+    // would turn one press into a fresh 69 MB from somewhere else.
+    if (attempt.reason === "cancelled") return attempt;
+    last = attempt;
+  }
+  return last;
+}
+
+async function fetchArchiveFrom(
+  plan: DownloadPlan,
+  url: string,
+): Promise<{ ok: true } | { ok: false; reason: DictionaryFailure }> {
   try {
-    const response = await fetch(plan.release.url, { signal: abort?.signal });
+    const response = await fetch(url, { signal: abort?.signal });
     if (!response.ok || !response.body) return { ok: false, reason: "offline" };
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
@@ -508,7 +558,7 @@ async function fetchArchive(plan: DownloadPlan): Promise<{ ok: true } | { ok: fa
     if (err instanceof Error && err.name === "AbortError") {
       return { ok: false, reason: "cancelled" };
     }
-    log.info("dictionary download failed", err);
+    log.info(`dictionary download failed from ${url}`, err);
     return { ok: false, reason: "offline" };
   }
 }

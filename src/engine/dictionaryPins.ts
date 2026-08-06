@@ -12,19 +12,22 @@
 
 import type { DictionaryEdition, DictionaryRelease } from "./dictionarySource.ts";
 
-const PINS: Record<DictionaryEdition, Omit<DictionaryRelease, "edition" | "url">> = {
+const PINS: Record<DictionaryEdition, Omit<DictionaryRelease, "edition">> = {
   small: {
     version: "20260723",
+    url: "https://files.pythonhosted.org/packages/a4/9b/c90019baba4e69a8549f22f2269602cb8ecc3b42691db5de78f7712ae999/sudachidict_small-20260723-py3-none-any.whl",
     sha256: "c10c7541795c4cf501ddd15f456409d0b75b84339c5961dd045fa922378b687a",
     size: 41770618
   },
   core: {
     version: "20260723",
+    url: "https://files.pythonhosted.org/packages/46/fe/68a146fced55319af40d25a4fe19b94c3a988406ce4674a8b2f0237fbc9f/sudachidict_core-20260723-py3-none-any.whl",
     sha256: "b3869ce6b12b4bfa09575dc19030703bb669ab41bac12a74cafcbb28c6be2498",
     size: 72275897
   },
   full: {
     version: "20260723",
+    url: "https://d2ej7fkh96fzlu.cloudfront.net/sudachidict/sudachi-dictionary-20260723-full.zip",
     sha256: "fc87525a4c7639ea46d81a3e4e3976853240ec07e3db3991190c920a02efe107",
     size: 126615116
   }
@@ -33,7 +36,11 @@ const PINS: Record<DictionaryEdition, Omit<DictionaryRelease, "edition" | "url">
 /**
  * What shipped with this build. Used as the offline fallback when no metadata
  * source answers, and as the baseline a user can always install.
+ *
+ * Carries its URL. Without one the offline fallback knew the exact version,
+ * size and hash it wanted and had nowhere to fetch it from, so every metadata
+ * source failing meant no install was possible at all.
  */
-export function pinnedRelease(edition: DictionaryEdition): Omit<DictionaryRelease, "url"> {
+export function pinnedRelease(edition: DictionaryEdition): DictionaryRelease {
   return { edition, ...PINS[edition] };
 }

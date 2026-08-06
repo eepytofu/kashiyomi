@@ -81,9 +81,8 @@ async function start(): Promise<void> {
       // whole path without the result being what the analyzer then loads.
       const dataDir = `${await betterncm.app.getDataPath()}/kashiyomi`.replace(/\\/gu, "/");
       const release = await resolveRelease(edition);
-      if (!release) return { error: "no metadata source answered" };
       const paths = await resolveAssetPaths();
-      return downloadDictionary(planDownload(release, dataDir), paths?.resourceDir ?? "");
+      return downloadDictionary(planDownload(release.release, dataDir), paths?.resourceDir ?? "");
     },
     // Redacted, because this handle is read as routine: the project's own rule
     // is to record kashiyomi.settings() with every live observation, so its

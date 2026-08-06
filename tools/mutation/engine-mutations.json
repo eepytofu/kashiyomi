@@ -669,7 +669,7 @@
     "file": "src/engine/dictionarySource.ts",
     "what": "a full release newer than the pinned digest is installed anyway, so 121 MB arrives with nothing able to vouch for it",
     "find": "  return { kind: \"newer\", version };",
-    "replace": "  return { kind: \"pinned\", release: installableFull(pinned) };"
+    "replace": "  return { kind: \"pinned\", release: pinned };"
   },
   {
     "id": "dictionary/vendor-download-over-plaintext",
@@ -1062,5 +1062,26 @@
     "what": "the update check cannot be cancelled, so a source that hangs leaves the row stuck with a dead button",
     "find": "      return working({ kind: \"checking\" }, \"checking\", true);",
     "replace": "      return working({ kind: \"checking\" }, \"checking\", false);"
+  },
+  {
+    "id": "dictionary/cloudfront-tried-first",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "the China-blocked vendor host is tried ahead of PyPI and the mirror",
+    "find": "  const urls = [release.url];",
+    "replace": "  const urls = [vendorArchiveUrl(release.edition, release.version), release.url];"
+  },
+  {
+    "id": "dictionary/unverifiable-vendor-offered",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "the vendor archive is offered above the pinned version, where no digest can check it",
+    "find": "  if (release.version === pinnedVersion && !urls.includes(vendor)) urls.push(vendor);",
+    "replace": "  if (!urls.includes(vendor)) urls.push(vendor);"
+  },
+  {
+    "id": "dictionary/mirror-swap-unguarded",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "any url is rewritten onto the mirror host, including the vendor archive it does not carry",
+    "find": "  return url.startsWith(`${PYTHONHOSTED}/`)",
+    "replace": "  return true"
   }
 ]

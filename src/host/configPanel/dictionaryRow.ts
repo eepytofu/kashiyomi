@@ -23,6 +23,7 @@ import {
   installedEditions,
   onDictionaryChange,
   planDownload,
+  reportNoSource,
   reportUpToDate,
   resolveRelease,
   type DownloadPlan,
@@ -290,8 +291,7 @@ export function dictionaryRow(): HTMLElement {
       startPolling();
       // Resolve live so an update gets the newest release; fall back to the
       // pinned one, which is always installable even with every source blocked.
-      const release = await resolveRelease(chosen);
-      if (!release) return;
+      const { release, checked } = await resolveRelease(chosen);
 
       // Nothing to do if the installed dictionary is already this release.
       // Re-downloading 69 MB to arrive at the same file is not an update, and
@@ -303,7 +303,12 @@ export function dictionaryRow(): HTMLElement {
         inventory.installed.includes(release.edition) &&
         inventory.versions[release.edition] === release.version
       ) {
-        reportUpToDate(release.edition);
+        // The one honest use of `no-source`: this edition is already at the
+        // pinned version and nothing answered when asked whether a newer one
+        // exists. Saying "already the newest release" there would be reporting
+        // an answer to a question that was never received.
+        if (checked) reportUpToDate(release.edition);
+        else reportNoSource(release.edition);
         return;
       }
 

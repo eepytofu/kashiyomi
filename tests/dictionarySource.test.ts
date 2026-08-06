@@ -9,6 +9,8 @@ import {
   parseSimpleIndexRelease,
   requiredFreeBytes,
   dictionarySupply,
+  downloadUrls,
+  mirrorUrl,
   resolveFullFromPypi,
   vendorArchiveUrl,
   type DictionaryRelease,
@@ -188,6 +190,7 @@ test("full downloads from the vendor, over https", () => {
 const PINNED_FULL = {
   edition: "full",
   version: "20260723",
+  url: "https://d2ej7fkh96fzlu.cloudfront.net/sudachidict/sudachi-dictionary-20260723-full.zip",
   sha256: "f".repeat(64),
   size: 126615116,
 } as const;
@@ -213,4 +216,68 @@ test("unusable metadata falls back to the pinned release rather than failing", (
   for (const body of [{}, { info: {} }, { info: { version: "" } }, null, "nonsense"]) {
     assert.equal(resolveFullFromPypi(body, PINNED_FULL).kind, "pinned", JSON.stringify(body));
   }
+});
+
+// D21: the metadata fell back across sources from the start; the archive never
+// did, so reaching PyPI's API and then failing at its CDN was a dead download
+// with a working mirror one host swap away.
+test("a pythonhosted wheel gains a mirror, verified to serve the same path", () => {
+  const url =
+    "https://files.pythonhosted.org/packages/46/fe/68a1/sudachidict_core-20260723-py3-none-any.whl";
+  assert.equal(
+    mirrorUrl(url),
+    "https://pypi.tuna.tsinghua.edu.cn/packages/46/fe/68a1/sudachidict_core-20260723-py3-none-any.whl",
+  );
+});
+
+test("a url that is not pythonhosted has no mirror to swap to", () => {
+  assert.equal(mirrorUrl("https://d2ej7fkh96fzlu.cloudfront.net/sudachidict/x.zip"), undefined);
+  assert.equal(mirrorUrl("https://example.invalid/x.whl"), undefined);
+});
+
+const WHEEL_RELEASE = {
+  edition: "core",
+  version: "20260723",
+  url: "https://files.pythonhosted.org/packages/46/fe/68a1/sudachidict_core-20260723-py3-none-any.whl",
+  sha256: "b".repeat(64),
+  size: 72275897,
+} as const;
+
+test("a wheel download tries pythonhosted, then the mirror, then the vendor", () => {
+  assert.deepEqual(downloadUrls(WHEEL_RELEASE, "20260723"), [
+    WHEEL_RELEASE.url,
+    "https://pypi.tuna.tsinghua.edu.cn/packages/46/fe/68a1/sudachidict_core-20260723-py3-none-any.whl",
+    "https://d2ej7fkh96fzlu.cloudfront.net/sudachidict/sudachi-dictionary-20260723-core.zip",
+  ]);
+});
+
+// CloudFront is measurably blocked in mainland China (5/5 vantage points), so
+// its position is not a preference. It must never be tried before the others.
+test("cloudfront is last in every list it appears in", () => {
+  for (const pinnedVersion of ["20260723", "20260101"]) {
+    const urls = downloadUrls(WHEEL_RELEASE, pinnedVersion);
+    const vendor = urls.findIndex((u) => u.includes("cloudfront"));
+    if (vendor !== -1) assert.equal(vendor, urls.length - 1);
+  }
+});
+
+// Above the pinned version there is no digest to check the vendor archive
+// against, and an unverifiable 121 MB is a liability rather than a fallback.
+test("the vendor archive is dropped when the release is newer than the pin", () => {
+  const newer = { ...WHEEL_RELEASE, version: "20261115" };
+  const urls = downloadUrls(newer, "20260723");
+  assert.ok(!urls.some((u) => u.includes("cloudfront")));
+  assert.equal(urls.length, 2);
+});
+
+// full's own url is already the vendor archive, so it must not be listed twice.
+test("the vendor archive is not repeated when it is already the release url", () => {
+  const full = {
+    edition: "full",
+    version: "20260723",
+    url: "https://d2ej7fkh96fzlu.cloudfront.net/sudachidict/sudachi-dictionary-20260723-full.zip",
+    sha256: "f".repeat(64),
+    size: 126615116,
+  } as const;
+  assert.deepEqual(downloadUrls(full, "20260723"), [full.url]);
 });

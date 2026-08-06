@@ -62,6 +62,55 @@ export function vendorArchiveUrl(edition: DictionaryEdition, version: string): s
   return `${VENDOR_BASE}/sudachi-dictionary-${version}-${edition}.zip`;
 }
 
+/** Where PyPI serves the bytes, as opposed to the metadata. */
+const PYTHONHOSTED = "https://files.pythonhosted.org";
+const MIRROR_HOST = "https://pypi.tuna.tsinghua.edu.cn";
+
+/**
+ * The same wheel on the Tsinghua mirror, or undefined if the URL is not one the
+ * swap applies to.
+ *
+ * A host swap rather than a second lookup, **verified rather than assumed**
+ * (2026-08-07, both editions): the mirror serves the identical
+ * `/packages/<2>/<2>/<64hex>/<file>` path, the identical byte count, and
+ * publishes the identical sha256. Its own simple index hands out
+ * `../../packages/...`, which resolves to exactly the URL this produces, so the
+ * two derivations agree.
+ *
+ * The hash is checked against the build-time pin either way, so a mirror
+ * serving something else cannot install.
+ */
+export function mirrorUrl(url: string): string | undefined {
+  return url.startsWith(`${PYTHONHOSTED}/`)
+    ? `${MIRROR_HOST}${url.slice(PYTHONHOSTED.length)}`
+    : undefined;
+}
+
+/**
+ * Every place the bytes can come from, best first.
+ *
+ * The metadata already fell back across sources; the **archive** did not, so a
+ * user who reached PyPI's API and then could not reach its CDN had a download
+ * that simply failed with a mirror sitting right there.
+ *
+ * CloudFront is last wherever it appears, because it is measurably blocked in
+ * mainland China (5/5 vantage points, with pypi.org reachable and google.com
+ * blocked as controls). It is included **only when the resolved version equals
+ * the pinned one**: above that there is no digest to check it against, and an
+ * unverifiable 121 MB is not a fallback, it is a liability.
+ */
+export function downloadUrls(
+  release: DictionaryRelease,
+  pinnedVersion: string,
+): readonly string[] {
+  const urls = [release.url];
+  const mirror = mirrorUrl(release.url);
+  if (mirror) urls.push(mirror);
+  const vendor = vendorArchiveUrl(release.edition, release.version);
+  if (release.version === pinnedVersion && !urls.includes(vendor)) urls.push(vendor);
+  return urls;
+}
+
 export type DictionaryRelease = {
   readonly edition: DictionaryEdition;
   /** SudachiDict release date, e.g. "20260723". */
@@ -174,18 +223,13 @@ export type FullResolution =
  */
 export function resolveFullFromPypi(
   body: unknown,
-  pinned: Omit<DictionaryRelease, "url">,
+  pinned: DictionaryRelease,
 ): FullResolution {
   const version = (body as { info?: { version?: unknown } })?.info?.version;
   if (typeof version !== "string" || version === "" || version === pinned.version) {
-    return { kind: "pinned", release: installableFull(pinned) };
+    return { kind: "pinned", release: pinned };
   }
   return { kind: "newer", version };
-}
-
-/** The pinned `full` release, pointed at the vendor archive. Always installable. */
-export function installableFull(pinned: Omit<DictionaryRelease, "url">): DictionaryRelease {
-  return { ...pinned, url: vendorArchiveUrl(pinned.edition, pinned.version) };
 }
 
 function buildRelease(
