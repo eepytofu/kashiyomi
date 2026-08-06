@@ -7,7 +7,7 @@
 // are systematic, so this is a rule rather than a dictionary.
 //
 // Measured 2026-08-04 against 150 ground-truth fixtures: counters scored 2/10
-// and numeric assimilation 0/6 before this module existed. See `ANALYZERS.md`.
+// and numeric assimilation 0/6 before this module existed.
 
 const DIGITS: Record<string, string> = {
   〇: "ぜろ", 零: "れい",

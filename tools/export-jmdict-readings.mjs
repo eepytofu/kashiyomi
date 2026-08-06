@@ -4,8 +4,8 @@
 // Analyzer lexicons hold one reading per entry, chosen to make parsing work.
 // JMdict holds every reading a surface has. Only the surfaces where it holds
 // **exactly one** are exported, because those are the ones where supplying a
-// reading is not a choice between candidates — see `src/engine/jmdictReadings.ts`
-// for the safety argument and `docs/ANALYZERS.md` for the measurements.
+// reading is not a choice between candidates. `src/engine/jmdictReadings.ts`
+// carries the safety argument and the measurements behind it.
 //
 // jmdict-simplified rebuilds daily and stamps the date into the release tag, so
 // like SudachiDict this resolves the newest release rather than pinning one.

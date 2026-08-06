@@ -2,8 +2,8 @@
 //
 // Analyzer lexicons store **one reading per entry, chosen to make parsing
 // work**; a lexical dictionary stores **all** readings for a surface. That is a
-// difference in kind, and it is where the accuracy left over after Round 5 of
-// `ANALYZERS.md` lives.
+// difference in kind, and it is where the accuracy left over after the
+// analyzer's own tuning lives.
 //
 // The whole safety argument rests on one filter, applied when the asset is
 // built (`tools/export-jmdict-readings.mjs`): a surface is included **only when
@@ -21,8 +21,9 @@
 // hatch is the lyricist's: 春風（はるかぜ） via `hints.ts`.
 //
 // **This layer only fills abstentions. It never overrides a reading the
-// analyzer produced.** Two override rules were written, measured and rejected;
-// both are recorded in `ANALYZERS.md` because both looked convincing first.
+// analyzer produced.** Two override rules were written, measured and rejected.
+// Both looked convincing first, so what each one broke is written out below
+// rather than summarized — the failure is the reason, not the verdict.
 //
 // 1. Correct any uninflected disagreement. It demoted 秋桜 from コスモス to
 //    アキザクラ — both are real readings, and JMdict recording only one does

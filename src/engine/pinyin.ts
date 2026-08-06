@@ -83,7 +83,9 @@ const HAN = /\p{Script=Han}/u;
  * parse: wǔwèi-záchén reads, wǔwèizáchén does not. When a captured lyric turns
  * up a real bùyìlèhū, add an explicit exception set here — not a cleverer
  * inference rule, which is the thing already measured and found not to exist.
- * `TRANSFORMS.md` holds the bar an entry has to clear.
+ * The bar for an entry: a captured lyric containing the idiom, plus a
+ * dictionary or the standard itself writing it solid. Not an intuition that
+ * one reads better — that is what produced the rule this would carve out of.
  *
  * Longer runs stay joined: they come from one dictionary entry spanning several
  * words (无可奈何花落去 is a single entry), so there is no boundary to cut on and

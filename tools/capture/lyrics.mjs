@@ -1,13 +1,13 @@
 // Capture the lyric lines NetEase is actually rendering, over the Chrome
 // DevTools Protocol. This is what makes a test fixture traceable: a fixture
-// typed from memory has been wrong three times (see LESSONS.md), most recently
+// typed from memory has been wrong three times, most recently
 // a 千本桜 line the song does not contain, which sat in two tests as the proof
 // that Japanese-only glyph detection works.
 //
 //   node tools/capture/lyrics.mjs                 # pretty summary
 //   node tools/capture/lyrics.mjs --json > x.json # machine-readable
 //
-// NCM must be running with --remote-debugging-port=9223; see BETTERNCM.md.
+// NCM must be running with --remote-debugging-port=9223.
 //
 // Two things this gets right that an ad-hoc snippet does not:
 //

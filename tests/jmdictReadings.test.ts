@@ -127,8 +127,9 @@ test("a name-tagged token is never corrected, however wrong it looks", () => {
   // 三千世界 常世之闇 and reads it ツネヨ, where the wiki's furigana says とこよ.
   // Correcting name-tagged tokens fixed that and broke real names — 蓮 (レン)
   // became ハス and 千秋 (チアキ) became センシュウ, because a surface JMdict
-  // carries can perfectly well also be a name. 常世 now belongs to the user
-  // override in BACKLOG.md, not here.
+  // carries can perfectly well also be a name. 常世 belongs to a per-song
+  // reading override — the lyricist's own furigana, the way `hints.ts` already
+  // takes 天（そら） — not to a per-word correction here.
   const named: AnalyzerToken = {
     ...token("常世", 0, "ツネヨ"),
     rawPos: ["名詞", "固有名詞", "人名", "名", "*", "*"],

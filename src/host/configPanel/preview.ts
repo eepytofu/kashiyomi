@@ -18,7 +18,7 @@ import { card, sectionTitle } from "./rows.ts";
  * The previous sample, 无可奈何花落去, was one dictionary entry, so grouping
  * rendered a single seven-syllable run and made a working setting look broken.
  * Any replacement needs several groups that are each a real multi-syllable
- * word, and no chengyu, neutral tone or 一/不 sandhi; see BACKLOG.md.
+ * word, and no chengyu, neutral tone or 一/不 sandhi.
  */
 const ZH_SAMPLE = "在悬崖看红霞";
 
