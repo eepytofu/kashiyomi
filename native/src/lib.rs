@@ -12,6 +12,7 @@
 pub mod analyzer;
 mod api;
 pub mod install;
+pub mod job;
 pub mod pos;
 pub mod text;
 

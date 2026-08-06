@@ -40,7 +40,8 @@ import { log } from "./log.ts";
 import { getSettings, updateSettings } from "./settings.ts";
 import {
   nativeFreeSpace,
-  nativeInstallDictionary,
+  nativeDictStatus,
+  nativeStartInstall,
   nativeSweepPartials,
 } from "./native.ts";
 
@@ -355,8 +356,8 @@ export async function downloadDictionary(
     const archive = await fetchArchive(plan);
     if (!archive.ok) return fail(edition, archive.reason);
 
-    setJob({ kind: "installing", edition });
-    const installed = nativeInstallDictionary(
+    setJob({ kind: "installing", edition, phase: "verifying", done: 0, total: 0 });
+    const started = nativeStartInstall(
       plan.archivePath,
       plan.release.sha256,
       plan.member,
@@ -364,6 +365,18 @@ export async function downloadDictionary(
       resourceDir,
       plan.superseded,
     );
+    if (!started.ok) {
+      log.info(`dictionary install failed: ${started.error}`);
+      return fail(edition, "extract");
+    }
+    if (!started.started) {
+      // A worker is already installing something. Refusing is the guard against
+      // two threads renaming onto the same target, so this is not an error.
+      log.info("an install is already running");
+      return job;
+    }
+
+    const installed = await awaitInstall(edition);
     if (!installed.ok) {
       // The backend already discarded the archive and any staging; the message
       // distinguishes a corrupt download from a full disk.
@@ -390,6 +403,44 @@ export async function downloadDictionary(
 
 function fail(edition: DictionaryEdition, reason: DictionaryFailure): DictionaryJob {
   return setJob({ kind: "failed", edition, reason, at: Date.now() });
+}
+
+/** How often the worker thread is asked how it is getting on. */
+const INSTALL_POLL_MS = 150;
+
+/**
+ * Follow the worker to its end, republishing each phase as it goes.
+ *
+ * Progress is coalesced the same way the download is: the phase and byte count
+ * are recorded every poll, but listeners hear about it on the slower cadence,
+ * because a 207 MB extract at 150 ms is still far more repaints than a row
+ * measured in tenths of a megabyte can show.
+ */
+async function awaitInstall(
+  edition: DictionaryEdition,
+): Promise<{ ok: true; started: boolean } | { ok: false; error: string }> {
+  for (;;) {
+    await new Promise((resolve) => window.setTimeout(resolve, INSTALL_POLL_MS));
+    const status = nativeDictStatus();
+    if (!status) return { ok: false, error: "the analyzer backend is unavailable" };
+    const native = status.job;
+    if (native.kind === "running") {
+      setProgress({
+        kind: "installing",
+        edition,
+        phase: native.phase,
+        done: native.done,
+        total: native.total,
+      });
+      continue;
+    }
+    if (native.kind === "failed") return { ok: false, error: native.message };
+    if (native.kind === "done") return { ok: true, started: native.started };
+    // `idle` here means the worker finished and something else already consumed
+    // the result, which only one caller can do because `inFlight` guards this
+    // whole function. Treat it as done rather than looping forever.
+    return { ok: true, started: true };
+  }
 }
 
 /**

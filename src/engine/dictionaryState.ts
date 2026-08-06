@@ -28,6 +28,15 @@ export type DictionaryVersions = { readonly [E in DictionaryEdition]?: string };
 /** A writable shape for building one; the exported type stays readonly. */
 type MutableVersions = { -readonly [E in DictionaryEdition]?: string };
 
+/**
+ * Where a native install has got to.
+ *
+ * Reported per phase because they behave differently, not for decoration:
+ * verifying and extracting are long, measurable and safe to abandon, while
+ * swapping and loading are neither long nor safe to interrupt.
+ */
+export type InstallPhase = "verifying" | "extracting" | "swapping" | "loading";
+
 /** What exists, from the two authorities that are not the user. */
 export type DictionaryInventory = {
   readonly installed: readonly DictionaryEdition[];
@@ -54,7 +63,14 @@ export type DictionaryJob =
       readonly received: number;
       readonly total: number;
     }
-  | { readonly kind: "installing"; readonly edition: DictionaryEdition }
+  | {
+      readonly kind: "installing";
+      readonly edition: DictionaryEdition;
+      readonly phase: InstallPhase;
+      readonly done: number;
+      /** Zero while the size is not knowable yet, which reads as indeterminate. */
+      readonly total: number;
+    }
   | {
       readonly kind: "failed";
       readonly edition: DictionaryEdition;

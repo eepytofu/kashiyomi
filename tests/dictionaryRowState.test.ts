@@ -130,12 +130,30 @@ test("downloading carries progress and the one cancel that works", () => {
   assert.equal(v.pickerEnabled, false);
 });
 
-// S9-S11, one state until step 7 reports phases.
-test("installing shows cancel disabled rather than removing it", () => {
-  const v = view({ job: job({ kind: "installing", edition: "core" }) });
-  assert.deepEqual(v.message, { kind: "installing" });
-  assert.deepEqual(v.cancel, { shown: true, disabled: true });
-  assert.equal(v.primary.disabled, true);
+// S9 and S10: the two phases that are long, measurable and safe to abandon.
+test("verifying and unpacking carry their own progress and can be cancelled", () => {
+  for (const phase of ["verifying", "extracting"] as const) {
+    const v = view({
+      job: job({ kind: "installing", edition: "core", phase, done: 41, total: 69 }),
+    });
+    assert.deepEqual(v.message, { kind: "installing", phase, done: 41, total: 69 });
+    assert.deepEqual(v.cancel, { shown: true, disabled: false });
+    assert.equal(v.primary.disabled, true);
+    assert.equal(v.pickerEnabled, false);
+  }
+});
+
+// S11. Past the swap the old dictionary is already unloaded and the rename may
+// have landed, so there is nothing safe to stop. The button stays visible
+// because one that vanishes at that moment reads as a bug.
+test("the swap and the load show cancel disabled rather than removing it", () => {
+  for (const phase of ["swapping", "loading"] as const) {
+    const v = view({
+      job: job({ kind: "installing", edition: "core", phase, done: 0, total: 0 }),
+    });
+    assert.deepEqual(v.cancel, { shown: true, disabled: true });
+    assert.equal(v.primary.disabled, true);
+  }
 });
 
 // D14: the label used to stay "Update" for the whole install.
@@ -143,7 +161,7 @@ test("the button never keeps its idle label while working", () => {
   for (const running of [
     job({ kind: "resolving", edition: "core" }),
     job({ kind: "downloading", edition: "core", received: 1, total: 2 }),
-    job({ kind: "installing", edition: "core" }),
+    job({ kind: "installing", edition: "core", phase: "extracting", done: 1, total: 2 }),
   ]) {
     const v = view({ inventory: installed(["core"]), job: running });
     assert.equal(v.primary.action.kind, "working");
@@ -241,7 +259,7 @@ test("the picker is off exactly while an install is running", () => {
   const running: DictionaryJob[] = [
     { kind: "resolving", edition: "core" },
     { kind: "downloading", edition: "core", received: 1, total: 2 },
-    { kind: "installing", edition: "core" },
+    { kind: "installing", edition: "core", phase: "extracting", done: 1, total: 2 },
   ];
   for (const j of running) assert.equal(view({ job: j }).pickerEnabled, false);
 

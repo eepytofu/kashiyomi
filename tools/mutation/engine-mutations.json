@@ -1048,5 +1048,12 @@
     "what": "a disk that could not be measured is treated as having no room, blocking a first install",
     "find": "  if (freeBytes === undefined) return undefined;",
     "replace": "  if (false) return undefined;"
+  },
+  {
+    "id": "rowstate/cancel-live-during-swap",
+    "file": "src/engine/dictionaryRowState.ts",
+    "what": "cancel stays enabled through the swap and load, offering to stop work that cannot be stopped",
+    "find": "        job.phase === \"verifying\" || job.phase === \"extracting\",",
+    "replace": "        true,"
   }
 ]

@@ -25,7 +25,7 @@ import {
   type DictionaryFailure,
 } from "./dictionarySource.ts";
 import { pinnedRelease } from "./dictionaryPins.ts";
-import type { DictionaryInventory, DictionaryJob } from "./dictionaryState.ts";
+import type { DictionaryInventory, DictionaryJob, InstallPhase } from "./dictionaryState.ts";
 
 /**
  * How long a finished job keeps saying so.
@@ -54,7 +54,12 @@ export type RowMessage =
     }
   | { readonly kind: "checking" }
   | { readonly kind: "downloading"; readonly received: number; readonly total: number }
-  | { readonly kind: "installing" }
+  | {
+      readonly kind: "installing";
+      readonly phase: InstallPhase;
+      readonly done: number;
+      readonly total: number;
+    }
   | { readonly kind: "failed"; readonly reason: DictionaryFailure }
   | { readonly kind: "updateCheckFailed" }
   | { readonly kind: "cancelled" }
@@ -125,10 +130,21 @@ function runningView(input: RowInput): RowView | undefined {
         true,
       );
     case "installing":
-      // Verifying, unpacking and the swap. Cancel is shown disabled rather than
-      // hidden: after the swap begins there is nothing safe to stop, and a
-      // button that vanishes reads as a bug.
-      return working({ kind: "installing" }, "installing", false);
+      // Cancel stays *shown* through all four phases and is only enabled for
+      // the two that can be abandoned. After the swap begins the old dictionary
+      // is already unloaded and the rename may have landed, so there is nothing
+      // safe to stop; a button that vanishes at that moment reads as a bug,
+      // where a disabled one reads as "not now".
+      return working(
+        {
+          kind: "installing",
+          phase: job.phase,
+          done: job.done,
+          total: job.total,
+        },
+        "installing",
+        job.phase === "verifying" || job.phase === "extracting",
+      );
     default:
       return undefined;
   }

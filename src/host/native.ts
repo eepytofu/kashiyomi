@@ -55,16 +55,46 @@ export function nativeReload(dictPath: string, resourceDir: string): boolean {
   return (response.data as { started?: boolean }).started === true;
 }
 
-export type InstallResult =
-  | { ok: true; bytes: number; started: boolean }
-  | { ok: false; error: string };
+export type InstallResult = { ok: true; started: boolean } | { ok: false; error: string };
+
+/** What the worker thread is doing, or how it finished. */
+export type NativeInstallJob =
+  | { kind: "idle" }
+  | { kind: "running"; phase: "verifying" | "extracting" | "swapping" | "loading"; done: number; total: number }
+  | { kind: "done"; bytes: number; started: boolean }
+  | { kind: "failed"; message: string };
+
+export type NativeDictStatus = {
+  analyzer: { state: NativeState; error?: string };
+  job: NativeInstallJob;
+};
 
 /**
- * Hand a downloaded archive to the backend to verify, install **and load**.
+ * Analyzer state and install progress in one call.
+ *
+ * Polled while an install runs, which is the only reason it exists: the work
+ * moved to a worker thread, so its result no longer comes back as the return
+ * value of the call that started it.
+ */
+export function nativeDictStatus(): NativeDictStatus | undefined {
+  const response = dispatch({ cmd: "dictStatus" });
+  if (!response || response.status === "error") return undefined;
+  const data = response.data as { analyzer?: { state: NativeState; error?: string }; job?: NativeInstallJob };
+  if (!data.analyzer || !data.job) return undefined;
+  return { analyzer: data.analyzer, job: data.job };
+}
+
+/**
+ * Start verifying and installing a downloaded archive, and return at once.
  *
  * The fetch happens in JS because `fetch` is already HTTPS, already streams and
  * already honours the user's proxy. Everything after it happens natively,
  * because extraction produces 207 MB and that must not exist in this heap.
+ *
+ * **Asynchronous.** Hashing up to 121 MB and extracting 207 MB used to run on
+ * the renderer thread, freezing NCM's entire UI for seconds with nothing on
+ * screen to explain it. `started: false` means a job was already running, which
+ * is a refusal rather than a failure.
  *
  * The load is not a separate call any more. Installing closes the dictionary in
  * order to replace it, so a caller that installed and then failed to reload
@@ -78,7 +108,7 @@ export type InstallResult =
  * `sha256` is the value pinned at build time. A failure here always leaves the
  * previous dictionary untouched.
  */
-export function nativeInstallDictionary(
+export function nativeStartInstall(
   archive: string,
   sha256: string,
   member: string,
@@ -97,8 +127,8 @@ export function nativeInstallDictionary(
   });
   if (!response) return { ok: false, error: "the analyzer backend is unavailable" };
   if (response.status === "error") return { ok: false, error: response.message };
-  const data = response.data as { bytes?: number; started?: boolean };
-  return { ok: true, bytes: Number(data.bytes ?? 0), started: data.started === true };
+  const data = response.data as { started?: boolean };
+  return { ok: true, started: data.started === true };
 }
 
 /**

@@ -1,12 +1,12 @@
 //! JSON command routing for `kashiyomi.dispatch`.
 //!
-//! Request:  `{"cmd": "init" | "reload" | "install" | "freeSpace" | "sweepPartials" | "status" | "analyze", ...}`
+//! Request:  `{"cmd": "init" | "reload" | "install" | "dictStatus" | "freeSpace" | "sweepPartials" | "status" | "analyze", ...}`
 //! Response: `{"status": "ok", "data": ...}` or `{"status": "error", "message": "..."}`
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::{analyzer, install};
+use crate::{analyzer, install, job};
 
 #[derive(Deserialize)]
 #[serde(tag = "cmd", rename_all = "camelCase")]
@@ -52,6 +52,9 @@ enum Command {
         directory: String,
     },
     Status,
+    /// Analyzer state and install progress in one call, for polling while an
+    /// install runs on its worker thread.
+    DictStatus,
     Analyze {
         lines: Vec<String>,
     },
@@ -71,6 +74,26 @@ fn ok(data: serde_json::Value) -> String {
 
 fn error(message: impl Into<String>) -> String {
     json!({ "status": "error", "message": message.into() }).to_string()
+}
+
+/// The install job as JSON. `kind` is what the host branches on; the other
+/// fields are present only where they mean something.
+fn job_data() -> serde_json::Value {
+    match job::snapshot() {
+        job::Job::Idle => json!({ "kind": "idle" }),
+        job::Job::Running { phase, done, total } => json!({
+            "kind": "running",
+            "phase": phase.as_str(),
+            "done": done,
+            "total": total,
+        }),
+        job::Job::Done { bytes, started } => json!({
+            "kind": "done",
+            "bytes": bytes,
+            "started": started,
+        }),
+        job::Job::Failed { message } => json!({ "kind": "failed", "message": message }),
+    }
 }
 
 fn status_data() -> StatusData {
@@ -109,20 +132,50 @@ pub fn handle(raw: &str) -> String {
             resource_dir,
             superseded,
         } => {
-            match install::verify_and_install(&archive, &sha256, &member, &target, &|| {
-                analyzer::unload();
-            }) {
-                Ok(installed) => {
-                    // The dictionary is unloaded at this point *because* the
-                    // rename required it, so loading again is not optional —
-                    // returning without it would leave the analyzer closed.
-                    let started =
-                        analyzer::begin_reload_replacing(target, resource_dir, superseded);
-                    ok(json!({ "bytes": installed.bytes, "started": started }))
-                }
-                Err(message) => error(message),
+            // Returns as soon as the worker is running. Hashing 69 to 121 MB and
+            // extracting 207 MB used to happen on the renderer thread, which is
+            // the thread NCM draws with, so the whole app stopped for the
+            // duration with nothing on screen explaining it.
+            if !job::begin() {
+                return ok(json!({ "started": false, "busy": true }));
             }
+            std::thread::spawn(move || {
+                let outcome = install::verify_and_install(
+                    &archive,
+                    &sha256,
+                    &member,
+                    &target,
+                    &|| {
+                        analyzer::unload();
+                    },
+                    &|phase, done, total| job::progress(phase, done, total),
+                );
+                match outcome {
+                    Ok(installed) => {
+                        // The dictionary is unloaded at this point *because* the
+                        // rename required it, so loading again is not optional:
+                        // returning without it would leave the analyzer closed.
+                        job::progress(job::Phase::Loading, 0, 0);
+                        let started =
+                            analyzer::begin_reload_replacing(target, resource_dir, superseded);
+                        job::finish_ok(installed.bytes, started);
+                    }
+                    Err(message) => job::finish_err(message),
+                }
+            });
+            ok(json!({ "started": true }))
         }
+        // One poll for everything the host needs while an install runs: how the
+        // worker is getting on, and whether the analyzer has come back up
+        // afterwards. Deliberately does *not* report which editions are on disk.
+        // That answer depends on the `system_<edition>.dic` naming, which
+        // `engine/dictionaryLayout.ts` exists to be the only holder of, and
+        // duplicating it here would recreate the defect that module was written
+        // to end.
+        Command::DictStatus => ok(json!({
+            "analyzer": status_data(),
+            "job": job_data(),
+        })),
         Command::FreeSpace { directory } => {
             ok(json!({ "bytes": install::free_space(&directory) }))
         }

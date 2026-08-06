@@ -58,6 +58,12 @@ const STRINGS = {
     dictInstall: "Download",
     dictDownloading: "downloading",
     dictInstalling: "verifying and installing…",
+    // One line per install phase, because they take very different amounts of
+    // time: hashing and unpacking are minutes on a slow disk, the swap is
+    // instant. A single label would leave the long ones looking stuck.
+    dictVerifying: "checking the download",
+    dictUnpacking: "unpacking",
+    dictActivating: "activating",
     dictUpdate: "Update",
     dictUpToDate: "already the newest release",
     dictInstalledState: "installed",
@@ -174,6 +180,9 @@ const STRINGS = {
     dictInstall: "下载",
     dictDownloading: "下载中",
     dictInstalling: "校验并安装中…",
+    dictVerifying: "正在校验下载文件",
+    dictUnpacking: "正在解压",
+    dictActivating: "正在启用",
     dictUpdate: "更新",
     dictUpToDate: "已是最新版本",
     dictInstalledState: "已安装",

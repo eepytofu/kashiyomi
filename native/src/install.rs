@@ -12,10 +12,12 @@
 //! extraction finished.
 
 use std::fs::{self, File};
-use std::io::{self, BufReader, BufWriter, Read};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
+
+use crate::job::Phase;
 
 /// Read in chunks rather than to a `Vec`: the archive is ~69 MB and the member
 /// inside it is ~207 MB, and neither has any business being resident.
@@ -37,8 +39,9 @@ pub fn verify_and_install(
     member: &str,
     target: &str,
     unload: &dyn Fn(),
+    progress: &dyn Fn(Phase, u64, u64),
 ) -> Result<Installed, String> {
-    let actual = sha256_file(archive)?;
+    let actual = sha256_file(archive, progress)?;
     if !actual.eq_ignore_ascii_case(expected_sha256.trim()) {
         // Deliberately no "install anyway" path. A wasted 69 MB download is an
         // annoyance; a silently corrupted dictionary handed to the analyzer is
@@ -53,10 +56,11 @@ pub fn verify_and_install(
     // atomic. A temp directory could be on another drive, where the "rename"
     // becomes a copy and stops being atomic.
     let staged = staging_path(target);
-    let extracted = extract_member(archive, member, &staged).inspect_err(|_| {
+    let extracted = extract_member(archive, member, &staged, progress).inspect_err(|_| {
         remove_quietly(&staged.to_string_lossy());
     })?;
 
+    progress(Phase::Swapping, 0, 0);
     swap(&staged, target, unload)?;
     remove_quietly(archive);
     Ok(Installed { bytes: extracted })
@@ -83,11 +87,13 @@ pub fn swap(staged: &Path, target: &str, unload: &dyn Fn()) -> Result<(), String
     })
 }
 
-fn sha256_file(path: &str) -> Result<String, String> {
+fn sha256_file(path: &str, progress: &dyn Fn(Phase, u64, u64)) -> Result<String, String> {
     let file = File::open(path).map_err(|e| format!("cannot read the download: {e}"))?;
+    let total = file.metadata().map(|m| m.len()).unwrap_or(0);
     let mut reader = BufReader::new(file);
     let mut hasher = Sha256::new();
     let mut buffer = vec![0u8; CHUNK];
+    let mut done = 0u64;
     loop {
         let read = reader
             .read(&mut buffer)
@@ -96,23 +102,49 @@ fn sha256_file(path: &str) -> Result<String, String> {
             break;
         }
         hasher.update(&buffer[..read]);
+        done += read as u64;
+        progress(Phase::Verifying, done, total);
     }
     Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
 }
 
-fn extract_member(archive: &str, member: &str, destination: &Path) -> Result<u64, String> {
+fn extract_member(
+    archive: &str,
+    member: &str,
+    destination: &Path,
+    progress: &dyn Fn(Phase, u64, u64),
+) -> Result<u64, String> {
     let file = File::open(archive).map_err(|e| format!("cannot open the archive: {e}"))?;
     let mut zip = zip::ZipArchive::new(BufReader::new(file))
         .map_err(|e| format!("the download is not a valid archive: {e}"))?;
     let mut entry = zip
         .by_name(member)
         .map_err(|_| format!("the archive does not contain {member}"))?;
+    let total = entry.size();
 
     let mut out = BufWriter::new(
         File::create(destination).map_err(|e| format!("cannot write the dictionary: {e}"))?,
     );
-    // `io::copy` streams; the 207 MB never lands in memory at once.
-    io::copy(&mut entry, &mut out).map_err(|e| format!("cannot write the dictionary: {e}"))
+    // Copied a chunk at a time rather than with `io::copy`, which reports
+    // nothing until it returns. The 207 MB still never lands in memory at once,
+    // and this is the longest phase of the install, so it is the one that most
+    // needs something on screen.
+    let mut buffer = vec![0u8; CHUNK];
+    let mut done = 0u64;
+    loop {
+        let read = entry
+            .read(&mut buffer)
+            .map_err(|e| format!("cannot read the archive: {e}"))?;
+        if read == 0 {
+            break;
+        }
+        out.write_all(&buffer[..read])
+            .map_err(|e| format!("cannot write the dictionary: {e}"))?;
+        done += read as u64;
+        progress(Phase::Extracting, done, total);
+    }
+    out.flush().map_err(|e| format!("cannot write the dictionary: {e}"))?;
+    Ok(done)
 }
 
 fn staging_path(target: &str) -> PathBuf {
@@ -199,6 +231,9 @@ mod tests {
     /// Nothing to unload: the first install has no dictionary open.
     fn no_unload() {}
 
+    /// Most tests are about what lands on disk, not about the progress feed.
+    fn no_progress(_: Phase, _: u64, _: u64) {}
+
     /// What sudachi.rs holds on a loaded dictionary — a memory map of the file.
     fn map_file(path: &Path) -> memmap2::Mmap {
         let file = File::open(path).expect("open for mapping");
@@ -230,7 +265,7 @@ mod tests {
         let archive = dir.join("d.whl");
         let target = dir.join("system_core.dic");
         write_archive(&archive, "pkg/resources/system.dic", b"dictionary bytes");
-        let hash = sha256_file(&archive.to_string_lossy()).expect("hash");
+        let hash = sha256_file(&archive.to_string_lossy(), &no_progress).expect("hash");
 
         let installed = verify_and_install(
             &archive.to_string_lossy(),
@@ -238,6 +273,7 @@ mod tests {
             "pkg/resources/system.dic",
             &target.to_string_lossy(),
             &no_unload,
+            &no_progress,
         )
         .expect("install");
 
@@ -245,6 +281,60 @@ mod tests {
         assert_eq!(fs::read(&target).expect("read target"), b"dictionary bytes");
         assert!(!archive.exists(), "the archive is removed once installed");
         assert!(!dir.join("system_core.dic.part").exists(), "no staging left behind");
+    }
+
+    /// The install reports where it is, in order, with byte counts that reach
+    /// the total.
+    ///
+    /// Without this the feed compiles and reports nothing, which looks identical
+    /// from the host: an install that never moves and an install that never
+    /// reports both render as a frozen bar.
+    #[test]
+    fn an_install_reports_each_phase_as_it_goes() {
+        let dir = temp_dir("progress");
+        let archive = dir.join("d.whl");
+        let target = dir.join("system_core.dic");
+        // Larger than one CHUNK, so extraction reports more than a single step
+        // and a per-chunk feed is distinguishable from a single final call.
+        let payload = vec![b'x'; CHUNK * 2 + 7];
+        write_archive(&archive, "pkg/resources/system.dic", &payload);
+        let hash = sha256_file(&archive.to_string_lossy(), &no_progress).expect("hash");
+
+        let seen: RefCell<Vec<(&'static str, u64, u64)>> = RefCell::new(Vec::new());
+        verify_and_install(
+            &archive.to_string_lossy(),
+            &hash,
+            "pkg/resources/system.dic",
+            &target.to_string_lossy(),
+            &no_unload,
+            &|phase, done, total| seen.borrow_mut().push((phase.as_str(), done, total)),
+        )
+        .expect("install");
+
+        let seen = seen.borrow();
+        let phases: Vec<&str> = {
+            let mut order: Vec<&str> = Vec::new();
+            for (phase, _, _) in seen.iter() {
+                if order.last() != Some(phase) {
+                    order.push(phase);
+                }
+            }
+            order
+        };
+        assert_eq!(phases, vec!["verifying", "extracting", "swapping"]);
+
+        let extract: Vec<_> = seen.iter().filter(|(p, _, _)| *p == "extracting").collect();
+        assert!(extract.len() > 1, "extraction reports as it goes, not once at the end");
+        let (_, last_done, last_total) = extract.last().expect("an extraction step");
+        assert_eq!(*last_done, payload.len() as u64);
+        assert_eq!(*last_total, payload.len() as u64, "total is the uncompressed size");
+
+        // Monotonic, so a bar driven by this never goes backwards.
+        let mut previous = 0;
+        for (_, done, _) in extract.iter() {
+            assert!(*done > previous, "progress must only move forwards");
+            previous = *done;
+        }
     }
 
     #[test]
@@ -261,6 +351,7 @@ mod tests {
             "pkg/resources/system.dic",
             &target.to_string_lossy(),
             &no_unload,
+            &no_progress,
         );
 
         assert!(result.is_err(), "must refuse");
@@ -278,7 +369,7 @@ mod tests {
         let target = dir.join("system_core.dic");
         fs::write(&target, b"the previous dictionary").expect("seed target");
         write_archive(&archive, "pkg/something-else", b"x");
-        let hash = sha256_file(&archive.to_string_lossy()).expect("hash");
+        let hash = sha256_file(&archive.to_string_lossy(), &no_progress).expect("hash");
 
         let result = verify_and_install(
             &archive.to_string_lossy(),
@@ -286,6 +377,7 @@ mod tests {
             "pkg/resources/system.dic",
             &target.to_string_lossy(),
             &no_unload,
+            &no_progress,
         );
 
         assert!(result.is_err());
@@ -305,7 +397,7 @@ mod tests {
         let target = dir.join("system_core.dic");
         fs::write(&target, b"the previous dictionary").expect("seed target");
         write_archive(&archive, "pkg/resources/system.dic", b"the new dictionary");
-        let hash = sha256_file(&archive.to_string_lossy()).expect("hash");
+        let hash = sha256_file(&archive.to_string_lossy(), &no_progress).expect("hash");
 
         let mapped = RefCell::new(Some(map_file(&target)));
 
@@ -317,6 +409,7 @@ mod tests {
             &|| {
                 mapped.borrow_mut().take();
             },
+            &no_progress,
         )
         .expect("an update over a mapped dictionary must succeed");
 

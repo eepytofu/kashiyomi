@@ -95,8 +95,20 @@ function describe(message: RowMessage): string {
       return t("dictChecking");
     case "downloading":
       return `${t("dictDownloading")} ${mb(message.received)} / ${mb(message.total)}`;
-    case "installing":
-      return t("dictInstalling");
+    case "installing": {
+      // The two measurable phases carry their byte counts. The swap and the
+      // load are neither long nor divisible, so a bar there would be a bar that
+      // never moves.
+      const label =
+        message.phase === "verifying"
+          ? t("dictVerifying")
+          : message.phase === "extracting"
+            ? t("dictUnpacking")
+            : t("dictActivating");
+      return message.total > 0
+        ? `${label} ${mb(message.done)} / ${mb(message.total)}`
+        : label;
+    }
     case "failed":
       return `${t("dictFailed")}: ${t(`dictFail_${message.reason.replace(/-/gu, "_")}` as never)}`;
     case "updateCheckFailed":
