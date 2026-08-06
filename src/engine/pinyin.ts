@@ -111,10 +111,13 @@ type SegmentEntry = { readonly origin?: string; readonly result: string };
  * No branch for the tones toggle: the swap is the literal string yìng → yīng,
  * and with `toneType: "none"` both are already `ying`.
  *
- * Adding a second character here needs the same enumeration — a pattern visible
- * in the dictionary's own entries plus an exact grammatical guard. 只应 is the
- * near miss that does *not* qualify: it segments as 只 + 应天, the Nanjing place
- * name, so 应 never stands alone and 此曲只应天上有 stays wrong.
+ * The bar for adding a second character: attested in a captured song, and a
+ * guard that needs no part of speech. 只 was measured against it and rejected.
+ * Its dictionary split is the same shape — 261 entries, 55 zhī against 69 zhǐ, a
+ * productive 只 + predicate pattern, one reading in the single-character entry —
+ * but separating 只应 "only" from 只影 "lone shadow" is verb against noun, and
+ * nothing in this pipeline knows a part of speech. A rule there would be a guess
+ * in the shape of a grammar rule. 此曲只应天上有 stays wrong on both syllables.
  */
 function readModalAsLevelTone(
   group: readonly SegmentEntry[],
