@@ -76,6 +76,40 @@ pub fn begin_init(dict_path: String, resource_dir: String) {
             State::Uninitialized | State::Failed(_) => *guard = State::Loading,
         }
     }
+    spawn_load(dict_path, resource_dir);
+}
+
+/// Replace a dictionary already in memory, for switching edition or updating.
+///
+/// `begin_init` returns early once a dictionary is loaded, which is right for
+/// an idempotent startup call and useless for changing dictionaries — calling
+/// it again with a different path silently does nothing. This is the only way
+/// to swap without restarting NCM, and no restart is needed: the DLL is loaded
+/// once at startup, but the `.dic` it reads is not.
+///
+/// Two things it does deliberately:
+///
+///   - **Refuses while a load is already running**, rather than racing it. Two
+///     threads replacing the same state is how a half-loaded dictionary would
+///     happen, and the caller can simply try again when the state settles.
+///   - **Drops the old dictionary before spawning.** That releases the Windows
+///     file handle, and without that the previous `.dic` cannot be deleted or
+///     overwritten — which is exactly what an in-place update has to do.
+///
+/// Returns false when it declined, so the caller can tell "busy" from "started".
+pub fn begin_reload(dict_path: String, resource_dir: String) -> bool {
+    {
+        let mut guard = state_cell().lock().expect("analyzer state lock");
+        if matches!(&*guard, State::Loading) {
+            return false;
+        }
+        *guard = State::Loading;
+    }
+    spawn_load(dict_path, resource_dir);
+    true
+}
+
+fn spawn_load(dict_path: String, resource_dir: String) {
     thread::Builder::new()
         .name("kashiyomi-dict-load".into())
         .spawn(move || {
