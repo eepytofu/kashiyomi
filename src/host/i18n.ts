@@ -16,7 +16,7 @@ const STRINGS = {
     sectionChinese: "Chinese",
     sectionAdvanced: "Advanced",
     credits: "Annotate credit lines",
-    creditsDesc: "Lines like 作词: or 编曲：. Never translated, on or off",
+    creditsDesc: "Lines like 作词: or 编曲：. Translation always skips them",
     furigana: "Furigana",
     furiganaDesc: "",
     romaji: "Romaji line",
@@ -41,7 +41,10 @@ const STRINGS = {
     debug: "Debug logging",
     debugDesc: "Verbose logs in the console and kashiyomi.log",
     panelLanguage: "Panel language",
-    panelLanguageDesc: "Does not affect lyrics or translation",
+    // Hover text on the unlabelled EN/中文 toggle, so it has to say what the
+    // control changes as well as what it leaves alone. Trimmed to the second
+    // half once and that left a tooltip explaining only what it does not do.
+    panelLanguageDesc: "Language of this panel only. Does not affect lyrics or translation",
     preview: "Preview",
     about: "About",
     aboutRepo: "GitHub repository",
@@ -87,7 +90,7 @@ const STRINGS = {
     sectionChinese: "中文",
     sectionAdvanced: "高级",
     credits: "为制作信息注音",
-    creditsDesc: "作词:、编曲： 这类行。无论开关，始终不会被翻译",
+    creditsDesc: "作词:、编曲： 这类行。翻译始终会跳过它们",
     furigana: "振假名",
     furiganaDesc: "",
     romaji: "罗马音行",
@@ -112,7 +115,7 @@ const STRINGS = {
     debug: "调试日志",
     debugDesc: "在控制台和 kashiyomi.log 输出详细日志",
     panelLanguage: "面板语言",
-    panelLanguageDesc: "不影响歌词与翻译",
+    panelLanguageDesc: "仅影响此面板的语言，不影响歌词与翻译",
     preview: "预览",
     about: "关于",
     aboutRepo: "GitHub 仓库",

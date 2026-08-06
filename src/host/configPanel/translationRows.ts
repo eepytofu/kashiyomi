@@ -130,10 +130,21 @@ export function apiKeysRow(): HTMLElement {
   return el;
 }
 
+/**
+ * The count is the point of this row, so it renders with or without a
+ * description. Emptying `aiClearCacheDesc` left the interpolation producing a
+ * leading space before "(3 songs stored)".
+ */
+function cacheDesc(count: number): string {
+  const desc = t("aiClearCacheDesc");
+  const stored = `(${tSongsCached(count)})`;
+  return desc === "" ? stored : `${desc} ${stored}`;
+}
+
 export function clearCacheRow(): HTMLElement {
   const el = row();
   const count = cachedTranslationCount();
-  const text = rowText(t("aiClearCache"), `${t("aiClearCacheDesc")} (${tSongsCached(count)})`);
+  const text = rowText(t("aiClearCache"), cacheDesc(count));
   el.appendChild(text);
 
   const button = document.createElement("button");
@@ -148,7 +159,7 @@ export function clearCacheRow(): HTMLElement {
     button.disabled = true;
     button.style.opacity = "0.5";
     const desc = text.querySelector(".kc-desc");
-    if (desc) desc.textContent = `${t("aiClearCacheDesc")} (${tSongsCached(0)})`;
+    if (desc) desc.textContent = cacheDesc(0);
   };
   el.appendChild(button);
   return el;
