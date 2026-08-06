@@ -66,6 +66,9 @@ const STRINGS = {
     aiTargetLang: "Target language",
     aiTargetLangDesc: "Pick one, or choose Custom to type any language",
     aiCustomPrompt: "Extra instructions",
+    readingOverrides: "Your own readings",
+    readingOverridesDesc:
+      "One per line, word=reading, e.g. 春風=はるかぜ. Overrides the dictionary; a reading written into the lyric still wins.",
     aiCustomPromptDesc: "Layered on top of the built-in prompt; wins on style, never on the output format",
     customOption: "Custom…",
     aiClearCache: "Cached translations",
@@ -134,6 +137,9 @@ const STRINGS = {
     aiTargetLang: "目标语言",
     aiTargetLangDesc: "从列表选择，或选择自定义手动输入",
     aiCustomPrompt: "额外指示",
+    readingOverrides: "自定义读音",
+    readingOverridesDesc:
+      "每行一个，词=读音，如 春風=はるかぜ。优先于词典；歌词中自带的读音仍然优先。",
     aiCustomPromptDesc: "叠加在内置提示词之上，风格上优先，但不改变输出格式",
     customOption: "自定义…",
     aiClearCache: "翻译缓存",

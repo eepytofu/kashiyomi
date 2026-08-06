@@ -740,5 +740,33 @@
     "what": "a prefix starts its own word, so お花 becomes 'o hana'",
     "find": "  if (previousPos === \"接頭辞\") return true;\n",
     "replace": ""
+  },
+  {
+    "id": "readingOverrides/no-kana-normalize",
+    "file": "src/engine/readingOverrides.ts",
+    "what": "a hiragana reading is stored as typed, breaking the katakana token contract",
+    "find": "    overrides.set(word, hiraToKata(reading));",
+    "replace": "    overrides.set(word, reading);"
+  },
+  {
+    "id": "readingOverrides/accept-empty-reading",
+    "file": "src/engine/readingOverrides.ts",
+    "what": "an entry with no reading after the = is kept, blanking the word",
+    "find": "    if (word === \"\" || reading === \"\") continue;",
+    "replace": ""
+  },
+  {
+    "id": "readingOverrides/substring-match",
+    "file": "src/engine/readingOverrides.ts",
+    "what": "overrides match inside a longer surface, rewriting 春風 within 春風亭",
+    "find": "    const reading = overrides.get(token.surface);",
+    "replace": "    const reading = [...overrides].find(([w]) => token.surface.includes(w))?.[1];"
+  },
+  {
+    "id": "readingOverrides/fills-only",
+    "file": "src/engine/readingOverrides.ts",
+    "what": "an override only fills an abstention instead of overriding the analyzer, which is the whole feature",
+    "find": "    if (reading === undefined || reading === token.readingKana) return token;",
+    "replace": "    if (reading === undefined || token.readingKana !== \"\") return token;"
   }
 ]

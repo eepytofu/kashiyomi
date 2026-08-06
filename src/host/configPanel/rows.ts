@@ -197,3 +197,40 @@ export function textRow(
   el.appendChild(input);
   return el;
 }
+
+/**
+ * The user's own word→reading list, as free text.
+ *
+ * A textarea rather than a managed list of rows: the list is expected to be
+ * short and rarely touched, and `word=reading` per line is something you can
+ * paste, diff and back up. A row-per-entry widget would be more code and less
+ * portable for the same result.
+ *
+ * Written on blur, then the analysis cache is dropped and every visible line is
+ * analyzed again. **Both steps are required.** `rescan()` only clears the DOM;
+ * the annotation cache is keyed by display text, so a rescan without
+ * `resetAnalysisCache()` re-renders the reading the user just changed and the
+ * setting looks like it does nothing. Same pairing `hanRepair` and
+ * `readingHints` need, for the same reason.
+ */
+export function readingOverridesRow(): HTMLElement {
+  const el = row();
+  el.style.flexWrap = "wrap";
+  el.appendChild(rowText(t("readingOverrides"), t("readingOverridesDesc")));
+
+  const area = document.createElement("textarea");
+  area.className = "kc-input";
+  area.rows = 3;
+  area.spellcheck = false;
+  area.style.cssText += "flex:1 1 100%;resize:vertical;min-height:64px;";
+  area.value = getSettings().readingOverrides;
+  area.placeholder = "春風=はるかぜ";
+  area.onblur = () => {
+    if (area.value === getSettings().readingOverrides) return;
+    updateSettings({ readingOverrides: area.value });
+    resetAnalysisCache();
+    rescan();
+  };
+  el.appendChild(area);
+  return el;
+}

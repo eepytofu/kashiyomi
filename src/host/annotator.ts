@@ -9,6 +9,10 @@ import {
 } from "../engine/cjk.ts";
 import { annotateJapaneseLine, type JapaneseLineAnnotation } from "../engine/japanese.ts";
 import { applyJmdictReadings, type JmdictReadings } from "../engine/jmdictReadings.ts";
+import {
+  applyReadingOverrides,
+  parseReadingOverrides,
+} from "../engine/readingOverrides.ts";
 import { ensureJmdictReadings } from "./jmdictDict.ts";
 import { romanizeMandarin } from "../engine/pinyin.ts";
 import { hasHan, hasKana } from "../engine/kana.ts";
@@ -254,12 +258,20 @@ function annotateJapanese(
     return;
   }
   log.debug(`analyzed ${pendingAnalysis.length} lines (${lines.length - pendingAnalysis.length} cached)`);
+  // Parsed once per batch rather than per line: it is the same settings string
+  // for all of them, and re-parsing it 65 times a scan would be pure waste.
+  const overrides = parseReadingOverrides(settings.readingOverrides);
   for (let i = 0; i < pendingAnalysis.length; i++) {
     const { line, displayText, analysisText, hints } = pendingAnalysis[i]!;
     const raw = result.lines[i] ?? [];
-    // Fills readings the analyzer abstained on (磊々 → ライライ). Never
-    // overrides one it produced, so this cannot change an existing annotation.
-    const tokens = jmdict ? applyJmdictReadings(raw, jmdict) : raw;
+    // Two layers, and the order is the point. JMdict only fills readings the
+    // analyzer abstained on, so it can never change an existing annotation. The
+    // user's list then overrides whatever either of them decided, because
+    // disagreeing with the dictionary is what it is for. A reading written into
+    // the lyric still beats both: hints are applied further down, in
+    // annotateJapaneseLine.
+    const filled = jmdict ? applyJmdictReadings(raw, jmdict) : raw;
+    const tokens = applyReadingOverrides(filled, overrides);
     try {
       const annotation = annotateJapaneseLine(analysisText, tokens, hints);
       // Hints come from the line itself, so the annotation is a pure function

@@ -41,6 +41,8 @@ export type Settings = {
   aiModel: string;
   aiTargetLang: string;
   aiCustomPrompt: string;
+  /** One `word=reading` per line; blank lines and # comments allowed. */
+  readingOverrides: string;
 };
 
 export const DEFAULT_JP_FONT_STACK =
@@ -87,6 +89,7 @@ const DEFAULTS: Settings = {
   aiModel: "",
   aiTargetLang: "English",
   aiCustomPrompt: "",
+  readingOverrides: "",
 };
 
 let current: Settings | undefined;

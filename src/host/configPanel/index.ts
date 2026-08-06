@@ -13,7 +13,15 @@ import {
 } from "../settings.ts";
 import { PANEL_CSS } from "./css.ts";
 import { buildPreviewCard } from "./preview.ts";
-import { card, fontStackRow, sectionTitle, sizeRow, textRow, toggleRow } from "./rows.ts";
+import {
+  card,
+  fontStackRow,
+  readingOverridesRow,
+  sectionTitle,
+  sizeRow,
+  textRow,
+  toggleRow,
+} from "./rows.ts";
 import { apiKeysRow, clearCacheRow, providerRow, targetLangRow } from "./translationRows.ts";
 
 const REPO_URL = "https://github.com/eepytofu/kashiyomi";
@@ -67,6 +75,9 @@ function render(root: HTMLElement): void {
   jp.appendChild(sizeRow(refreshPreview));
   jp.appendChild(toggleRow("useJpFont", t("jpFont"), t("jpFontDesc"), refreshPreview, false));
   jp.appendChild(fontStackRow("jpFontStack", DEFAULT_JP_FONT_STACK, "fontStack", "fontStackDesc", refreshPreview));
+  // Last in the Japanese card: it is the escape hatch for when everything
+  // above got a reading wrong, so it reads in the order someone reaches for it.
+  jp.appendChild(readingOverridesRow());
   left.appendChild(jp);
 
   left.appendChild(sectionTitle(t("sectionChinese")));
