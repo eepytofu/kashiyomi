@@ -3,7 +3,6 @@ import { test } from "node:test";
 import {
   CACHE_CAP,
   CACHE_KEY,
-  CACHE_TTL_MS,
   cacheClear,
   cacheCount,
   cacheGet,
@@ -41,24 +40,18 @@ test("misses on unknown keys and line-count mismatch", () => {
   assert.equal(cacheGet(storage, "song-a", 3), undefined);
 });
 
-test("expired entries are dropped", () => {
+test("entries never expire, however old", () => {
+  // There was a 90-day TTL. It could not prevent staleness — the key already
+  // covers model, target language and prompt, so a changed setting is a
+  // different key — and growth is the cap's job. All it did was re-charge the
+  // user for a song they still play. Clear in the settings panel is the
+  // on-demand escape hatch, and it is free.
   const storage = memoryStorage();
   const t0 = 1_000_000;
+  const tenYears = 10 * 365 * 24 * 60 * 60 * 1000;
   cachePut(storage, "song-a", ["one"], t0);
-  assert.deepEqual(cacheGet(storage, "song-a", 1, t0 + CACHE_TTL_MS - 1), ["one"]);
-  assert.equal(cacheGet(storage, "song-a", 1, t0 + CACHE_TTL_MS + 1), undefined);
-  assert.equal(cacheCount(storage), 0);
-});
-
-test("reading does not extend freshness", () => {
-  const storage = memoryStorage();
-  const t0 = 1_000_000;
-  cachePut(storage, "song-a", ["one"], t0);
-  // Read repeatedly right up to the deadline; expiry still counts from write.
-  for (let i = 1; i <= 5; i++) {
-    cacheGet(storage, "song-a", 1, t0 + CACHE_TTL_MS - i);
-  }
-  assert.equal(cacheGet(storage, "song-a", 1, t0 + CACHE_TTL_MS + 1), undefined);
+  assert.deepEqual(cacheGet(storage, "song-a", 1, t0 + tenYears), ["one"]);
+  assert.equal(cacheCount(storage), 1);
 });
 
 test("a hit refreshes eviction order so it survives eviction", () => {

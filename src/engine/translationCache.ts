@@ -21,8 +21,18 @@ function lastUsed(entry: CacheEntry): number {
 }
 
 export const CACHE_KEY = "kashiyomi:txcache";
-export const CACHE_CAP = 80;
-export const CACHE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+/**
+ * Songs kept. Raised from 80 on 2026-08-06 after a live install was found
+ * sitting at **78 of 80** — the cap was one song from evicting translations the
+ * user had already paid for, which is the opposite of what a cache is for.
+ *
+ * Measured on that install: 78 songs in 189.9 KB, median entry 2350 bytes,
+ * largest 4888. So 500 is roughly 1.2 MB, comfortable against a localStorage
+ * budget of several MB that we share with NCM itself. The real safety net is
+ * not this number but the quota handler in `persist`, which sheds oldest-first
+ * when the browser actually says no.
+ */
+export const CACHE_CAP = 500;
 
 function emptyEnvelope(): Envelope {
   return { v: 1, entries: {} };
@@ -70,18 +80,24 @@ export function cacheGet(
   const envelope = readEnvelope(storage);
   const entry = envelope.entries[key];
   if (!entry) return undefined;
-  if (now - entry.at > CACHE_TTL_MS) {
-    delete envelope.entries[key];
-    persist(storage, envelope);
-    return undefined;
-  }
   if (entry.lines.length !== expectedLines) return undefined;
   entry.used = now;
   persist(storage, envelope);
   return entry.lines;
 }
 
-/** Store lines, then prune expired entries and enforce the cap. */
+/**
+ * Store lines, then enforce the cap, evicting least-recently-used first.
+ *
+ * **Entries do not expire.** There was a 90-day TTL; it was removed on
+ * 2026-08-06 because nothing it did was wanted. It could not be protecting
+ * against staleness — the key already covers the lines, provider, model, target
+ * language and custom prompt, so changing any of those produces a different key
+ * and an old entry can never be served. It could not be bounding growth either;
+ * the cap does that. What was left was re-paying for a translation of a song
+ * the user still plays, silently and on a timer. A bad translation is already
+ * recoverable on demand through Clear in the settings panel, for free.
+ */
 export function cachePut(
   storage: CacheStorage,
   key: string,
@@ -90,9 +106,6 @@ export function cachePut(
 ): void {
   const envelope = readEnvelope(storage);
   envelope.entries[key] = { at: now, used: now, lines };
-  for (const [entryKey, entry] of Object.entries(envelope.entries)) {
-    if (now - entry.at > CACHE_TTL_MS) delete envelope.entries[entryKey];
-  }
   const keys = Object.keys(envelope.entries);
   if (keys.length > CACHE_CAP) {
     keys
