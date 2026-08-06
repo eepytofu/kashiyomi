@@ -3,11 +3,30 @@ import { test } from "node:test";
 import { annotateJapaneseLine } from "../src/engine/japanese.ts";
 import type { AnalyzerToken } from "../src/engine/tokens.ts";
 
+/**
+ * `rawPos` used to be left empty here, and the analyzer never returns that —
+ * every real token carries at least a top-level class. Word joining reads
+ * `rawPos`, so with it empty these fixtures described a tokenization nobody can
+ * get, and the romaji they asserted was unreachable. It is defaulted from
+ * `partOfSpeech` now, and passed explicitly where the second field matters
+ * (助詞,接続助詞 is the te-form; 助詞,格助詞 is not).
+ */
+const POS_TO_RAW: Record<AnalyzerToken["partOfSpeech"], string> = {
+  noun: "名詞",
+  pronoun: "代名詞",
+  verb: "動詞",
+  auxiliaryVerb: "助動詞",
+  particle: "助詞",
+  suffix: "接尾辞",
+  other: "",
+};
+
 function token(
   surface: string,
   start: number,
   readingKana: string,
   partOfSpeech: AnalyzerToken["partOfSpeech"] = "noun",
+  rawPos: readonly string[] = [POS_TO_RAW[partOfSpeech]],
 ): AnalyzerToken {
   return {
     surface,
@@ -20,25 +39,26 @@ function token(
     conjugationType: "",
     conjugationForm: "",
     oov: false,
-    rawPos: [],
+    rawPos,
   };
 }
 
 test("furigana and romaji for a plain line", () => {
-  // Tokens verified against the real analyzer on 2026-08-03:
-  //   native/target/release/analyze "灯篭の灯に照らされてゆく"
+  // Tokens verified against the real analyzer, re-checked 2026-08-06 for the
+  // second POS field:  analyze "灯篭の灯に照らされてゆく"
   // An earlier version read 灯 as ヒ, which Sudachi does not return here — it
   // reads アカリ — so the asserted romaji was for a tokenization the user
-  // never gets.
+  // never gets. の and に are 格助詞 while て is 接続助詞, and only the last of
+  // those three joins the word before it.
   const line = "灯篭の灯に照らされてゆく";
   const tokens = [
     token("灯篭", 0, "トウロウ"),
-    token("の", 2, "ノ", "particle"),
+    token("の", 2, "ノ", "particle", ["助詞", "格助詞"]),
     token("灯", 3, "アカリ"),
-    token("に", 4, "ニ", "particle"),
+    token("に", 4, "ニ", "particle", ["助詞", "格助詞"]),
     token("照らさ", 5, "テラサ", "verb"),
     token("れ", 8, "レ", "auxiliaryVerb"),
-    token("て", 9, "テ", "particle"),
+    token("て", 9, "テ", "particle", ["助詞", "接続助詞"]),
     token("ゆく", 10, "ユク", "verb"),
   ];
   const { furigana, romaji } = annotateJapaneseLine(line, tokens);
@@ -47,7 +67,91 @@ test("furigana and romaji for a plain line", () => {
     { start: 3, end: 4, reading: "あかり", origin: "inferred" },
     { start: 5, end: 6, reading: "て", origin: "inferred" },
   ]);
-  assert.equal(romaji, "tourou no akari ni terasa re te yuku");
+  // 照らさ + れ + て is one word: the auxiliary joins the verb and the te-form
+  // joins that. It read "terasa re te yuku" until 2026-08-06.
+  assert.equal(romaji, "tourou no akari ni terasarete yuku");
+});
+
+test("an inflected verb is one romaji word", () => {
+  // Every one of these came out in pieces — `wasure ta`, `sumi mase n` — because
+  // the row spaced one analyzer token at a time. POS and readings below are the
+  // analyzer's own, checked 2026-08-06.
+  const wasureta = annotateJapaneseLine("忘れた", [
+    token("忘れ", 0, "ワスレ", "verb"),
+    token("た", 2, "タ", "auxiliaryVerb"),
+  ]);
+  assert.equal(wasureta.romaji, "wasureta");
+
+  const sumimasen = annotateJapaneseLine("済みません", [
+    token("済み", 0, "スミ", "verb"),
+    token("ませ", 2, "マセ", "auxiliaryVerb"),
+    token("ん", 4, "ン", "auxiliaryVerb"),
+  ]);
+  assert.equal(sumimasen.romaji, "sumimasen");
+
+  // Auxiliary onto auxiliary, which is why 助動詞 is in the previous-token set.
+  const tabetakatta = annotateJapaneseLine("食べたかった", [
+    token("食べ", 0, "タベ", "verb"),
+    token("たかっ", 2, "タカッ", "auxiliaryVerb"),
+    token("た", 5, "タ", "auxiliaryVerb"),
+  ]);
+  assert.equal(tabetakatta.romaji, "tabetakatta");
+});
+
+test("the copula stays a word of its own", () => {
+  // 早いです is the case that actually tests the です exclusion. 早い is 形容詞,
+  // which *is* in the previous-token set, so nothing else stops the join: drop
+  // the exclusion and this reads `hayaidesu`.
+  //
+  // Caught by `japanese/copula-joins`, which survived a sweep because the 学生
+  // case below passes for the wrong reason — 学生 is a noun, so the
+  // previous-token condition rejects it before です is ever considered. Two
+  // assertions that look like one test of one rule; only this one exercises it.
+  const hayai = annotateJapaneseLine("早いです", [
+    token("早い", 0, "ハヤイ", "other", ["形容詞"]),
+    token("です", 2, "デス", "auxiliaryVerb"),
+  ]);
+  assert.equal(hayai.romaji, "hayai desu");
+
+  const desu = annotateJapaneseLine("学生です", [
+    token("学生", 0, "ガクセイ"),
+    token("です", 2, "デス", "auxiliaryVerb"),
+  ]);
+  assert.equal(desu.romaji, "gakusei desu");
+
+  // 学生だった is the case a rule keyed only on 助動詞 gets wrong: だっ follows a
+  // noun, so it starts a word, and た then joins だっ rather than 学生.
+  const datta = annotateJapaneseLine("学生だった", [
+    token("学生", 0, "ガクセイ"),
+    token("だっ", 2, "ダッ", "auxiliaryVerb"),
+    token("た", 4, "タ", "auxiliaryVerb"),
+  ]);
+  assert.equal(datta.romaji, "gakusei datta");
+});
+
+test("the te-form joins, other conjunctive particles do not", () => {
+  const tabete = annotateJapaneseLine("食べている", [
+    token("食べ", 0, "タベ", "verb"),
+    token("て", 2, "テ", "particle", ["助詞", "接続助詞"]),
+    token("いる", 3, "イル", "verb"),
+  ]);
+  assert.equal(tabete.romaji, "tabete iru");
+
+  // けれど carries the identical tag and must not join. This is the case that
+  // ruled out matching 接続助詞 as a class instead of the two te-form surfaces.
+  const keredo = annotateJapaneseLine("行くけれど", [
+    token("行く", 0, "イク", "verb"),
+    token("けれど", 2, "ケレド", "particle", ["助詞", "接続助詞"]),
+  ]);
+  assert.equal(keredo.romaji, "iku keredo");
+});
+
+test("a prefix binds to the word after it", () => {
+  const ohana = annotateJapaneseLine("お花", [
+    token("お", 0, "オ", "other", ["接頭辞"]),
+    token("花", 1, "ハナ"),
+  ]);
+  assert.equal(ohana.romaji, "ohana");
 });
 
 test("authored hint overrides reading and romaji", () => {

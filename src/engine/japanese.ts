@@ -135,7 +135,8 @@ export function annotateJapaneseLine(
       } else {
         const kana = token.readingKana !== "" ? token.readingKana : token.surface;
         const { romaji, joined } = voice(kana, i === tokens.length - 1);
-        appendRomaji(romajiParts, romaji, joined, "inferred");
+        const attaches = attachesToPrevious(tokens[i - 1], token);
+        appendRomaji(romajiParts, romaji, joined || attaches, "inferred");
       }
       i += 1;
       continue;
@@ -204,6 +205,47 @@ function particleSpecial(token: AnalyzerToken): string | undefined {
   if (surface === "を") return "wo";
   return undefined;
 }
+
+/**
+ * True when a token continues the previous word rather than starting a new one.
+ *
+ * The romaji row spaced every analyzer token, so every inflected form came out
+ * in pieces: 忘れた as `wasure ta`, 済みません as `sumi mase n`, 食べたかった as
+ * `tabe takat ta`. Sudachi splits an inflection into stem plus auxiliary because
+ * that is what parsing needs; romanization needs the word back.
+ *
+ * Three rules, each measured against the analyzer rather than assumed:
+ *
+ *   1. a prefix binds forward — お + 花 is `ohana`;
+ *   2. the te-form binds back — 食べ + て is `tabete`;
+ *   3. an auxiliary binds back **onto a verb, adjective or another auxiliary**.
+ *
+ * Rule 3's condition on the *previous* token is what makes it safe, and it is
+ * the part that is easy to miss: 学生 + だっ + た is `gakusei datta`, not
+ * `gakuseidatta`, because 学生 is a noun. です is excluded outright — the copula
+ * is a word of its own, so 学生です is `gakusei desu`.
+ *
+ * Rule 2 is deliberately narrower than "any 接続助詞", which is what it looks
+ * like it should be. けれど carries the identical tag `助詞,接続助詞`, and
+ * binding it gives `ikukeredo` for 行くけれど. Matching the surface instead
+ * keeps て and で and leaves the rest alone. から is safe either way — it is
+ * 格助詞, not 接続助詞 — but only checking told us that.
+ */
+function attachesToPrevious(previous: AnalyzerToken | undefined, token: AnalyzerToken): boolean {
+  if (previous === undefined) return false;
+  const previousPos = previous.rawPos[0] ?? "";
+  const pos = token.rawPos[0] ?? "";
+  if (previousPos === "接頭辞") return true;
+  if (pos === "助詞" && token.rawPos[1] === "接続助詞" && TE_FORM.has(token.surface)) return true;
+  return (
+    pos === "助動詞" &&
+    token.surface !== "です" &&
+    (previousPos === "動詞" || previousPos === "助動詞" || previousPos === "形容詞")
+  );
+}
+
+/** The conjunctive て, and its voiced form after a nasal or voiced stem (読んで). */
+const TE_FORM = new Set(["て", "で"]);
 
 function appendRomaji(
   parts: RomajiSegment[],

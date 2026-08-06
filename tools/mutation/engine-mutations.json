@@ -705,5 +705,40 @@
     "what": "layer overrides an analyzer reading instead of only filling abstentions",
     "find": "    if (token.readingKana === \"\") return { ...token, readingKana: reading };\n\n    return token;",
     "replace": "    return { ...token, readingKana: reading };"
+  },
+  {
+    "id": "japanese/no-word-joining",
+    "file": "src/engine/japanese.ts",
+    "what": "every analyzer token gets its own romaji word again, so 忘れた is 'wasure ta'",
+    "find": "        appendRomaji(romajiParts, romaji, joined || attaches, \"inferred\");",
+    "replace": "        appendRomaji(romajiParts, romaji, joined, \"inferred\");"
+  },
+  {
+    "id": "japanese/auxiliary-ignores-previous",
+    "file": "src/engine/japanese.ts",
+    "what": "an auxiliary joins whatever precedes it, so 学生だった becomes 'gakuseidatta'",
+    "find": "    (previousPos === \"動詞\" || previousPos === \"助動詞\" || previousPos === \"形容詞\")",
+    "replace": "    true"
+  },
+  {
+    "id": "japanese/copula-joins",
+    "file": "src/engine/japanese.ts",
+    "what": "です is treated as an inflection, so 学生です becomes 'gakuseidesu'",
+    "find": "    token.surface !== \"です\" &&\n",
+    "replace": ""
+  },
+  {
+    "id": "japanese/te-form-any-conjunctive",
+    "file": "src/engine/japanese.ts",
+    "what": "every conjunctive particle joins, so 行くけれど becomes 'ikukeredo'",
+    "find": " && TE_FORM.has(token.surface)",
+    "replace": ""
+  },
+  {
+    "id": "japanese/drop-prefix-rule",
+    "file": "src/engine/japanese.ts",
+    "what": "a prefix starts its own word, so お花 becomes 'o hana'",
+    "find": "  if (previousPos === \"接頭辞\") return true;\n",
+    "replace": ""
   }
 ]
