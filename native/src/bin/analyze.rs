@@ -30,7 +30,11 @@ fn main() {
     }
 
     let root = env!("CARGO_MANIFEST_DIR");
-    let dict = format!("{root}/../assets/dict/system_full.dic");
+    // KASHIYOMI_DICT swaps the dictionary without a rebuild, so the same binary
+    // can read the same lines through full, core and small and the difference
+    // is the dictionary rather than anything else.
+    let dict = std::env::var("KASHIYOMI_DICT")
+        .unwrap_or_else(|_| format!("{root}/../assets/dict/system_full.dic"));
     let resources = format!("{root}/../assets/sudachi");
     if !std::path::Path::new(&dict).exists() {
         eprintln!("dictionary missing: {dict}\nrun: npm run fetch-dict");
