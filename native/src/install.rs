@@ -215,6 +215,29 @@ fn remove_quietly(path: &str) {
 ///
 /// Declared directly rather than pulling in a crate: this is one call, and the
 /// alternative is several hundred KB of dependency in a DLL we ship.
+/// The nearest ancestor of `directory` that exists, including itself.
+///
+/// `GetDiskFreeSpaceExW` fails on a path that is not there, and on a fresh
+/// install the dictionary directory has never been created: the plugin makes it
+/// immediately before writing the archive, which is *after* the space check.
+/// So the one machine where running out of disk is most likely was the one
+/// machine the check silently skipped, and the failure surfaced as a mangled
+/// download after the bandwidth was already spent.
+///
+/// Any ancestor answers the question equally well, because free space is a
+/// property of the volume rather than of the directory.
+fn nearest_existing(directory: &str) -> Option<PathBuf> {
+    let mut path = PathBuf::from(directory);
+    loop {
+        if path.exists() {
+            return Some(path);
+        }
+        if !path.pop() {
+            return None;
+        }
+    }
+}
+
 #[cfg(windows)]
 pub fn free_space(directory: &str) -> Option<u64> {
     use std::ffi::OsStr;
@@ -229,7 +252,11 @@ pub fn free_space(directory: &str) -> Option<u64> {
         ) -> i32;
     }
 
-    let wide: Vec<u16> = OsStr::new(directory).encode_wide().chain(Some(0)).collect();
+    let existing = nearest_existing(directory)?;
+    let wide: Vec<u16> = OsStr::new(existing.as_os_str())
+        .encode_wide()
+        .chain(Some(0))
+        .collect();
     let mut available: u64 = 0;
     let mut total: u64 = 0;
     let mut free: u64 = 0;
@@ -242,7 +269,11 @@ pub fn free_space(directory: &str) -> Option<u64> {
 }
 
 #[cfg(not(windows))]
-pub fn free_space(_directory: &str) -> Option<u64> {
+pub fn free_space(directory: &str) -> Option<u64> {
+    // Only referenced so the shared helper is compiled and tested off Windows
+    // too; there is no portable free-space call worth adding a crate for, and
+    // the plugin only ever runs inside NCM.
+    let _ = nearest_existing(directory);
     None
 }
 
@@ -427,6 +458,36 @@ mod tests {
         );
         assert!(!dir.join("system_core.dic.part").exists(), "staging is cleaned up");
         assert!(!archive.exists(), "the archive is not left for the sweeper to find");
+    }
+
+    /// The first install is the case this exists for: the dictionary directory
+    /// has not been created yet, so asking the OS about it directly fails and
+    /// the space check was skipped on exactly the machine most likely to be
+    /// short of disk.
+    #[test]
+    fn free_space_is_asked_of_a_directory_that_exists() {
+        let dir = temp_dir("space");
+        let missing = dir.join("not-created-yet").join("kashiyomi").join("dict");
+
+        assert_eq!(
+            nearest_existing(&missing.to_string_lossy()).as_deref(),
+            Some(dir.as_path()),
+            "walks up to the deepest ancestor that is really there",
+        );
+        assert_eq!(
+            nearest_existing(&dir.to_string_lossy()).as_deref(),
+            Some(dir.as_path()),
+            "a directory that exists answers for itself",
+        );
+
+        // Free space is a property of the volume, so the ancestor gives the same
+        // answer the leaf would have once created.
+        if cfg!(windows) {
+            let deep = free_space(&missing.to_string_lossy());
+            let shallow = free_space(&dir.to_string_lossy());
+            assert!(deep.is_some(), "a missing leaf must not read as unknown");
+            assert_eq!(deep, shallow);
+        }
     }
 
     #[test]

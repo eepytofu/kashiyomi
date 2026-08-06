@@ -201,6 +201,11 @@ export function dictionaryRow(): HTMLElement {
   let freeBytes = readFreeSpace();
 
   const paint = () => {
+    // Retried while unknown, because the panel can be built before the asset
+    // paths resolve. Leaving it undefined for the session would silently skip
+    // the space check for as long as the panel stayed open, which is the same
+    // class of quiet skip this step exists to close.
+    if (freeBytes === undefined) freeBytes = readFreeSpace();
     const view = dictionaryRowState({
       preferred: getSettings().dictPreferredEdition,
       inventory: dictionaryInventory(),
