@@ -60,6 +60,21 @@ const STRINGS = {
     dictInstalling: "verifying and installing…",
     dictUpdate: "Update",
     dictUpToDate: "already the newest release",
+    dictInstalledState: "installed",
+    dictChecking: "checking for the latest release",
+    dictUpdateCheckFailed: "could not check for updates",
+    dictCancel: "Cancel",
+    // The button says what is happening, not what it will do when it stops. It
+    // used to keep reading "Update" for the whole install.
+    dictWorkChecking: "Checking…",
+    dictWorkDownloading: "Downloading…",
+    dictWorkInstalling: "Installing…",
+    // Free space, not download size: the archive and its extraction exist at
+    // once, so 121 MB of download needs about 548 MB free.
+    dictNoSpace: (needed: string) => `not enough disk space, ${needed} free required`,
+    dictSpaceForOther: (wanted: string, fits: string, needed: string) =>
+      `not enough space for ${wanted}, ${fits} needs ${needed} free`,
+    dictDownloadEdition: (edition: string) => `Download ${edition}`,
     // Shown on the lyrics page itself when a Japanese line has no dictionary to
     // read it with. A fact and where to fix it, in that order, in one line: the
     // convention across published plugins is an inline notice in your own
@@ -161,6 +176,17 @@ const STRINGS = {
     dictInstalling: "校验并安装中…",
     dictUpdate: "更新",
     dictUpToDate: "已是最新版本",
+    dictInstalledState: "已安装",
+    dictChecking: "正在检查最新版本",
+    dictUpdateCheckFailed: "无法检查更新",
+    dictCancel: "取消",
+    dictWorkChecking: "检查中…",
+    dictWorkDownloading: "下载中…",
+    dictWorkInstalling: "安装中…",
+    dictNoSpace: (needed: string) => `磁盘空间不足，需要 ${needed} 可用空间`,
+    dictSpaceForOther: (wanted: string, fits: string, needed: string) =>
+      `空间不足以安装 ${wanted}，${fits} 需要 ${needed} 可用空间`,
+    dictDownloadEdition: (edition: string) => `下载 ${edition}`,
     dictNoticeMissing: "尚未安装日语词典，请在 Kashiyomi 设置中下载。",
     dictSwitch: "切换",
     dictRetry: "重试",
@@ -235,4 +261,16 @@ export function t(key: StringKey): string {
 
 export function tSongsCached(count: number): string {
   return STRINGS[panelLang()].songsCached(count);
+}
+
+export function tNoSpace(needed: string): string {
+  return STRINGS[panelLang()].dictNoSpace(needed);
+}
+
+export function tSpaceForOther(wanted: string, fits: string, needed: string): string {
+  return STRINGS[panelLang()].dictSpaceForOther(wanted, fits, needed);
+}
+
+export function tDownloadEdition(edition: string): string {
+  return STRINGS[panelLang()].dictDownloadEdition(edition);
 }

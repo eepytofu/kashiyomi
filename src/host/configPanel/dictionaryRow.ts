@@ -1,19 +1,22 @@
 // The one control for the Japanese dictionary: install it, switch edition,
-// update it.
+// update it. Today it is also the whole first-run experience, because a fresh
+// install has no dictionary and this row's empty state is the only thing that
+// says so.
 //
-// First run is not a separate flow — it is this row's empty state. That is
-// deliberate: BetterNCM has no notification or toast API (checked against
-// js-framework), so the alternative would be overlaying NCM's own UI, which
-// our first hard rule and the store's non-invasive guidance both forbid. It
-// also means **no "have they seen the welcome screen" flag to persist**, since
-// "no dictionary present" is the signal and it clears itself.
+// BetterNCM has no notification or toast API (checked against js-framework), so
+// nothing here may reach outside the settings panel. Inside it is fair game: a
+// setup dialog is a transient, dismissible, user-invoked surface, not the
+// lyrics page.
 //
-// Built from what the panel already has: rowText carrying live data like
-// clearCacheRow, a kc-button that disables while working, and the analyzer
-// status bar's kc-dot states.
+// This file decides nothing. `dictionaryRowState` is a pure function over the
+// inventory, the job, the clock and the free space; what remains here is
+// turning that value into DOM and words. Keeping the two apart is what makes
+// fourteen states testable, and it is what lets the same states move into a
+// dialog without being rewritten.
 
-import { panelLang, t } from "../i18n.ts";
+import { panelLang, t, tDownloadEdition, tNoSpace, tSpaceForOther } from "../i18n.ts";
 import {
+  cancelDictionaryDownload,
   dictionaryInventory,
   dictionaryJob,
   downloadDictionary,
@@ -24,23 +27,37 @@ import {
   resolveRelease,
   type DownloadPlan,
 } from "../dictionary.ts";
+import {
+  dictionaryRowState,
+  type RowAction,
+  type RowDot,
+  type RowMessage,
+} from "../../engine/dictionaryRowState.ts";
 import { pinnedRelease } from "../../engine/dictionaryPins.ts";
 import { currentAssetPaths } from "../annotator.ts";
 import { getSettings, updateSettings } from "../settings.ts";
 import { resetAnalysisCache } from "../analysisCache.ts";
 import { rescan } from "../annotator.ts";
+import { nativeFreeSpace } from "../native.ts";
 import type { DictionaryEdition } from "../../engine/dictionarySource.ts";
 import { row, rowText, styledSelect } from "./rows.ts";
 
 const MB = 1024 * 1024;
 const mb = (bytes: number) => `${(bytes / MB).toFixed(1)} MB`;
 
+const DOT_CLASS: Record<RowDot, string> = {
+  ready: "kc-ready",
+  loading: "kc-loading",
+  bad: "kc-bad",
+  neutral: "",
+};
+
 /**
  * SudachiDict versions are release dates as `20260723`. Formatted per panel
  * language, because the two do not agree and neither is "the superior format":
  *
  *   - Chinese and Japanese are **year first**, 2026年7月23日. That is not a
- *     preference, it is the word order — 年月日 — and GB/T 7408 follows ISO 8601.
+ *     preference, it is the word order (年月日), and GB/T 7408 follows ISO 8601.
  *   - Indonesian and most of Europe are day first, 23/07/2026. English is split,
  *     since the US puts the month first, so day-first is the safer default for
  *     the English panel.
@@ -58,11 +75,74 @@ const releaseDate = (version: string): string => {
     : `${day}/${month}/${year}`;
 };
 
+function describe(message: RowMessage): string {
+  switch (message.kind) {
+    case "absent":
+      return `${t("dictNotInstalled")} · ${releaseDate(message.version)}`;
+    case "installed": {
+      // The edition is named only when it is *not* the one selected. The picker
+      // already says which edition is selected and how big it is, so repeating
+      // both in the description was the same fact printed twice.
+      let line = message.isSelection
+        ? t("dictInstalledState")
+        : `${message.edition} ${t("dictInstalledState")}`;
+      if (message.version !== undefined) line += ` · ${releaseDate(message.version)}`;
+      if (message.upToDate) line += ` · ${t("dictUpToDate")}`;
+      return line;
+    }
+    case "checking":
+      return t("dictChecking");
+    case "downloading":
+      return `${t("dictDownloading")} ${mb(message.received)} / ${mb(message.total)}`;
+    case "installing":
+      return t("dictInstalling");
+    case "failed":
+      return `${t("dictFailed")}: ${t(`dictFail_${message.reason.replace(/-/gu, "_")}` as never)}`;
+    case "updateCheckFailed":
+      return t("dictUpdateCheckFailed");
+    case "cancelled":
+      return t("dictFail_cancelled");
+    case "noSpace":
+      return tNoSpace(mb(message.needed));
+    case "spaceForOther":
+      return tSpaceForOther(message.wanted, message.fits, mb(message.needed));
+  }
+}
+
+function actionLabel(action: RowAction): string {
+  switch (action.kind) {
+    case "install":
+      return t("dictInstall");
+    case "update":
+      return t("dictUpdate");
+    case "switch":
+      return t("dictSwitch");
+    case "retry":
+      return t("dictRetry");
+    case "installEdition":
+      return tDownloadEdition(action.edition);
+    case "working":
+      return action.of === "checking"
+        ? t("dictWorkChecking")
+        : action.of === "downloading"
+          ? t("dictWorkDownloading")
+          : t("dictWorkInstalling");
+  }
+}
+
+/** Which edition a press acts on: the selection, unless the view offered another. */
+function actionEdition(action: RowAction, preferred: DictionaryEdition): DictionaryEdition {
+  return action.kind === "installEdition" ? action.edition : preferred;
+}
+
 export function dictionaryRow(): HTMLElement {
   const el = row();
   el.classList.add("kc-row-dict");
   const text = rowText(t("dictionary"), t("dictNotInstalled"));
   const description = text.querySelector(".kc-desc") ?? text.lastElementChild;
+  const dot = document.createElement("span");
+  dot.className = "kc-dot";
+  text.querySelector(".kc-label")?.prepend(dot);
   el.appendChild(text);
 
   const { wrap: editionWrap, select: edition } = styledSelect();
@@ -85,6 +165,15 @@ export function dictionaryRow(): HTMLElement {
   button.className = "kc-button";
   el.appendChild(button);
 
+  // Always in the DOM, hidden rather than absent, so the row does not change
+  // height the moment a download starts.
+  const cancel = document.createElement("button");
+  cancel.className = "kc-button";
+  cancel.textContent = t("dictCancel");
+  cancel.style.display = "none";
+  cancel.onclick = () => cancelDictionaryDownload();
+  el.appendChild(cancel);
+
   // Appended last so it wraps onto its own line beneath the controls. Inline
   // between the label and the picker it was a fourth column competing for
   // width: measured at a 1536px window, a 175px note left the label 67px and
@@ -92,64 +181,56 @@ export function dictionaryRow(): HTMLElement {
   el.appendChild(editionNote);
 
   let poll: number | undefined;
+  // Asked of the disk rather than on every paint: a native dispatch three times
+  // a second to answer a question that changes when an install finishes is
+  // work for nothing.
+  let freeBytes = readFreeSpace();
 
-  /**
-   * The inventory decides what the row says about the dictionary; the job only
-   * covers it while something is running. Reading them in that order is what
-   * stops a failed attempt from describing a working install as broken.
-   *
-   * Step 5 of the rework moves this into a pure `dictionaryRowState`, tested
-   * per state. It stays here for now so this commit changes the state model
-   * without also changing the view.
-   */
   const paint = () => {
-    const inventory = dictionaryInventory();
-    const job = dictionaryJob();
-    const chosen = edition.value as DictionaryEdition;
-    const pinned = pinnedRelease(chosen);
-    const shown = inventory.loaded ?? inventory.installed[0];
-    const version = shown ? inventory.versions[shown] : undefined;
+    const view = dictionaryRowState({
+      preferred: getSettings().dictPreferredEdition,
+      inventory: dictionaryInventory(),
+      job: dictionaryJob(),
+      now: Date.now(),
+      freeBytes,
+    });
 
-    let label = shown
-      ? `${shown}${version ? ` · ${releaseDate(version)}` : ""}`
-      : `${t("dictNotInstalled")} · ${chosen} ${releaseDate(pinned.version)} · ${mb(pinned.size)}`;
-    let action = shown ? (shown === chosen ? t("dictUpdate") : t("dictSwitch")) : t("dictInstall");
-    let busy = false;
+    el.classList.remove("kc-ready", "kc-loading", "kc-bad");
+    if (DOT_CLASS[view.dot]) el.classList.add(DOT_CLASS[view.dot]);
+    if (description) description.textContent = describe(view.message);
 
-    switch (job.kind) {
-      case "resolving":
-      case "installing":
-        label = t("dictInstalling");
-        busy = true;
-        break;
-      case "downloading":
-        label = `${t("dictDownloading")} ${mb(job.received)} / ${mb(job.total)}`;
-        busy = true;
-        break;
-      case "failed":
-        label = `${t("dictFailed")}: ${t(`dictFail_${job.reason.replace(/-/gu, "_")}` as never)}`;
-        action = t("dictRetry");
-        break;
-      case "upToDate":
-        label += ` · ${t("dictUpToDate")}`;
-        break;
-      case "idle":
-        break;
-    }
-    if (description) description.textContent = label;
-    button.textContent = action;
-    button.disabled = busy;
-    button.style.opacity = busy ? "0.5" : "";
+    button.textContent = actionLabel(view.primary.action);
+    button.disabled = view.primary.disabled;
+    button.style.opacity = view.primary.disabled ? "0.5" : "";
+
+    cancel.style.display = view.cancel.shown ? "" : "none";
+    cancel.disabled = view.cancel.disabled;
+    cancel.style.opacity = view.cancel.disabled ? "0.5" : "";
+
+    edition.disabled = !view.pickerEnabled;
+    editionWrap.style.opacity = view.pickerEnabled ? "" : "0.5";
+    // Follow the preference wherever it was changed from, including the view
+    // offering a smaller edition and the press accepting it.
+    edition.value = getSettings().dictPreferredEdition;
+
+    // A cooldown expiring changes the view with no event to hang a repaint on,
+    // so the view says when it is still moving and the timer follows that
+    // rather than guessing from the job.
+    if (view.settling) startPolling();
   };
 
-  // Poll only while the answer can still change — the same discipline the
-  // analyzer status bar uses. A finished download runs no timer.
   const startPolling = () => {
     if (poll !== undefined) return;
     poll = window.setInterval(() => {
+      const settling = dictionaryRowState({
+        preferred: getSettings().dictPreferredEdition,
+        inventory: dictionaryInventory(),
+        job: dictionaryJob(),
+        now: Date.now(),
+        freeBytes,
+      }).settling;
       paint();
-      const kind = dictionaryJob().kind;
-      if (kind !== "downloading" && kind !== "installing" && kind !== "resolving") {
+      if (!settling) {
         window.clearInterval(poll);
         poll = undefined;
       }
@@ -157,7 +238,7 @@ export function dictionaryRow(): HTMLElement {
   };
 
   const paintEditionNote = () => {
-    const chosen = edition.value as DictionaryEdition;
+    const chosen = getSettings().dictPreferredEdition;
     const key = (
       { small: "dictEdSmall", core: "dictEdCore", full: "dictEdFull" } as const
     )[chosen];
@@ -175,18 +256,29 @@ export function dictionaryRow(): HTMLElement {
     void (async () => {
       const paths = currentAssetPaths();
       if (!paths) return;
-      const chosen = edition.value as DictionaryEdition;
       const dir = paths.dictDir;
+      const preferred = getSettings().dictPreferredEdition;
+      const action = dictionaryRowState({
+        preferred,
+        inventory: dictionaryInventory(),
+        job: dictionaryJob(),
+        now: Date.now(),
+        freeBytes,
+      }).primary.action;
+      const chosen = actionEdition(action, preferred);
+      // Taking the offer of a smaller edition is a choice, so it is recorded as
+      // one. Otherwise the next launch would try the edition that does not fit
+      // all over again.
+      if (chosen !== preferred) {
+        updateSettings({ dictPreferredEdition: chosen });
+        paintEditionNote();
+      }
 
-      button.disabled = true;
       startPolling();
       // Resolve live so an update gets the newest release; fall back to the
       // pinned one, which is always installable even with every source blocked.
       const release = await resolveRelease(chosen);
-      if (!release) {
-        paint();
-        return;
-      }
+      if (!release) return;
 
       // Nothing to do if the installed dictionary is already this release.
       // Re-downloading 69 MB to arrive at the same file is not an update, and
@@ -206,6 +298,7 @@ export function dictionaryRow(): HTMLElement {
       // the file it supersedes and reclaim its 207 MB once the new one loads.
       const plan: DownloadPlan = planDownload(release, dir, await installedEditions(dir));
       const result = await downloadDictionary(plan, paths.resourceDir);
+      freeBytes = readFreeSpace();
       // A new dictionary changes every reading in the song. The annotation
       // cache is keyed by line text, so rescan alone would put every line back
       // with its old reading and the whole download would look like it did
@@ -225,4 +318,9 @@ export function dictionaryRow(): HTMLElement {
   // was true when it was opened.
   onDictionaryChange(paint);
   return el;
+}
+
+function readFreeSpace(): number | undefined {
+  const dir = currentAssetPaths()?.dictDir;
+  return dir === undefined ? undefined : nativeFreeSpace(dir);
 }
