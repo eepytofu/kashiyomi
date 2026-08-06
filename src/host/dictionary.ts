@@ -16,19 +16,44 @@ import {
   metadataSources,
   parsePypiRelease,
   parseSimpleIndexRelease,
+  requiredFreeBytes,
   type DictionaryEdition,
   type DictionaryFailure,
   type DictionaryRelease,
   type DictionaryStatus,
 } from "../engine/dictionarySource.ts";
 import { log } from "./log.ts";
-import { nativeInstallDictionary, nativeReload, nativeSweepPartials } from "./native.ts";
+import {
+  nativeFreeSpace,
+  nativeInstallDictionary,
+  nativeReload,
+  nativeSweepPartials,
+} from "./native.ts";
 
 let status: DictionaryStatus = { kind: "absent" };
 let inFlight = false;
+let abort: AbortController | undefined;
 
 export function dictionaryStatus(): DictionaryStatus {
   return status;
+}
+
+/**
+ * Stop an in-flight download. Nothing has been written to the live path by this
+ * point, so cancelling is always safe and leaves the working dictionary alone.
+ */
+export function cancelDictionaryDownload(): void {
+  abort?.abort();
+}
+
+/**
+ * Force the next attempt to fail a given way, for checking the messages read
+ * sensibly. Wired to `kashiyomi.simulateDictFailure` — unit tests can prove the
+ * state machine but cannot judge wording, and wording is what a user meets.
+ */
+let simulated: DictionaryFailure | undefined;
+export function simulateDictionaryFailure(reason: DictionaryFailure | undefined): void {
+  simulated = reason;
 }
 
 /**
@@ -100,7 +125,20 @@ export async function downloadDictionary(
 ): Promise<DictionaryStatus> {
   if (inFlight) return status;
   inFlight = true;
+  abort = new AbortController();
   try {
+    if (simulated) return fail(simulated);
+    // Before the bandwidth, not after: the archive and its 207 MB extraction
+    // exist at once, and a disk that cannot hold both should say so now.
+    const dir = plan.targetPath.slice(0, plan.targetPath.lastIndexOf("/"));
+    const free = nativeFreeSpace(dir);
+    if (free !== undefined && free < requiredFreeBytes(plan.release.size)) {
+      log.info(
+        `dictionary needs ${requiredFreeBytes(plan.release.size)} bytes free, ${free} available`,
+      );
+      return fail("disk-space");
+    }
+
     status = { kind: "downloading", received: 0, total: plan.release.size };
     const archive = await fetchArchive(plan);
     if (!archive.ok) return fail(archive.reason);
@@ -128,6 +166,7 @@ export async function downloadDictionary(
     return status;
   } finally {
     inFlight = false;
+    abort = undefined;
   }
 }
 
@@ -145,7 +184,7 @@ function fail(reason: DictionaryFailure): DictionaryStatus {
  */
 async function fetchArchive(plan: DownloadPlan): Promise<{ ok: true } | { ok: false; reason: DictionaryFailure }> {
   try {
-    const response = await fetch(plan.release.url);
+    const response = await fetch(plan.release.url, { signal: abort?.signal });
     if (!response.ok || !response.body) return { ok: false, reason: "offline" };
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
@@ -161,6 +200,9 @@ async function fetchArchive(plan: DownloadPlan): Promise<{ ok: true } | { ok: fa
     await betterncm.fs.writeFile(plan.archivePath, new Blob(chunks as BlobPart[]));
     return { ok: true };
   } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      return { ok: false, reason: "cancelled" };
+    }
     log.info("dictionary download failed", err);
     return { ok: false, reason: "offline" };
   }

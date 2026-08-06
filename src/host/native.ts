@@ -80,6 +80,19 @@ export function nativeInstallDictionary(
 }
 
 /**
+ * Bytes free on the volume holding `directory`, or undefined if it cannot be
+ * asked. Checked before a download starts: extraction needs ~207 MB on top of
+ * the 69 MB archive, so a disk that cannot hold both should fail before the
+ * bandwidth is spent rather than after.
+ */
+export function nativeFreeSpace(directory: string): number | undefined {
+  const response = dispatch({ cmd: "freeSpace", directory });
+  if (!response || response.status === "error") return undefined;
+  const bytes = (response.data as { bytes?: number | null }).bytes;
+  return typeof bytes === "number" ? bytes : undefined;
+}
+
+/**
  * Delete `.part` files left by an interrupted download. Called at startup: a
  * kill mid-download otherwise strands ~69 MB on a disk the user may already be
  * short of, which would make us the cause of the problem we take care to report.

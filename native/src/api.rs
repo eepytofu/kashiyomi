@@ -1,6 +1,6 @@
 //! JSON command routing for `kashiyomi.dispatch`.
 //!
-//! Request:  `{"cmd": "init" | "reload" | "install" | "sweepPartials" | "status" | "analyze", ...}`
+//! Request:  `{"cmd": "init" | "reload" | "install" | "freeSpace" | "sweepPartials" | "status" | "analyze", ...}`
 //! Response: `{"status": "ok", "data": ...}` or `{"status": "error", "message": "..."}`
 
 use serde::{Deserialize, Serialize};
@@ -31,6 +31,11 @@ enum Command {
         sha256: String,
         member: String,
         target: String,
+    },
+    /// Bytes free on the volume holding a directory, for checking before a
+    /// download rather than after the bandwidth is spent.
+    FreeSpace {
+        directory: String,
     },
     /// Delete `.part` files abandoned by an interrupted download.
     SweepPartials {
@@ -91,6 +96,9 @@ pub fn handle(raw: &str) -> String {
                 Ok(installed) => ok(json!({ "bytes": installed.bytes })),
                 Err(message) => error(message),
             }
+        }
+        Command::FreeSpace { directory } => {
+            ok(json!({ "bytes": install::free_space(&directory) }))
         }
         Command::SweepPartials { directory } => {
             ok(json!({ "removed": install::sweep_partials(&directory) }))

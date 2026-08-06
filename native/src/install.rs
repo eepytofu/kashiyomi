@@ -114,6 +114,46 @@ fn remove_quietly(path: &str) {
     let _ = fs::remove_file(path);
 }
 
+/// Bytes free on the volume holding `directory`, or None if it cannot be asked.
+///
+/// Checked **before** downloading. Extraction needs ~207 MB on top of the 69 MB
+/// archive and both exist at once, so a disk with 100 MB free would otherwise
+/// fail only after spending the user's bandwidth — the one failure that wastes
+/// something unrecoverable.
+///
+/// Declared directly rather than pulling in a crate: this is one call, and the
+/// alternative is several hundred KB of dependency in a DLL we ship.
+#[cfg(windows)]
+pub fn free_space(directory: &str) -> Option<u64> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+
+    unsafe extern "system" {
+        fn GetDiskFreeSpaceExW(
+            directory_name: *const u16,
+            free_bytes_available_to_caller: *mut u64,
+            total_bytes: *mut u64,
+            total_free_bytes: *mut u64,
+        ) -> i32;
+    }
+
+    let wide: Vec<u16> = OsStr::new(directory).encode_wide().chain(Some(0)).collect();
+    let mut available: u64 = 0;
+    let mut total: u64 = 0;
+    let mut free: u64 = 0;
+    // SAFETY: `wide` is NUL-terminated and outlives the call; the three outputs
+    // are owned locals.
+    let ok = unsafe { GetDiskFreeSpaceExW(wide.as_ptr(), &mut available, &mut total, &mut free) };
+    // Report what this *caller* may use, not the volume total: a disk quota can
+    // make those differ, and the smaller one is the one a write actually hits.
+    if ok == 0 { None } else { Some(available) }
+}
+
+#[cfg(not(windows))]
+pub fn free_space(_directory: &str) -> Option<u64> {
+    None
+}
+
 /// Delete stray `.part` files left by a download that never finished.
 ///
 /// Called at startup. Without it, a kill mid-download leaves ~69 MB stranded on
