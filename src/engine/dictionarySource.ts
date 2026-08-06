@@ -10,23 +10,11 @@
 // PyPI's own JSON API, and PEP 691's JSON simple index which mirrors serve.
 
 /**
- * `full` is not offered here yet.
+ * `full` is absent because it cannot use this module's source at all: its bytes
+ * are not on PyPI, so it needs its own URL and its own warnings.
  *
- * It has no wheel on PyPI — 35 versions, one wheel ever, in 2019 — because at
- * 126,615,116 bytes it exceeds PyPI's 100 MiB per-file limit, which small
- * (41.8 MB) and core (72.3 MB) fit under. Its bytes therefore live only at the
- * vendor's own host, which publishes no checksum for them.
- *
- * Which is *better* depends on the text, and neither wins outright. On 514
- * general lyric lines core matched full except on 3 readings and was right on
- * all 3. On 50 compound nouns and song titles there were also 3, and full was
- * right on 2 — 千本桜 as センボンザクラ rather than a split losing the rendaku,
- * and 六兆年と一夜物語, where core leaves 六兆 with no reading so we abstain
- * entirely. That is what "full adds miscellaneous proper nouns" predicts: it
- * wins where a title is the text and adds nothing elsewhere.
- *
- * core is the default for size, mirror availability and a verifiable checksum
- * — not for accuracy.
+ * core is the default for size and for having a vendor-published checksum. It
+ * is **not** a claim that core reads lyrics better — that goes both ways.
  */
 export type DictionaryEdition = "small" | "core";
 

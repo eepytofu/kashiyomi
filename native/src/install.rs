@@ -64,26 +64,17 @@ pub fn verify_and_install(
 
 /// Put the staged file in place, closing the loaded dictionary first.
 ///
-/// This function exists because the ordering used to be split across the FFI
-/// boundary: a comment here claimed "the caller unloads the dictionary before
-/// this point", and **the caller could not** — the analyzer's state is behind
-/// its own mutex, reachable only from `analyzer`. So the rename always ran
-/// against a still-mapped file.
+/// The ordering used to be split across the FFI boundary, where a comment
+/// claimed "the caller unloads the dictionary before this point" and **the
+/// caller could not** — the analyzer's state is behind its own mutex.
 ///
-/// That was expected to break in-place updates and does not: measured on
-/// Windows 11 with current Rust, renaming over a mapped file succeeds (see
-/// `renaming_over_a_mapped_dictionary_is_permitted_here`). The old file is
-/// unlinked while the live mapping keeps serving its bytes. So this is not a
-/// repair of a reproduced failure — it is removing a dependency on that being
-/// true, which holds only for the newer rename path and not for the older
-/// `MoveFileEx` one an older Windows or a FAT-family volume would take.
+/// Renaming over the mapped file happens to succeed on current Windows, so this
+/// is not repairing a reproduced failure; it removes the dependency on that,
+/// and closes the old mapping, which nothing did until the host asked for a
+/// separate reload. `renaming_over_a_mapped_dictionary_is_permitted_here`
+/// pins the OS behaviour so a toolchain change says so.
 ///
-/// It also fixes the part that was unambiguously wrong: after the old code
-/// renamed, the previous mapping stayed open with nothing arranging to close
-/// it until the host separately asked for a reload.
-///
-/// `unload` is injected rather than called directly so the ordering is testable
-/// without a 207 MB dictionary.
+/// `unload` is injected so the ordering is testable without a 207 MB dictionary.
 pub fn swap(staged: &Path, target: &str, unload: &dyn Fn()) -> Result<(), String> {
     unload();
     fs::rename(staged, target).map_err(|e| {
