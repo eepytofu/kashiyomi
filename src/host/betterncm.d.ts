@@ -12,6 +12,8 @@ declare const betterncm: {
      * platform is built on, not something being smuggled past it.
      */
     writeFile(path: string, content: Blob): Promise<boolean>;
+    /** Create a directory, including parents. */
+    mkdir(path: string): Promise<boolean>;
     exists(path: string): Promise<boolean>;
   };
   app: {

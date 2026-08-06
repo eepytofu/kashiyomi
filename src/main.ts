@@ -9,6 +9,9 @@ import {
   cancelDictionaryDownload,
   detectInstalledDictionary,
   dictionaryStatus,
+  downloadDictionary,
+  planDownload,
+  resolveRelease,
   simulateDictionaryFailure,
   sweepAbandonedDownloads,
 } from "./host/dictionary.ts";
@@ -53,6 +56,16 @@ async function start(): Promise<void> {
     //   kashiyomi.simulateDictFailure()             back to normal
     simulateDictFailure: (reason?: string) =>
       simulateDictionaryFailure(reason as never),
+    // Runs the real fetch → verify → install → reload path against the data
+    // directory, so it can be exercised without clicking and without touching a
+    // development checkout's own dictionary.
+    downloadDictionary: async (edition: "small" | "core" = "core") => {
+      const dataDir = `${await betterncm.app.getDataPath()}/kashiyomi`.replace(/\\/gu, "/");
+      const release = await resolveRelease(edition);
+      if (!release) return { error: "no metadata source answered" };
+      const paths = await resolveAssetPaths();
+      return downloadDictionary(planDownload(release, dataDir), paths?.resourceDir ?? "");
+    },
     // Redacted, because this handle is read as routine: the project's own rule
     // is to record kashiyomi.settings() with every live observation, so its
     // output lands in docs, transcripts and screenshots. It returned the key

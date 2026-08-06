@@ -167,6 +167,15 @@ export async function downloadDictionary(
       return fail("disk-space");
     }
 
+    // The data directory does not exist on a fresh install, and writeFile does
+    // not create it — the first real run failed here with "cannot find the path
+    // specified" after downloading the whole archive.
+    try {
+      await betterncm.fs.mkdir(dir);
+    } catch (err) {
+      log.debug("could not create the dictionary directory", err);
+    }
+
     status = { kind: "downloading", received: 0, total: plan.release.size };
     const archive = await fetchArchive(plan);
     if (!archive.ok) return fail(archive.reason);
