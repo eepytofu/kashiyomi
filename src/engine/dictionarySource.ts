@@ -10,13 +10,27 @@
 // PyPI's own JSON API, and PEP 691's JSON simple index which mirrors serve.
 
 /**
- * `full` is deliberately absent. It has no wheel on PyPI — 35 versions, one
- * wheel ever — and its sdist resolves to a plaintext-HTTP host with no
- * published checksum. Measured against 514 real lyric lines, core matches full
- * on all but roughly one line in 170, so the loss is small and the alternative
- * is unverifiable bytes.
+ * `full` is not offered here yet.
+ *
+ * It has no wheel on PyPI — 35 versions, one wheel ever, in 2019 — because at
+ * 126,615,116 bytes it exceeds PyPI's 100 MiB per-file limit, which small
+ * (41.8 MB) and core (72.3 MB) fit under. Its bytes therefore live only at the
+ * vendor's own host, which publishes no checksum for them.
+ *
+ * Measured against 514 real lyric lines, core matches full on all but roughly
+ * one line in 170, and on all three genuinely differing readings core was the
+ * correct one.
  */
 export type DictionaryEdition = "small" | "core";
+
+/**
+ * Every edition, **largest first**.
+ *
+ * The order is the contract: `largestEditionThatFits` walks it and returns the
+ * first that fits, and `chooseBootEdition` uses it to pick deterministically
+ * rather than trusting whatever order a directory listing arrived in.
+ */
+export const DICTIONARY_EDITIONS = ["core", "small"] as const;
 
 export type DictionaryRelease = {
   readonly edition: DictionaryEdition;
@@ -166,9 +180,7 @@ export function largestEditionThatFits(
   freeBytes: number,
   sizes: ReadonlyMap<DictionaryEdition, number>,
 ): DictionaryEdition | undefined {
-  // Descending by preference: core is the recommended default, small the
-  // fallback. Never widen this to `full` — it has no verifiable download.
-  for (const edition of ["core", "small"] as const) {
+  for (const edition of DICTIONARY_EDITIONS) {
     const archive = sizes.get(edition);
     if (archive === undefined) continue;
     if (freeBytes >= requiredFreeBytes(archive)) return edition;

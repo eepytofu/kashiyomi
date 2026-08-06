@@ -5,11 +5,22 @@
 import { log } from "./log.ts";
 
 export type AssetPaths = {
-  dictPath: string;
+  /**
+   * The directory holding the dictionaries, not a file.
+   *
+   * It was a path to one file, hardcoded to `system_core.dic` while downloads
+   * wrote `system_<edition>.dic` — so installing `small` loaded nothing after
+   * the next restart. Which file to open is `chooseBootEdition`'s answer, and
+   * it depends on what is actually on disk.
+   */
+  dictDir: string;
   resourceDir: string;
   pinyinDictPath: string;
   jmdictPath: string;
 };
+
+/** Accepts a `dev-paths.json` written before `dictPath` became `dictDir`. */
+type DevPaths = Partial<AssetPaths> & { dictPath?: string };
 
 export function findPluginPath(): string | undefined {
   const direct = (plugin as { pluginPath?: string }).pluginPath;
@@ -42,17 +53,28 @@ export async function resolveAssetPaths(): Promise<AssetPaths | undefined> {
   // reasoning is the platform's observed behaviour rather than a rule.
   const dataDir = `${await betterncm.app.getDataPath()}/kashiyomi`.replace(/\\/gu, "/");
   const defaults: AssetPaths = {
-    dictPath: `${dataDir}/system_core.dic`,
+    dictDir: dataDir,
     resourceDir: `${pluginPath}/assets/sudachi`,
     pinyinDictPath: `${pluginPath}/assets/pinyin/complete.json`,
     jmdictPath: `${pluginPath}/assets/jmdict/readings.json`,
   };
   try {
     const raw = await betterncm.fs.readFileText(`${pluginPath}/dev-paths.json`);
-    const dev = JSON.parse(raw) as Partial<AssetPaths>;
+    const dev = JSON.parse(raw) as DevPaths;
     log.debug("using dev-paths.json overrides");
-    return { ...defaults, ...dev };
+    const { dictPath, ...rest } = dev;
+    // An older dev-paths.json names the .dic itself. Take its directory rather
+    // than ignoring the override, which would silently point a dev install at
+    // the real data directory and download a dictionary it already has.
+    const legacy = dictPath ? { dictDir: directoryOf(dictPath) } : {};
+    return { ...defaults, ...legacy, ...rest };
   } catch {
     return defaults;
   }
+}
+
+function directoryOf(filePath: string): string {
+  const normalised = filePath.replace(/\\/gu, "/");
+  const cut = normalised.lastIndexOf("/");
+  return cut === -1 ? normalised : normalised.slice(0, cut);
 }

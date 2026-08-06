@@ -141,7 +141,7 @@ export function dictionaryRow(): HTMLElement {
       const paths = currentAssetPaths();
       if (!paths) return;
       const chosen = edition.value as DictionaryEdition;
-      const dir = paths.dictPath.slice(0, paths.dictPath.lastIndexOf("/"));
+      const dir = paths.dictDir;
 
       button.disabled = true;
       startPolling();

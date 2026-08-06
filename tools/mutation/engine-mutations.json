@@ -639,9 +639,9 @@
   {
     "id": "dictionary/space-prefers-smallest",
     "file": "src/engine/dictionarySource.ts",
-    "what": "a roomy disk is given the small edition, silently downgrading readings for no reason",
-    "find": "  for (const edition of [\"core\", \"small\"] as const) {",
-    "replace": "  for (const edition of [\"small\", \"core\"] as const) {"
+    "what": "the edition order is reversed, so a roomy disk is given the small edition and boot picks a different file than the one it deletes",
+    "find": "export const DICTIONARY_EDITIONS = [\"core\", \"small\"] as const;",
+    "replace": "export const DICTIONARY_EDITIONS = [\"small\", \"core\"] as const;"
   },
   {
     "id": "dictionary/offers-unpriced-edition",
@@ -656,6 +656,34 @@
     "what": "every failure offers a retry, including the one where retrying repeats the same two refusals",
     "find": "  return reason !== \"no-source\";",
     "replace": "  return true;"
+  },
+  {
+    "id": "dictionary/filename-drops-the-edition",
+    "file": "src/engine/dictionaryLayout.ts",
+    "what": "every edition installs to one filename again, so boot opens core's path over small's bytes",
+    "find": "  return `system_${edition}.dic`;",
+    "replace": "  return \"system_core.dic\";"
+  },
+  {
+    "id": "dictionary/archive-is-not-sweepable",
+    "file": "src/engine/dictionaryLayout.ts",
+    "what": "a staged archive loses the .part suffix the startup sweeper matches on, stranding ~69 MB per killed download",
+    "find": "  return `sudachidict_${edition}-${version}.whl.part`;",
+    "replace": "  return `sudachidict_${edition}-${version}.whl`;"
+  },
+  {
+    "id": "dictionary/deletes-the-only-dictionary",
+    "file": "src/engine/dictionaryLayout.ts",
+    "what": "the edition boot just loaded is also marked deletable, so a machine whose preference never installed loses the one dictionary it had",
+    "find": "  return { load: present[0]!, deletable: [] };",
+    "replace": "  return { load: present[0]!, deletable: present };"
+  },
+  {
+    "id": "dictionary/listing-trusts-partials",
+    "file": "src/engine/dictionaryLayout.ts",
+    "what": "a half-written download counts as installed, so the row reports a dictionary the analyzer cannot open",
+    "find": "  return DICTIONARY_EDITIONS.find((edition) => dictionaryFileName(edition) === base);",
+    "replace": "  return DICTIONARY_EDITIONS.find((edition) => base.startsWith(dictionaryFileName(edition)));"
   },
   {
     "id": "pinyin/modal-ying-ignored",

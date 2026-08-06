@@ -22,6 +22,11 @@ import {
   type DictionaryRelease,
   type DictionaryStatus,
 } from "../engine/dictionarySource.ts";
+import {
+  archivePath,
+  dictionaryPath,
+  installedEditionsFrom,
+} from "../engine/dictionaryLayout.ts";
 import { log } from "./log.ts";
 import { getSettings, updateSettings } from "./settings.ts";
 import {
@@ -61,33 +66,38 @@ function setStatus(next: DictionaryStatus): DictionaryStatus {
 }
 
 /**
- * Work out at startup whether a dictionary is already installed.
+ * Which editions are on disk, asked of the disk.
  *
- * Without this the status stays `absent` forever and the row offers to download
- * a dictionary the user already has — the state defaults to "missing" and
- * nothing ever contradicts it.
+ * This used to take the *preferred* edition's path and, on finding any file
+ * there, report whatever edition settings claimed — so a machine holding
+ * `system_small.dic` while settings said `core` was described as having core
+ * installed, and the analyzer was then pointed at a file that did not exist.
+ * Settings record what the user wants; only the directory knows what arrived.
+ */
+export async function installedEditions(
+  dictDir: string,
+): Promise<readonly DictionaryEdition[]> {
+  try {
+    return installedEditionsFrom(await betterncm.fs.readDir(dictDir));
+  } catch {
+    // A missing data directory on a fresh install is the normal path here, not
+    // an error: nothing is installed, which is exactly what an empty list says.
+    return [];
+  }
+}
+
+/**
+ * Publish what boot found, so the row does not open on "not installed" over a
+ * working dictionary.
  *
  * The version is not recoverable from the file, so it is remembered in settings
  * when a download completes. An unknown version is shown rather than treated as
  * missing: the dictionary works either way, and re-downloading 69 MB to learn a
  * date string would be a poor trade.
  */
-export async function detectInstalledDictionary(dictPath: string): Promise<void> {
-  if (status.kind !== "absent") return;
-  try {
-    if (!(await betterncm.fs.exists(dictPath))) return;
-  } catch {
-    return;
-  }
-  const settings = getSettings();
-  // An empty version is shown as no version at all rather than a placeholder:
-  // a dictionary installed before the version was recorded still works, and a
-  // dash beside the edition reads like missing data rather than an unknown date.
-  setStatus({
-    kind: "installed",
-    edition: settings.dictEdition,
-    version: settings.dictVersion,
-  });
+export function reportInstalled(edition: DictionaryEdition | undefined): void {
+  if (status.kind !== "absent" || edition === undefined) return;
+  setStatus({ kind: "installed", edition, version: getSettings().dictVersion });
 }
 
 /**
@@ -146,6 +156,8 @@ export type DownloadPlan = {
   readonly targetPath: string;
   /** Path inside the wheel. */
   readonly member: string;
+  /** The directory both live in, so callers stop slicing it back out of a path. */
+  readonly directory: string;
 };
 
 export function planDownload(
@@ -154,9 +166,10 @@ export function planDownload(
 ): DownloadPlan {
   return {
     release,
-    archivePath: `${dictionaryDir}/sudachidict_${release.edition}-${release.version}.whl`,
-    targetPath: `${dictionaryDir}/system_${release.edition}.dic`,
+    archivePath: archivePath(dictionaryDir, release.edition, release.version),
+    targetPath: dictionaryPath(dictionaryDir, release.edition),
     member: `sudachidict_${release.edition}/resources/system.dic`,
+    directory: dictionaryDir,
   };
 }
 
@@ -182,7 +195,7 @@ export async function downloadDictionary(
     if (simulated) return fail(simulated);
     // Before the bandwidth, not after: the archive and its 207 MB extraction
     // exist at once, and a disk that cannot hold both should say so now.
-    const dir = plan.targetPath.slice(0, plan.targetPath.lastIndexOf("/"));
+    const dir = plan.directory;
     const free = nativeFreeSpace(dir);
     if (free !== undefined && free < requiredFreeBytes(plan.release.size)) {
       log.info(

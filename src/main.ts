@@ -7,14 +7,16 @@ import { log } from "./host/log.ts";
 import { nativeInit, nativeState } from "./host/native.ts";
 import {
   cancelDictionaryDownload,
-  detectInstalledDictionary,
   dictionaryStatus,
   downloadDictionary,
+  installedEditions,
   planDownload,
+  reportInstalled,
   resolveRelease,
   simulateDictionaryFailure,
   sweepAbandonedDownloads,
 } from "./host/dictionary.ts";
+import { chooseBootEdition, dictionaryPath } from "./engine/dictionaryLayout.ts";
 import { resolveAssetPaths } from "./host/paths.ts";
 import { applyStyles } from "./host/styles.ts";
 import { getSettings } from "./host/settings.ts";
@@ -31,12 +33,18 @@ async function start(): Promise<void> {
   log.info("asset paths", paths);
   // A download killed mid-flight leaves ~69 MB stranded. Sweeping at startup is
   // what stops us being the cause of the full disk we otherwise report politely.
-  sweepAbandonedDownloads(paths.dictPath.slice(0, paths.dictPath.lastIndexOf("/")));
-  await detectInstalledDictionary(paths.dictPath);
+  sweepAbandonedDownloads(paths.dictDir);
+  // Load what is on disk, not what settings wish were there. These can disagree
+  // — a failed install, a manual delete, a preference changed before the
+  // download ran — and the disk is the only one of the two that can be opened.
+  const installed = await installedEditions(paths.dictDir);
+  const boot = chooseBootEdition(getSettings().dictEdition, installed);
+  log.info(`dictionaries on disk: [${installed.join(", ")}], loading: ${boot.load ?? "none"}`);
+  reportInstalled(boot.load);
   const status = nativeState();
   log.info("native state:", status.state, status.error ?? "");
-  if (status.state === "uninitialized" || status.state === "failed") {
-    nativeInit(paths.dictPath, paths.resourceDir);
+  if (boot.load && (status.state === "uninitialized" || status.state === "failed")) {
+    nativeInit(dictionaryPath(paths.dictDir, boot.load), paths.resourceDir);
   }
   startAnnotator(paths);
   installCopyHandler();
@@ -60,6 +68,11 @@ async function start(): Promise<void> {
     // directory, so it can be exercised without clicking and without touching a
     // development checkout's own dictionary.
     downloadDictionary: async (edition: "small" | "core" = "core") => {
+      // Deliberately the data directory rather than `paths.dictDir`: under
+      // dev-paths.json the latter is the checkout's own assets/dict, and a
+      // debug download must not overwrite the dictionary being developed
+      // against. The consequence is that in a dev install this exercises the
+      // whole path without the result being what the analyzer then loads.
       const dataDir = `${await betterncm.app.getDataPath()}/kashiyomi`.replace(/\\/gu, "/");
       const release = await resolveRelease(edition);
       if (!release) return { error: "no metadata source answered" };

@@ -15,6 +15,11 @@ declare const betterncm: {
     /** Create a directory, including parents. */
     mkdir(path: string): Promise<boolean>;
     exists(path: string): Promise<boolean>;
+    /**
+     * Entries in a directory. Returns full paths rather than bare names, so
+     * callers must not assume either — `editionFromFileName` accepts both.
+     */
+    readDir(path: string): Promise<string[]>;
   };
   app: {
     getDataPath(): Promise<string>;

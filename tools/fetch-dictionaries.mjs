@@ -24,8 +24,13 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
+import { dictionaryFileName } from "../src/engine/dictionaryLayout.ts";
 
-const BASE = "http://sudachi.s3-website-ap-northeast-1.amazonaws.com/sudachidict";
+// The vendor's own CloudFront distribution, which is the URL SudachiDict's
+// published sdist downloads from. Previously the S3 *website* endpoint, which
+// is HTTP-only — this one is HTTPS and serves the same objects, including the
+// `-latest-` alias with the same 301.
+const BASE = "https://d2ej7fkh96fzlu.cloudfront.net/sudachidict";
 
 /**
  * SudachiDict publishes a `-latest-` alias that 301s to the newest build, so
@@ -47,7 +52,9 @@ const positional = process.argv.slice(2).filter((a) => a !== "");
 const edition = positional.find((a) => EDITIONS.has(a)) ?? "core";
 const pinnedVersion = positional.find((a) => !EDITIONS.has(a));
 const dictDir = path.resolve(import.meta.dirname, "..", "assets", "dict");
-const target = path.join(dictDir, `system_${edition}.dic`);
+// Where *we* keep it — the plugin decides at boot which of these to open, so
+// this name has to be the one it looks for.
+const target = path.join(dictDir, dictionaryFileName(edition));
 
 // Check for the dictionary before resolving anything: there is no reason to
 // touch the network when it is already here, and exiting mid-request leaves an
@@ -76,7 +83,9 @@ execFileSync("powershell", [
   "-Command",
   `Expand-Archive -LiteralPath "${zipPath}" -DestinationPath "${extractDir}" -Force`,
 ]);
-// Zip layout: sudachi-dictionary-<version>/system_<edition>.dic
+// Their layout, not ours: the name inside the zip is the vendor's and happens
+// to match what we call it. Kept literal so a future divergence breaks here,
+// visibly, rather than renaming the wrong file.
 await rename(
   path.join(extractDir, `sudachi-dictionary-${version}`, `system_${edition}.dic`),
   target,
