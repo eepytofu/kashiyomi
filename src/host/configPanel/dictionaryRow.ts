@@ -16,6 +16,7 @@ import { t } from "../i18n.ts";
 import {
   dictionaryStatus,
   downloadDictionary,
+  onDictionaryStatusChange,
   planDownload,
   resolveRelease,
   type DownloadPlan,
@@ -140,5 +141,9 @@ export function dictionaryRow(): HTMLElement {
   };
 
   paint();
+  // Follow the status wherever it is changed from, not just this row's own
+  // button: the panel is built once and would otherwise keep showing whatever
+  // was true when it was opened.
+  onDictionaryStatusChange(paint);
   return el;
 }

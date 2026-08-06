@@ -34,8 +34,29 @@ import {
 let status: DictionaryStatus = { kind: "absent" };
 let inFlight = false;
 let abort: AbortController | undefined;
+const listeners = new Set<() => void>();
 
 export function dictionaryStatus(): DictionaryStatus {
+  return status;
+}
+
+/**
+ * Notify a listener whenever the status changes, whoever changed it.
+ *
+ * The settings row used to repaint only in response to its own button, so a
+ * download started anywhere else — the debug handle, and in future an automatic
+ * first fetch — left it reading "not installed" over a dictionary that was
+ * installed and working. A control whose whole job is reporting state has to
+ * follow the state rather than its own last click.
+ */
+export function onDictionaryStatusChange(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function setStatus(next: DictionaryStatus): DictionaryStatus {
+  status = next;
+  for (const listener of listeners) listener();
   return status;
 }
 
@@ -62,11 +83,11 @@ export async function detectInstalledDictionary(dictPath: string): Promise<void>
   // An empty version is shown as no version at all rather than a placeholder:
   // a dictionary installed before the version was recorded still works, and a
   // dash beside the edition reads like missing data rather than an unknown date.
-  status = {
+  setStatus({
     kind: "installed",
     edition: settings.dictEdition,
     version: settings.dictVersion,
-  };
+  });
 }
 
 /**
@@ -179,11 +200,11 @@ export async function downloadDictionary(
       log.debug("could not create the dictionary directory", err);
     }
 
-    status = { kind: "downloading", received: 0, total: plan.release.size };
+    setStatus({ kind: "downloading", received: 0, total: plan.release.size });
     const archive = await fetchArchive(plan);
     if (!archive.ok) return fail(archive.reason);
 
-    status = { kind: "installing" };
+    setStatus({ kind: "installing" });
     const installed = nativeInstallDictionary(
       plan.archivePath,
       plan.release.sha256,
@@ -202,12 +223,11 @@ export async function downloadDictionary(
       dictEdition: plan.release.edition,
       dictVersion: plan.release.version,
     });
-    status = {
+    return setStatus({
       kind: "installed",
       edition: plan.release.edition,
       version: plan.release.version,
-    };
-    return status;
+    });
   } finally {
     inFlight = false;
     abort = undefined;
@@ -215,8 +235,7 @@ export async function downloadDictionary(
 }
 
 function fail(reason: DictionaryFailure): DictionaryStatus {
-  status = { kind: "failed", reason };
-  return status;
+  return setStatus({ kind: "failed", reason });
 }
 
 /**
@@ -239,7 +258,7 @@ async function fetchArchive(plan: DownloadPlan): Promise<{ ok: true } | { ok: fa
       if (!value) continue;
       chunks.push(value);
       received += value.byteLength;
-      status = { kind: "downloading", received, total: plan.release.size };
+      setStatus({ kind: "downloading", received, total: plan.release.size });
     }
     await betterncm.fs.writeFile(plan.archivePath, new Blob(chunks as BlobPart[]));
     return { ok: true };
