@@ -12,8 +12,25 @@ let completeDictRegistered = false;
 export function registerCompleteDict(dict: unknown): void {
   if (completeDictRegistered) return;
   addDict(dict as Parameters<typeof addDict>[0], { name: "kashiyomi-complete", dict1: "replace" });
+  addDict(DICT_GAPS as Parameters<typeof addDict>[0], { name: "kashiyomi-gaps" });
   completeDictRegistered = true;
 }
+
+/**
+ * Words the complete dictionary is missing, layered on top of it.
+ *
+ * The bar is a word absent from all 828 dictionary entries for its character,
+ * not a reading we would have picked differently. 应和 is the only one so far:
+ * without it the segmenter splits 应 + 和 and reads `yìng hé`, wrong in both
+ * syllables, and it is also the single counterexample to `readModalAsLevelTone`
+ * below — which would turn it into `yīng hé`, wrong in a second way.
+ *
+ * The number is a corpus frequency, and only its size relative to competing
+ * entries matters; 应声 next door is 3.4e-10.
+ */
+const DICT_GAPS: Record<string, [string, number]> = {
+  应和: ["yìng hè", 3e-10],
+};
 
 export function isCompleteDictRegistered(): boolean {
   return completeDictRegistered;
@@ -53,9 +70,11 @@ export function romanizeMandarin(text: string, options: PinyinOptions): string {
     toneSandhi: true,
   });
   const parts: string[] = [];
-  for (const group of groups) {
-    const pieces = group.map((entry) => entry.result.trim()).filter((piece) => piece !== "");
-    if (pieces.length === 0) continue;
+  for (let index = 0; index < groups.length; index++) {
+    const group = groups[index]!;
+    const read = group.map((entry) => entry.result.trim()).filter((piece) => piece !== "");
+    if (read.length === 0) continue;
+    const pieces = readModalAsLevelTone(group, read, groups[index + 1]);
     if (options.joinWords) {
       parts.push(joinOneWord(pieces, group.every((entry) => HAN.test(entry.origin ?? ""))));
     } else {
@@ -66,6 +85,50 @@ export function romanizeMandarin(text: string, options: PinyinOptions): string {
 }
 
 const HAN = /\p{Script=Han}/u;
+
+type SegmentEntry = { readonly origin?: string; readonly result: string };
+
+/**
+ * 应 standing on its own reads yīng, the modal "ought to / surely", not yìng.
+ *
+ * This is not a new rule; it is the dictionary's own rule reaching a register it
+ * does not stock. Of the 828 complete-dict entries containing 应, 232 read it
+ * yīng and 310 yìng, and the yīng side is almost entirely one productive
+ * pattern — 应 before a predicate: 应为 应予 应从 应作 应允 应尽 应得 应有 应收
+ * 应许 应负 应选 应立即. 应是, 应知, 应似 and 应无 are that same pattern in
+ * literary Chinese, which lyrics use and the dictionary does not list, so
+ * segmentation leaves 应 alone and it falls back to the single-character entry
+ * `["yìng", 2.5537e-8]` — one reading, with no alternative to fall back to.
+ *
+ * The two conditions are grammar, not thresholds. A modal adverb needs a
+ * predicate after it, so a line-final 应 is the verb (呼之即应); and a modal
+ * cannot carry aspect, so 应 before 了/着/过 is the verb (他应了一声).
+ *
+ * Measured over 24 lines: 8 corrected, and all 11 genuine yìng readings kept —
+ * 有求必应, 一呼百应, 山鸣谷应, 里应外合, 答应, 回应, 响应, 适应, 应邀 are each a
+ * dictionary entry and never reach this, and the other two are the guards above.
+ *
+ * No branch for the tones toggle: the swap is the literal string yìng → yīng,
+ * and with `toneType: "none"` both are already `ying`.
+ *
+ * Adding a second character here needs the same enumeration — a pattern visible
+ * in the dictionary's own entries plus an exact grammatical guard. 只应 is the
+ * near miss that does *not* qualify: it segments as 只 + 应天, the Nanjing place
+ * name, so 应 never stands alone and 此曲只应天上有 stays wrong.
+ */
+function readModalAsLevelTone(
+  group: readonly SegmentEntry[],
+  pieces: readonly string[],
+  next: readonly SegmentEntry[] | undefined,
+): readonly string[] {
+  if (group.length !== 1 || group[0]?.origin !== "应" || pieces[0] !== "yìng") return pieces;
+  const following = [...(next?.[0]?.origin ?? "")][0] ?? "";
+  if (!HAN.test(following) || ASPECT_MARKERS.has(following)) return pieces;
+  return ["yīng"];
+}
+
+/** 道 joins the aspect markers: it is the classical quotative, 应道 "answered". */
+const ASPECT_MARKERS = new Set(["了", "着", "过", "道"]);
 
 /**
  * Hyphenate a four-syllable Han word 2+2: wǔwèi-záchén.

@@ -560,6 +560,48 @@
     "replace": "    toneSandhi: false,"
   },
   {
+    "id": "pinyin/modal-ying-ignored",
+    "file": "src/engine/pinyin.ts",
+    "what": "a lone 应 keeps the single-character reading yìng where the line means the modal yīng",
+    "find": "    const pieces = readModalAsLevelTone(group, read, groups[index + 1]);",
+    "replace": "    const pieces = read;"
+  },
+  {
+    "id": "pinyin/modal-ying-inside-words",
+    "file": "src/engine/pinyin.ts",
+    "what": "应 is re-read even when the segmenter absorbed it into a word, so 应邀 becomes yīng yāo",
+    "find": "  if (group.length !== 1 || group[0]?.origin !== \"应\" || pieces[0] !== \"yìng\") return pieces;",
+    "replace": "  if (group[0]?.origin !== \"应\" || pieces[0] !== \"yìng\") return pieces;"
+  },
+  {
+    "id": "pinyin/modal-ying-in-toneless-row",
+    "file": "src/engine/pinyin.ts",
+    "what": "the reading is not checked first, so a tone mark is written into a row that has none",
+    "find": "  if (group.length !== 1 || group[0]?.origin !== \"应\" || pieces[0] !== \"yìng\") return pieces;",
+    "replace": "  if (group.length !== 1 || group[0]?.origin !== \"应\") return pieces;"
+  },
+  {
+    "id": "pinyin/modal-ying-without-predicate",
+    "file": "src/engine/pinyin.ts",
+    "what": "a line-final 应 is read as a modal, though a modal needs a predicate after it",
+    "find": "  if (!HAN.test(following) || ASPECT_MARKERS.has(following)) return pieces;",
+    "replace": "  if (ASPECT_MARKERS.has(following)) return pieces;"
+  },
+  {
+    "id": "pinyin/modal-ying-takes-aspect",
+    "file": "src/engine/pinyin.ts",
+    "what": "应 before 了/着/过 is read as a modal, though a modal cannot carry aspect",
+    "find": "  if (!HAN.test(following) || ASPECT_MARKERS.has(following)) return pieces;",
+    "replace": "  if (!HAN.test(following)) return pieces;"
+  },
+  {
+    "id": "pinyin/dict-gaps-unregistered",
+    "file": "src/engine/pinyin.ts",
+    "what": "words missing from the complete dictionary are not layered in, so 应和 splits",
+    "find": "  addDict(DICT_GAPS as Parameters<typeof addDict>[0], { name: \"kashiyomi-gaps\" });",
+    "replace": "  void DICT_GAPS;"
+  },
+  {
     "id": "pinyin/drop-empty-guard",
     "file": "src/engine/pinyin.ts",
     "what": "a blank line is romanized instead of short-circuiting",

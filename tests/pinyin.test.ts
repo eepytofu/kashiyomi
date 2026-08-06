@@ -109,6 +109,57 @@ test("一 keeps its plain tone where the change does not apply", () => {
   assert.equal(p("一心一意"), "yì xīn yí yì");
 });
 
+test("a lone 应 before a predicate is the modal yīng", () => {
+  const p = (text: string) => romanizeMandarin(text, { tones: true, joinWords: false });
+  // The dictionary stocks this pattern 232 times (应有, 应得, 应尽, 应许 …) but
+  // not in the literary register lyrics use, so segmentation leaves 应 alone and
+  // it falls back to the single-character entry, which only holds yìng.
+  assert.equal(p("应无所住"), "yīng wú suǒ zhù");
+  assert.equal(p("应是良辰好景虚设"), "yīng shì liáng chén hǎo jǐng xū shè");
+  assert.equal(p("应似飞鸿踏雪泥"), "yīng sì fēi hóng tà xuě ní");
+  assert.equal(p("应知故乡事"), "yīng zhī gù xiāng shì");
+  // Not only line-initial: the modal sits wherever its predicate does.
+  assert.equal(p("春风应笑我"), "chūn fēng yīng xiào wǒ");
+  // Compounds the dictionary does list are never reached by this.
+  assert.equal(p("应该"), "yīng gāi");
+  assert.equal(p("理应如此"), "lǐ yīng rú cǐ");
+});
+
+test("应 stays the verb yìng where it cannot be a modal", () => {
+  const p = (text: string) => romanizeMandarin(text, { tones: true, joinWords: false });
+  // A modal needs a predicate after it, so a final 应 is the verb. 呼之即应 is
+  // not a dictionary entry, which is what makes it test the guard rather than
+  // the lookup — 有求必应 is one and would pass either way.
+  assert.equal(p("呼之即应"), "hū zhī jí yìng");
+  assert.equal(p("有求必应"), "yǒu qiú bì yìng");
+  // A modal cannot carry aspect.
+  assert.equal(p("他应了一声"), "tā yìng le yī shēng");
+  // Non-Han after it is the same case as nothing after it.
+  assert.equal(p("应 ok"), "yìng ok");
+  // The rule only ever looks at a 应 the segmenter left standing alone. Without
+  // that check this reads "yīng wēi jī": 应对 is one group of two, and the rule
+  // replaces a whole group with one syllable, so 对 is not just mis-read, it is
+  // dropped.
+  //
+  // 应邀前来 was the first fixture here and could not test this, because it is a
+  // single four-character dictionary entry with nothing after it — the
+  // line-final guard rejected it before the group-length check was reached, and
+  // the mutation survived. The fixture needs a following Han word.
+  assert.equal(p("应对危机"), "yìng duì wēi jī");
+});
+
+test("应和 is a dictionary gap, not a counterexample to the modal rule", () => {
+  // Absent from all 828 complete-dict entries containing 应, so the segmenter
+  // split it and read yìng hé — wrong in both syllables before the modal rule
+  // existed, and the one word that rule would turn into yīng hé.
+  assert.equal(romanizeMandarin("应和着风声", { tones: true, joinWords: false }), "yìng hè zhe fēng shēng");
+});
+
+test("the modal rule is invisible with tone marks off", () => {
+  // The swap is the literal string yìng -> yīng, so nothing to strip afterwards.
+  assert.equal(romanizeMandarin("应无所住", { tones: false, joinWords: false }), "ying wu suo zhu");
+});
+
 test("a captured lyric line takes the changed tone", () => {
   // 白马过了离原, captured 2026-08-04: 一 before a second tone. 14 of 82
   // captured lines are affected by this, so it is not a corner case.
