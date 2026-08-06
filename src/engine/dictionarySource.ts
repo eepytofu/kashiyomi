@@ -17,9 +17,16 @@
  * (41.8 MB) and core (72.3 MB) fit under. Its bytes therefore live only at the
  * vendor's own host, which publishes no checksum for them.
  *
- * Measured against 514 real lyric lines, core matches full on all but roughly
- * one line in 170, and on all three genuinely differing readings core was the
- * correct one.
+ * Which is *better* depends on the text, and neither wins outright. On 514
+ * general lyric lines core matched full except on 3 readings and was right on
+ * all 3. On 50 compound nouns and song titles there were also 3, and full was
+ * right on 2 — 千本桜 as センボンザクラ rather than a split losing the rendaku,
+ * and 六兆年と一夜物語, where core leaves 六兆 with no reading so we abstain
+ * entirely. That is what "full adds miscellaneous proper nouns" predicts: it
+ * wins where a title is the text and adds nothing elsewhere.
+ *
+ * core is the default for size, mirror availability and a verifiable checksum
+ * — not for accuracy.
  */
 export type DictionaryEdition = "small" | "core";
 
