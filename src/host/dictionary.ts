@@ -61,6 +61,18 @@ export function dictionaryJob(): DictionaryJob {
 }
 
 /**
+ * How many things are currently following the dictionary.
+ *
+ * On the debug handle rather than in a test, because the failure it catches is
+ * a leak across panel rebuilds and the only place that actually happens is a
+ * running NCM. Anything other than one open panel meaning one listener is a
+ * teardown that did not run.
+ */
+export function dictionaryListenerCount(): number {
+  return listeners.size;
+}
+
+/**
  * Notify a listener whenever either changes, whoever changed it.
  *
  * The settings row used to repaint only in response to its own button, so a
@@ -80,8 +92,36 @@ function announce(): void {
 
 function setJob(next: DictionaryJob): DictionaryJob {
   job = next;
+  lastProgressAnnounce = 0;
   announce();
   return job;
+}
+
+/**
+ * The shortest gap between two progress announcements.
+ *
+ * A `ReadableStream` over a 69 MB transfer hands back roughly a thousand chunks,
+ * and every one of them used to notify every listener, each of which repaints a
+ * row whose smallest visible step is 0.1 MB. Nothing could see most of that
+ * work. At 250 ms the bar still moves continuously to a human and the panel
+ * repaints a few dozen times instead of a thousand.
+ */
+const PROGRESS_ANNOUNCE_MS = 250;
+let lastProgressAnnounce = 0;
+
+/**
+ * Record progress every chunk, tell anyone about it far less often.
+ *
+ * The value has to stay current because the row also samples it on a timer, so
+ * this is a coalesced *notification*, never a coalesced measurement: a reader
+ * that arrives between announcements still sees the true byte count.
+ */
+function setProgress(next: DictionaryJob): void {
+  job = next;
+  const now = Date.now();
+  if (now - lastProgressAnnounce < PROGRESS_ANNOUNCE_MS) return;
+  lastProgressAnnounce = now;
+  announce();
 }
 
 /**
@@ -372,7 +412,7 @@ async function fetchArchive(plan: DownloadPlan): Promise<{ ok: true } | { ok: fa
       if (!value) continue;
       chunks.push(value);
       received += value.byteLength;
-      setJob({
+      setProgress({
         kind: "downloading",
         edition: plan.release.edition,
         received,

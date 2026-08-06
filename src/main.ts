@@ -9,6 +9,7 @@ import {
   cancelDictionaryDownload,
   dictionaryInventory,
   dictionaryJob,
+  dictionaryListenerCount,
   downloadDictionary,
   installedEditions,
   planDownload,
@@ -54,7 +55,11 @@ async function start(): Promise<void> {
   (window as unknown as Record<string, unknown>).kashiyomi = {
     state: () => nativeState(),
     rescan,
-    dictionary: () => ({ inventory: dictionaryInventory(), job: dictionaryJob() }),
+    dictionary: () => ({
+      inventory: dictionaryInventory(),
+      job: dictionaryJob(),
+      listeners: dictionaryListenerCount(),
+    }),
     cancelDictionary: cancelDictionaryDownload,
     // Every dictionary failure state on demand, so the messages can be read in
     // the real panel without unplugging anything. Unit tests prove the state

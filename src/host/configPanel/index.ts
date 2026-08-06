@@ -13,6 +13,7 @@ import {
 } from "../settings.ts";
 import { PANEL_CSS } from "./css.ts";
 import { dictionaryRow } from "./dictionaryRow.ts";
+import { onPanelTeardown, teardownPanel } from "./lifecycle.ts";
 import { buildPreviewCard } from "./preview.ts";
 import {
   card,
@@ -34,25 +35,11 @@ export function buildConfigPanel(): HTMLElement {
   return root;
 }
 
-/**
- * Live while the analyzer is still loading. The status is otherwise sampled
- * once at build time, so opening the panel during the ~10s dictionary load
- * showed "loading" and kept showing it after the load finished — the one
- * element whose job is reporting current state reporting a stale one.
- */
-let statusPoll: number | undefined;
-
-function stopStatusPoll(): void {
-  if (statusPoll !== undefined) {
-    window.clearInterval(statusPoll);
-    statusPoll = undefined;
-  }
-}
-
 function render(root: HTMLElement): void {
-  // A rebuild detaches the old bar; without this the interval would keep
-  // writing into a node that is no longer in the document.
-  stopStatusPoll();
+  // A rebuild detaches every node below, so anything still subscribed or still
+  // ticking is writing into a document it has left. Four paths reach this
+  // function, so a row that does not clean up leaks once per visit.
+  teardownPanel();
   root.textContent = "";
   const style = document.createElement("style");
   style.textContent = PANEL_CSS;
@@ -155,12 +142,18 @@ function buildStatusBar(root: HTMLElement): HTMLElement {
   // Poll only while the answer can still change. `status` costs 0.044ms
   // (measured over 200 calls), so a ~10s load is under 1ms of work in total,
   // and steady state runs no timer at all.
+  //
+  // Live while the analyzer is still loading, because the status is otherwise
+  // sampled once at build time: opening the panel during the dictionary load
+  // showed "loading" and kept showing it after the load finished, the one
+  // element whose job is reporting current state reporting a stale one.
   const initial = paint();
   if (initial === "loading" || initial === "uninitialized") {
-    statusPoll = window.setInterval(() => {
+    const statusPoll = window.setInterval(() => {
       const state = paint();
-      if (state !== "loading" && state !== "uninitialized") stopStatusPoll();
+      if (state !== "loading" && state !== "uninitialized") window.clearInterval(statusPoll);
     }, 500);
+    onPanelTeardown(() => window.clearInterval(statusPoll));
   }
   bar.appendChild(label);
 

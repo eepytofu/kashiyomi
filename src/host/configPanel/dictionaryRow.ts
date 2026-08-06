@@ -40,6 +40,7 @@ import { resetAnalysisCache } from "../analysisCache.ts";
 import { rescan } from "../annotator.ts";
 import { nativeFreeSpace } from "../native.ts";
 import type { DictionaryEdition } from "../../engine/dictionarySource.ts";
+import { onPanelTeardown } from "./lifecycle.ts";
 import { row, rowText, styledSelect } from "./rows.ts";
 
 const MB = 1024 * 1024;
@@ -316,7 +317,18 @@ export function dictionaryRow(): HTMLElement {
   // Follow the status wherever it is changed from, not just this row's own
   // button: the panel is built once and would otherwise keep showing whatever
   // was true when it was opened.
-  onDictionaryChange(paint);
+  //
+  // Both handles are surrendered on teardown. The unsubscribe used to be
+  // discarded, so every panel rebuild left another copy of this row painting
+  // into a detached node for the rest of the session.
+  const unsubscribe = onDictionaryChange(paint);
+  onPanelTeardown(() => {
+    unsubscribe();
+    if (poll !== undefined) {
+      window.clearInterval(poll);
+      poll = undefined;
+    }
+  });
   return el;
 }
 
