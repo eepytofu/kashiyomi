@@ -9,6 +9,7 @@ import {
 } from "../engine/cjk.ts";
 import { annotateJapaneseLine, type JapaneseLineAnnotation } from "../engine/japanese.ts";
 import { applyJmdictReadings, type JmdictReadings } from "../engine/jmdictReadings.ts";
+import { applyHeteronymDefaults } from "../engine/japaneseHeteronyms.ts";
 import {
   applyReadingOverrides,
   parseReadingOverrides,
@@ -271,7 +272,9 @@ function annotateJapanese(
     // the lyric still beats both: hints are applied further down, in
     // annotateJapaneseLine.
     const filled = jmdict ? applyJmdictReadings(raw, jmdict) : raw;
-    const tokens = applyReadingOverrides(filled, overrides);
+    // Corrections before the user's own list, so an override always wins.
+    const corrected = applyHeteronymDefaults(filled);
+    const tokens = applyReadingOverrides(corrected, overrides);
     try {
       const annotation = annotateJapaneseLine(analysisText, tokens, hints);
       // Hints come from the line itself, so the annotation is a pure function
