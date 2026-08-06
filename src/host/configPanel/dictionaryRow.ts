@@ -32,6 +32,17 @@ import { row, rowText, styledSelect } from "./rows.ts";
 const MB = 1024 * 1024;
 const mb = (bytes: number) => `${(bytes / MB).toFixed(1)} MB`;
 
+/**
+ * SudachiDict versions are release dates as `20260723`. Readable here only —
+ * the raw string is what version comparison uses, so it must not be normalised
+ * anywhere the value is stored or compared, or an update check starts asking
+ * whether "2026-07-23" equals "20260723".
+ */
+const releaseDate = (version: string): string =>
+  /^\d{8}$/u.test(version)
+    ? `${version.slice(0, 4)}-${version.slice(4, 6)}-${version.slice(6)}`
+    : version;
+
 export function dictionaryRow(): HTMLElement {
   const el = row();
   const text = rowText(t("dictionary"), t("dictNotInstalled"));
@@ -66,7 +77,7 @@ export function dictionaryRow(): HTMLElement {
 
     switch (status.kind) {
       case "absent":
-        label = `${t("dictNotInstalled")} · ${chosen} ${pinned.version} · ${mb(pinned.size)}`;
+        label = `${t("dictNotInstalled")} · ${chosen} ${releaseDate(pinned.version)} · ${mb(pinned.size)}`;
         break;
       case "downloading":
         label = `${t("dictDownloading")} ${mb(status.received)} / ${mb(status.total)}`;
@@ -77,7 +88,9 @@ export function dictionaryRow(): HTMLElement {
         busy = true;
         break;
       case "installed":
-        label = status.version ? `${status.edition} · ${status.version}` : status.edition;
+        label = status.version
+          ? `${status.edition} · ${releaseDate(status.version)}`
+          : status.edition;
         if (upToDate) label += ` · ${t("dictUpToDate")}`;
         action = status.edition === chosen ? t("dictUpdate") : t("dictSwitch");
         break;
