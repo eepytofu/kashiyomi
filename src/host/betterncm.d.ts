@@ -4,6 +4,14 @@ declare const betterncm: {
   fs: {
     readFileText(path: string): Promise<string>;
     writeFileText(path: string, content: string): Promise<boolean>;
+    /**
+     * Binary write. Only ever needed for the dictionary archive; everything
+     * else here is text. Confirmed against BetterNCM's own first-party
+     * Plugin-Market, which uses exactly this call to write a fetched `.plugin`
+     * to disk — so a runtime download of binary data is the mechanism the
+     * platform is built on, not something being smuggled past it.
+     */
+    writeFile(path: string, content: Blob): Promise<boolean>;
     exists(path: string): Promise<boolean>;
   };
   app: {
