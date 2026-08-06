@@ -23,6 +23,7 @@ import {
   type DictionaryStatus,
 } from "../engine/dictionarySource.ts";
 import { log } from "./log.ts";
+import { getSettings, updateSettings } from "./settings.ts";
 import {
   nativeFreeSpace,
   nativeInstallDictionary,
@@ -36,6 +37,33 @@ let abort: AbortController | undefined;
 
 export function dictionaryStatus(): DictionaryStatus {
   return status;
+}
+
+/**
+ * Work out at startup whether a dictionary is already installed.
+ *
+ * Without this the status stays `absent` forever and the row offers to download
+ * a dictionary the user already has — the state defaults to "missing" and
+ * nothing ever contradicts it.
+ *
+ * The version is not recoverable from the file, so it is remembered in settings
+ * when a download completes. An unknown version is shown rather than treated as
+ * missing: the dictionary works either way, and re-downloading 69 MB to learn a
+ * date string would be a poor trade.
+ */
+export async function detectInstalledDictionary(dictPath: string): Promise<void> {
+  if (status.kind !== "absent") return;
+  try {
+    if (!(await betterncm.fs.exists(dictPath))) return;
+  } catch {
+    return;
+  }
+  const settings = getSettings();
+  status = {
+    kind: "installed",
+    edition: settings.dictEdition,
+    version: settings.dictVersion || "—",
+  };
 }
 
 /**
@@ -158,6 +186,10 @@ export async function downloadDictionary(
     }
 
     if (!nativeReload(plan.targetPath, resourceDir)) return fail("load");
+    updateSettings({
+      dictEdition: plan.release.edition,
+      dictVersion: plan.release.version,
+    });
     status = {
       kind: "installed",
       edition: plan.release.edition,

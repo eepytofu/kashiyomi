@@ -13,6 +13,8 @@ export type Settings = {
   debug: boolean;
   /** Which SudachiDict edition is installed or wanted. `full` has no wheel. */
   dictEdition: "small" | "core";
+  /** Release date of the installed dictionary, e.g. "20260723". Empty until one is installed. */
+  dictVersion: string;
   /** rt size as a percentage of the base lyric font. */
   furiganaSize: number;
   /** Use a Japanese font stack on Japanese lyric lines (Han unification). */
@@ -76,6 +78,7 @@ const DEFAULTS: Settings = {
   annotateCredits: false,
   debug: true,
   dictEdition: "core",
+  dictVersion: "",
   furiganaSize: 50,
   useJpFont: true,
   jpFontStack: DEFAULT_JP_FONT_STACK,

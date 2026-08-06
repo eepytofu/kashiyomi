@@ -7,6 +7,7 @@ import { log } from "./host/log.ts";
 import { nativeInit, nativeState } from "./host/native.ts";
 import {
   cancelDictionaryDownload,
+  detectInstalledDictionary,
   dictionaryStatus,
   simulateDictionaryFailure,
   sweepAbandonedDownloads,
@@ -28,6 +29,7 @@ async function start(): Promise<void> {
   // A download killed mid-flight leaves ~69 MB stranded. Sweeping at startup is
   // what stops us being the cause of the full disk we otherwise report politely.
   sweepAbandonedDownloads(paths.dictPath.slice(0, paths.dictPath.lastIndexOf("/")));
+  await detectInstalledDictionary(paths.dictPath);
   const status = nativeState();
   log.info("native state:", status.state, status.error ?? "");
   if (status.state === "uninitialized" || status.state === "failed") {
