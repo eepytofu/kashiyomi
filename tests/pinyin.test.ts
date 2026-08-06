@@ -162,6 +162,49 @@ test("只应 is a dictionary gap that no rule could reach", () => {
   assert.equal(p("两只应声倒下"), "liǎng zhī yìng shēng dǎo xià");
 });
 
+test("a lone 只 with no determiner before it is the adverb zhǐ", () => {
+  const p = (text: string) => romanizeMandarin(text, { tones: true, joinWords: false });
+  // The single-character entry holds only zhī, the classifier, so every 只 the
+  // segmenter cannot place comes out wrong. 应该 outranks 只应, so this line is
+  // not reachable by the 只应 dictionary entry either.
+  assert.equal(p("只应该这样"), "zhǐ yīng gāi zhè yàng");
+});
+
+test("只 stays the classifier zhī after a determiner", () => {
+  const p = (text: string) => romanizeMandarin(text, { tones: true, joinWords: false });
+  // A classifier requires a determiner in front of it, and that is the whole
+  // guard. 这只 and 那只 mean "this one" and "that one".
+  assert.equal(p("这只应该给我"), "zhè zhī yīng gāi gěi wǒ");
+  assert.equal(p("那只应该跑了"), "nà zhī yīng gāi pǎo le");
+  assert.equal(p("一只应该够了"), "yì zhī yīng gāi gòu le");
+  // 一 takes its changed tone before the first-tone zhī, hence yì not yī.
+  assert.equal(p("就是这一只"), "jiù shì zhè yì zhī");
+});
+
+test("只 with nothing after it is the classifier, whatever precedes", () => {
+  const p = (text: string) => romanizeMandarin(text, { tones: true, joinWords: false });
+  // An adverb needs something to modify, so a 只 at the end is never zhǐ. This
+  // has to be tested with no determiner in front: 就是这一只 above is caught by
+  // the determiner guard first, so it cannot prove this one.
+  assert.equal(p("只"), "zhī");
+  assert.equal(p("只 one"), "zhī one");
+});
+
+test("the 只 rule is invisible with tone marks off", () => {
+  // Without this the rule fires on "zhi" and writes a tone mark into a row that
+  // is meant to have none.
+  assert.equal(romanizeMandarin("只应该这样", { tones: false, joinWords: false }), "zhi ying gai zhe yang");
+});
+
+test("隻-sense words that take no determiner are lexicon, not rule", () => {
+  const p = (text: string) => romanizeMandarin(text, { tones: true, joinWords: false });
+  // These would all read zhǐ under the rule alone. The dictionary carries the
+  // first two; 只影 was missing and is in DICT_GAPS.
+  assert.equal(p("只字不提"), "zhī zì bù tí");
+  assert.equal(p("只身一人"), "zhī shēn yì rén");
+  assert.equal(p("只影向谁去"), "zhī yǐng xiàng shuí qù");
+});
+
 test("应和 is a dictionary gap, not a counterexample to the modal rule", () => {
   // Absent from all 828 complete-dict entries containing 应, so the segmenter
   // split it and read yìng hé — wrong in both syllables before the modal rule

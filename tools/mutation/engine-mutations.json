@@ -563,22 +563,50 @@
     "id": "pinyin/modal-ying-ignored",
     "file": "src/engine/pinyin.ts",
     "what": "a lone 应 keeps the single-character reading yìng where the line means the modal yīng",
-    "find": "    const pieces = readModalAsLevelTone(group, read, groups[index + 1]);",
+    "find": "    const pieces = reReadHeteronym(group, read, groups[index - 1], groups[index + 1]);",
     "replace": "    const pieces = read;"
   },
   {
-    "id": "pinyin/modal-ying-inside-words",
+    "id": "pinyin/heteronym-inside-words",
     "file": "src/engine/pinyin.ts",
-    "what": "应 is re-read even when the segmenter absorbed it into a word, so 应邀 becomes yīng yāo",
-    "find": "  if (group.length !== 1 || group[0]?.origin !== \"应\" || pieces[0] !== \"yìng\") return pieces;",
-    "replace": "  if (group[0]?.origin !== \"应\" || pieces[0] !== \"yìng\") return pieces;"
+    "what": "a heteronym is re-read even when the segmenter absorbed it into a word, so 应对 becomes yīng",
+    "find": "  if (group.length !== 1) return pieces;",
+    "replace": "  if (false) return pieces;"
   },
   {
     "id": "pinyin/modal-ying-in-toneless-row",
     "file": "src/engine/pinyin.ts",
     "what": "the reading is not checked first, so a tone mark is written into a row that has none",
-    "find": "  if (group.length !== 1 || group[0]?.origin !== \"应\" || pieces[0] !== \"yìng\") return pieces;",
-    "replace": "  if (group.length !== 1 || group[0]?.origin !== \"应\") return pieces;"
+    "find": "  if (pieces[0] !== \"yìng\") return pieces;",
+    "replace": "  if (false) return pieces;"
+  },
+  {
+    "id": "pinyin/lone-zhi-ignored",
+    "file": "src/engine/pinyin.ts",
+    "what": "a lone 只 keeps the classifier reading zhī where the line means the adverb zhǐ",
+    "find": "  if (char === \"只\") return readLoneZhiAsOnly(pieces, previous, next);",
+    "replace": "  if (char === \"只\") return pieces;"
+  },
+  {
+    "id": "pinyin/lone-zhi-ignores-determiner",
+    "file": "src/engine/pinyin.ts",
+    "what": "只 after 这/那/一 is read as the adverb, though a classifier needs that determiner",
+    "find": "  if (!HAN.test(firstChar(next)) || DETERMINERS.has(preceding)) return pieces;",
+    "replace": "  if (!HAN.test(firstChar(next))) return pieces;"
+  },
+  {
+    "id": "pinyin/lone-zhi-without-predicate",
+    "file": "src/engine/pinyin.ts",
+    "what": "a line-final 只 is read as the adverb, though an adverb needs something to modify",
+    "find": "  if (!HAN.test(firstChar(next)) || DETERMINERS.has(preceding)) return pieces;",
+    "replace": "  if (DETERMINERS.has(preceding)) return pieces;"
+  },
+  {
+    "id": "pinyin/lone-zhi-in-toneless-row",
+    "file": "src/engine/pinyin.ts",
+    "what": "the reading is not checked first, so a tone mark is written into a row that has none",
+    "find": "  if (pieces[0] !== \"zhī\") return pieces;",
+    "replace": "  if (false) return pieces;"
   },
   {
     "id": "pinyin/modal-ying-without-predicate",

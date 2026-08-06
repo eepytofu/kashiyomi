@@ -38,10 +38,15 @@ export function registerCompleteDict(dict: unknown): void {
  * safe rather than a guard we wrote: in 这只应该给我, where 这只 means "this one",
  * 应该 carries 2.1e-8 and wins by five orders of magnitude, so the entry never
  * fires. Same for 一只应该 and 两只应声.
+ *
+ * 只影 — "lone shadow", the 隻 sense. Absent from the dictionary, so it splits
+ * and the 只 rule below would read it zhǐ. 千山暮雪，只影向谁去 is squarely the
+ * register these songs are in, so this is not a hypothetical.
  */
 const DICT_GAPS: Record<string, [string, number]> = {
   应和: ["yìng hè", 3e-10],
   只应: ["zhǐ yīng", 3e-10],
+  只影: ["zhī yǐng", 3e-10],
 };
 
 export function isCompleteDictRegistered(): boolean {
@@ -86,7 +91,7 @@ export function romanizeMandarin(text: string, options: PinyinOptions): string {
     const group = groups[index]!;
     const read = group.map((entry) => entry.result.trim()).filter((piece) => piece !== "");
     if (read.length === 0) continue;
-    const pieces = readModalAsLevelTone(group, read, groups[index + 1]);
+    const pieces = reReadHeteronym(group, read, groups[index - 1], groups[index + 1]);
     if (options.joinWords) {
       parts.push(joinOneWord(pieces, group.every((entry) => HAN.test(entry.origin ?? ""))));
     } else {
@@ -133,14 +138,78 @@ type SegmentEntry = { readonly origin?: string; readonly result: string };
  * where they are checked one at a time against the lines they could break.
  */
 function readModalAsLevelTone(
-  group: readonly SegmentEntry[],
   pieces: readonly string[],
   next: readonly SegmentEntry[] | undefined,
 ): readonly string[] {
-  if (group.length !== 1 || group[0]?.origin !== "应" || pieces[0] !== "yìng") return pieces;
-  const following = [...(next?.[0]?.origin ?? "")][0] ?? "";
+  if (pieces[0] !== "yìng") return pieces;
+  const following = firstChar(next);
   if (!HAN.test(following) || ASPECT_MARKERS.has(following)) return pieces;
   return ["yīng"];
+}
+
+/**
+ * A lone 只 reads zhǐ "only", not zhī, the classifier.
+ *
+ * Simplified 只 merges two characters: 隻, the classifier, and 只, the adverb.
+ * The single-character entry holds only `["zhī", 1.01442e-7]`, so every 只 the
+ * segmenter fails to place comes out as the classifier. Of the 261 dictionary
+ * entries containing 只, the 只-initial ones run 65 zhǐ to 25 zhī, and the zhǐ
+ * side is the same productive shape as 应: 只为 只因 只好 只当 只得 只怕 只敢
+ * 只求 只管 只见 只许 只顾.
+ *
+ * The guard is what makes this safe, and it is exact rather than tuned: **a
+ * classifier requires a determiner in front of it.** 这只猫, 一只鸟, 几只船 all
+ * keep zhī because 这/一/几 precedes. Nothing else is consulted, because nothing
+ * else is knowable here — 只应 "only should" and 只影 "lone shadow" differ by the
+ * part of speech of the word after them, and this pipeline has no POS.
+ *
+ * So the 隻 words that take no determiner are handled as lexicon, not as rule:
+ * the dictionary already carries 25 of them (只字不提, 只手遮天, 只言片语,
+ * 只鳞片爪, 只身一人), and 只影 is added to DICT_GAPS above because it was
+ * missing.
+ *
+ * Measured 9 cases, 9 correct. The honest limit: that exception set is bounded
+ * by what the dictionary happens to contain plus what someone thought of. 只影
+ * and 只字 were both found by hand, not mechanically, and a dictionary's
+ * absences cannot be enumerated. A wrong one costs a single tone mark, which is
+ * why this ships despite that.
+ */
+function readLoneZhiAsOnly(
+  pieces: readonly string[],
+  previous: readonly SegmentEntry[] | undefined,
+  next: readonly SegmentEntry[] | undefined,
+): readonly string[] {
+  if (pieces[0] !== "zhī") return pieces;
+  const preceding = [...(previous?.[previous.length - 1]?.origin ?? "")].pop() ?? "";
+  if (!HAN.test(firstChar(next)) || DETERMINERS.has(preceding)) return pieces;
+  return ["zhǐ"];
+}
+
+/** Numerals and demonstratives — everything that can introduce a classifier. */
+const DETERMINERS = new Set([..."一二三四五六七八九十百千万两几这那每某半多"]);
+
+function firstChar(group: readonly SegmentEntry[] | undefined): string {
+  return [...(group?.[0]?.origin ?? "")][0] ?? "";
+}
+
+/**
+ * Re-read a heteronym whose single-character fallback is wrong for this text.
+ *
+ * Only ever applied to a character the segmenter left standing alone: inside a
+ * word the dictionary already chose a reading, and that choice is better than
+ * anything reconstructible here.
+ */
+function reReadHeteronym(
+  group: readonly SegmentEntry[],
+  pieces: readonly string[],
+  previous: readonly SegmentEntry[] | undefined,
+  next: readonly SegmentEntry[] | undefined,
+): readonly string[] {
+  if (group.length !== 1) return pieces;
+  const char = group[0]?.origin ?? "";
+  if (char === "应") return readModalAsLevelTone(pieces, next);
+  if (char === "只") return readLoneZhiAsOnly(pieces, previous, next);
+  return pieces;
 }
 
 /** 道 joins the aspect markers: it is the classical quotative, 应道 "answered". */
