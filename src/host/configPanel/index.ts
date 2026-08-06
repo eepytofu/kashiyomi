@@ -101,7 +101,7 @@ function render(root: HTMLElement): void {
   ai.appendChild(apiKeysRow());
   ai.appendChild(
     textRow("aiModel", "aiModel", "aiModelDesc", {
-      placeholder: getSettings().aiProvider === "gemini" ? "gemini-3.5-flash-lite" : "gpt-5.6-sol",
+      placeholder: getSettings().aiProvider === "gemini" ? "gemini-3.5-flash-lite" : "gpt-5.6-luna",
     }),
   );
   ai.appendChild(targetLangRow());
