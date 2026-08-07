@@ -51,14 +51,6 @@ const STRINGS = {
     dictEdSmall: "Includes only the vocabulary of UniDic.",
     dictEdCore: "Includes basic vocabulary. Default.",
     dictEdFull: "Includes miscellaneous proper nouns.",
-    // The only part of full's supply chain a user can act on. Where it is
-    // hosted, that nobody publishes a checksum for it, and that the hash is
-    // pinned at build time are all real, and all the plugin's problem.
-    // What is different about choosing full, in terms of what the user is
-    // agreeing to. It is the one edition PyPI cannot host (126 MB against a
-    // 100 MiB cap), so it is the one whose download may not come from the
-    // publisher or an official mirror. Said plainly rather than explained: the
-    // supply chain belongs in the code and the docs, the choice belongs here.
     // Where each edition comes from, said for **all three** rather than only the
     // one that is different. A provenance line on `full` alone reads as a
     // warning flag; next to two ordinary ones it reads as what it is, and the
@@ -67,6 +59,10 @@ const STRINGS = {
     dictEdFrom: "Downloads from PyPI.",
     dictEdFromFull:
       "Too large for PyPI. Downloads from GitHub, or a third-party relay if that fails.",
+    // Shown over the settings that do nothing until a dictionary is installed.
+    // Not all of the Japanese card: fonts route during classification, so they
+    // work with no dictionary at all, and greying them would be a lie.
+    dictNeededForThese: "These need the Japanese dictionary.",
     dictManage: "Manage",
     dictSetUp: "Set up",
     // Shown once, on the first launch with no dictionary. Says what works now,
@@ -201,6 +197,7 @@ const STRINGS = {
     dictEdFull: "另收录各类专有名词。",
     dictEdFrom: "从 PyPI 下载。",
     dictEdFromFull: "体积超出 PyPI 限制。从 GitHub 下载，失败时改用第三方中转。",
+    dictNeededForThese: "以下设置需要日语词典。",
     dictManage: "管理",
     dictSetUp: "设置",
     setupIntro: "直接在网易云自带的歌词页面上标注：日语的振假名与罗马音、普通话的拼音，以及可选的 AI 翻译。",

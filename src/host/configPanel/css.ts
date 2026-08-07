@@ -36,6 +36,13 @@ export const PANEL_CSS = `
    label carrying its own weight, opacity is free to serve contrast alone. */
 .kashiyomi-config .kc-label { font-size: 13.5px; font-weight: 500; line-height: 1.3; }
 .kashiyomi-config .kc-desc { font-size: 12px; opacity: 0.68; margin-top: 2px; line-height: 1.35; }
+/* A setting that cannot do anything yet, rather than one that is hidden. It
+   stays readable so the panel does not change shape when a dictionary arrives,
+   and its controls are genuinely disabled so nothing can be switched into a
+   state that silently has no effect. */
+.kashiyomi-config .kc-inert { opacity: 0.45; cursor: default; }
+.kashiyomi-config .kc-inert:hover { background: transparent; }
+.kashiyomi-config .kc-needs-dict { padding: 9px 14px; font-size: 12px; opacity: 0.68; }
 .kashiyomi-config .kc-switch { position: relative; flex: none; width: 40px; height: 24px; }
 .kashiyomi-config .kc-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
 /* Off is a hollow outlined track, on is filled — so the state is legible from

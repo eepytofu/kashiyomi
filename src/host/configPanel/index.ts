@@ -12,6 +12,7 @@ import {
   getSettings,
 } from "../settings.ts";
 import { PANEL_CSS } from "./css.ts";
+import { dictionaryInventory, onDictionaryChange } from "../dictionary.ts";
 import { dictionaryRow } from "./dictionaryRow.ts";
 import { onPanelTeardown, teardownPanel } from "./lifecycle.ts";
 import { buildPreviewCard } from "./preview.ts";
@@ -57,16 +58,30 @@ function render(root: HTMLElement): void {
   left.appendChild(sectionTitle(t("sectionJapanese")));
   const jp = card();
   jp.appendChild(dictionaryRow());
-  jp.appendChild(toggleRow("furigana", t("furigana"), t("furiganaDesc"), refreshPreview));
-  jp.appendChild(toggleRow("romaji", t("romaji"), t("romajiDesc"), refreshPreview));
-  jp.appendChild(toggleRow("readingHints", t("hints"), t("hintsDesc"), refreshPreview));
-  jp.appendChild(toggleRow("hanRepair", t("repair"), t("repairDesc"), refreshPreview));
-  jp.appendChild(sizeRow(refreshPreview));
+  const needsDictionary = document.createElement("div");
+  needsDictionary.className = "kc-needs-dict";
+  needsDictionary.textContent = t("dictNeededForThese");
+  jp.appendChild(needsDictionary);
+  // Exactly the settings that do nothing without a dictionary, which is not the
+  // whole card. Font routing happens during classification (`applyScriptFont`),
+  // before anything is analyzed, so the two font rows work with no dictionary at
+  // all and greying them would misdescribe them.
+  const inert = [
+    toggleRow("furigana", t("furigana"), t("furiganaDesc"), refreshPreview),
+    toggleRow("romaji", t("romaji"), t("romajiDesc"), refreshPreview),
+    toggleRow("readingHints", t("hints"), t("hintsDesc"), refreshPreview),
+    toggleRow("hanRepair", t("repair"), t("repairDesc"), refreshPreview),
+    sizeRow(refreshPreview),
+  ];
+  for (const rowEl of inert) jp.appendChild(rowEl);
   jp.appendChild(toggleRow("useJpFont", t("jpFont"), t("jpFontDesc"), refreshPreview, false));
   jp.appendChild(fontStackRow("jpFontStack", DEFAULT_JP_FONT_STACK, "fontStack", "fontStackDesc", refreshPreview));
   // Last in the Japanese card: it is the escape hatch for when everything
   // above got a reading wrong, so it reads in the order someone reaches for it.
-  jp.appendChild(readingOverridesRow());
+  const overrides = readingOverridesRow();
+  jp.appendChild(overrides);
+  inert.push(overrides);
+  gateOnDictionary(inert, needsDictionary);
   left.appendChild(jp);
 
   left.appendChild(sectionTitle(t("sectionChinese")));
@@ -112,6 +127,35 @@ function render(root: HTMLElement): void {
 
   root.appendChild(left);
   root.appendChild(right);
+}
+
+/**
+ * Grey out settings that cannot do anything until a dictionary exists, and say
+ * so once above them.
+ *
+ * Disabled rather than hidden: a panel that changes shape when a download
+ * finishes is disorienting, and the greyed rows are also the clearest statement
+ * of what the dictionary is *for*. Disabled rather than merely dimmed, too,
+ * because a toggle that looks inactive but still writes a setting lets someone
+ * turn on furigana, see nothing happen, and have no way to tell which of the two
+ * things is broken.
+ *
+ * Follows the inventory rather than being decided once: the dialog this panel
+ * opens can install a dictionary without the panel being rebuilt.
+ */
+function gateOnDictionary(rows: readonly HTMLElement[], notice: HTMLElement): void {
+  const paint = (): void => {
+    const absent = dictionaryInventory().installed.length === 0;
+    notice.style.display = absent ? "" : "none";
+    for (const rowEl of rows) {
+      rowEl.classList.toggle("kc-inert", absent);
+      for (const control of rowEl.querySelectorAll("input, select, textarea, button")) {
+        (control as HTMLInputElement).disabled = absent;
+      }
+    }
+  };
+  paint();
+  onPanelTeardown(onDictionaryChange(paint));
 }
 
 function buildStatusBar(root: HTMLElement): HTMLElement {
