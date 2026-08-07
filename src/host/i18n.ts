@@ -55,6 +55,17 @@ const STRINGS = {
     // hosted, that nobody publishes a checksum for it, and that the hash is
     // pinned at build time are all real, and all the plugin's problem.
     dictEdFullWarning: "May not download in mainland China.",
+    dictManage: "Manage",
+    dictSetUp: "Set up",
+    // Shown once, on the first launch with no dictionary. Says what works now,
+    // what does not, and why, because the alternative is a plugin that appears
+    // to do nothing on Japanese lyrics with no way to find out.
+    setupIntro: "Annotates NetEase's own lyrics page, in place: furigana and romaji for Japanese, pinyin for Mandarin, and optional AI translation.",
+    setupNeedsDictionary: "Japanese readings need a dictionary. Mandarin and translation work without one.",
+    setupSpace: "needs {needed} free, you have {free}",
+    setupLater: "Later",
+    setupNever: "Don't ask again",
+    setupClose: "Close",
     dictInstall: "Download",
     dictDownloading: "downloading",
     dictInstalling: "verifying and installing…",
@@ -177,6 +188,14 @@ const STRINGS = {
     dictEdCore: "收录基本词汇。默认。",
     dictEdFull: "另收录各类专有名词。",
     dictEdFullWarning: "在中国大陆可能无法下载。",
+    dictManage: "管理",
+    dictSetUp: "设置",
+    setupIntro: "直接在网易云自带的歌词页面上标注：日语的振假名与罗马音、普通话的拼音，以及可选的 AI 翻译。",
+    setupNeedsDictionary: "日语读音需要词典。普通话与翻译无需词典即可使用。",
+    setupSpace: "需要 {needed} 可用空间，当前可用 {free}",
+    setupLater: "稍后",
+    setupNever: "不再提示",
+    setupClose: "关闭",
     dictInstall: "下载",
     dictDownloading: "下载中",
     dictInstalling: "校验并安装中…",

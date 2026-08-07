@@ -24,6 +24,7 @@ import { applyStyles } from "./host/styles.ts";
 import { getSettings } from "./host/settings.ts";
 import { buildConfigPanel } from "./host/configPanel/index.ts";
 import { installCopyHandler } from "./host/copy.ts";
+import { openDictionarySetup } from "./host/setup/dialog.ts";
 
 async function start(): Promise<void> {
   applyStyles();
@@ -51,6 +52,18 @@ async function start(): Promise<void> {
   startAnnotator(paths);
   installCopyHandler();
 
+  // First run, and only ever once. Two conditions, both required: the user has
+  // not answered before, and there is genuinely no dictionary. The second is
+  // what makes this self-clearing, so there is no "have they seen it" flag that
+  // can get out of step with reality.
+  //
+  // Raised here rather than from the panel because the whole problem is that a
+  // new install shows no furigana and says nothing about why, and the settings
+  // panel is the place someone goes *after* deciding something is wrong.
+  if (getSettings().dictSetupSeen === "" && installed.length === 0) {
+    openDictionarySetup({ firstRun: true });
+  }
+
   // Debug handle for testing from the console.
   (window as unknown as Record<string, unknown>).kashiyomi = {
     state: () => nativeState(),
@@ -61,6 +74,10 @@ async function start(): Promise<void> {
       listeners: dictionaryListenerCount(),
     }),
     cancelDictionary: cancelDictionaryDownload,
+    // The setup dialog without clicking through to it. `firstRun` shows the
+    // introduction and the two dismissals, which is otherwise reachable only on
+    // a machine that has never had a dictionary.
+    setup: (firstRun = false) => openDictionarySetup({ firstRun }),
     // Every dictionary failure state on demand, so the messages can be read in
     // the real panel without unplugging anything. Unit tests prove the state
     // machine; they cannot tell whether "could not reach the download" reads
