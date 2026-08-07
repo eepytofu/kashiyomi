@@ -151,12 +151,16 @@ export function openDictionarySetup(): void {
     if (freeBytes === undefined) freeBytes = readFreeSpace();
     const now = state();
 
-    // Only while nothing has started: it answers "will this fit", which stops
-    // being a question the moment a download begins and never becomes one
-    // again. The row keeps its height in every state, so the dialog does not
-    // resize as it moves between them.
+    // Held through the download, dropped only once it is done.
+    //
+    // It answers "will this fit", so strictly it stops being a question the
+    // moment a transfer starts. Blanking it there is defensible and looked
+    // wrong: the row is height-reserved, so the text vanished and left an empty
+    // gap above the status, and an element disappearing with no replacement
+    // reads as something broken. At DONE the success line takes over and the
+    // dialog is ending, which is a natural place for it to go.
     space.textContent =
-      now === "needed" && freeBytes !== undefined
+      now !== "done" && freeBytes !== undefined
         ? t("setupSpace")
             .replace("{needed}", mb(requiredFreeBytes(pinnedRelease().size)))
             .replace("{free}", size(freeBytes))
