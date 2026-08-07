@@ -44,8 +44,8 @@ export async function startDictionaryInstall(edition: DictionaryEdition): Promis
   // the version comparison and therefore almost never reached. The recorded
   // version is only known for editions this plugin installed: a dictionary put
   // there by `npm run fetch-dict`, or carried over from an older build, has no
-  // entry, so "is it on disk at the version I would download" answered no and
-  // 69 MB was fetched to replace a file that was already sitting there.
+  // entry, so "is it on disk at the version that would be downloaded" answered
+  // no and 69 MB was fetched to replace a file already sitting there.
   //
   // Whether the file is current is a separate question from whether it is
   // there, and it is the question `Update` asks. `Switch` only has to open it.
