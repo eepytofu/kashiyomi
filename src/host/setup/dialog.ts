@@ -1,8 +1,17 @@
 // The dictionary setup dialog: choose an edition, download it, watch it go.
 //
-// One surface for two jobs. On first run it introduces the plugin and explains
-// why Japanese does nothing yet; from settings it is the Manage button. They are
-// the same states, so they are the same dialog rather than two that drift.
+// One surface for two jobs. On first run it raises itself; from settings it is
+// the Manage button. They are the same states, so they are the same dialog
+// rather than two that drift, and `firstRun` changes only the dismissals.
+//
+// **It does not describe the plugin.** An earlier version opened with a summary
+// of every feature, which is a pitch in a place where nobody needs one: whoever
+// is looking at this either installed from a listing that already described it,
+// or pressed a button inside its own settings. What earns space is only what
+// the user must act on, and measured against the shipped defaults that is two
+// things. The Japanese dictionary, which is here. And an API key, which cannot
+// be here, because the settings panel has six coupled controls for it and half
+// a copy would be two places to configure one feature.
 //
 // **Why a dialog is allowed here.** The project's first rule protects the lyrics
 // page: never replace it, never overlay it. A transient, dismissible,
@@ -32,6 +41,7 @@ import { currentAssetPaths } from "../annotator.ts";
 import { nativeFreeSpace } from "../native.ts";
 import { getSettings, updateSettings } from "../settings.ts";
 import { SETUP_CSS } from "./styles.ts";
+import { UI_ROOT_CLASS, ensureSharedStyles } from "../uiStyles.ts";
 
 /**
  * Smallest first, unlike `DICTIONARY_EDITIONS`.
@@ -45,6 +55,7 @@ const OFFERED: readonly DictionaryEdition[] = ["small", "core", "full"];
 let open: HTMLDialogElement | undefined;
 
 function ensureStyles(): void {
+  ensureSharedStyles();
   if (document.getElementById("kashiyomi-setup-css")) return;
   const style = document.createElement("style");
   style.id = "kashiyomi-setup-css";
@@ -72,7 +83,7 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
   const firstRun = options.firstRun === true;
 
   const dialog = document.createElement("dialog");
-  dialog.className = "kashiyomi-setup";
+  dialog.className = `kashiyomi-setup ${UI_ROOT_CLASS}`;
   open = dialog;
 
   const title = document.createElement("div");
@@ -80,26 +91,25 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
   title.textContent = "Kashiyomi（歌詞読み）";
   dialog.appendChild(title);
 
-  if (firstRun) {
-    const intro = document.createElement("div");
-    intro.className = "ks-intro";
-    intro.textContent = t("setupIntro");
-    dialog.appendChild(intro);
-  }
-
+  // No pitch. Whoever opened this either installed the plugin from a listing
+  // that already described it, or pressed a button in its own settings. What
+  // belongs here is only what they have to *act* on, which is two things: the
+  // dictionary below, and an API key they can only set in the settings panel.
   const need = document.createElement("div");
   need.className = "ks-need";
   need.textContent = t("setupNeedsDictionary");
   dialog.appendChild(need);
 
+  // The same card-of-rows the settings panel is built from, rather than a
+  // second list idiom that happens to look similar.
   const list = document.createElement("div");
-  list.className = "ks-list";
+  list.className = "kc-card";
   dialog.appendChild(list);
 
   const radios = new Map<DictionaryEdition, HTMLInputElement>();
   for (const edition of OFFERED) {
     const label = document.createElement("label");
-    label.className = "ks-option";
+    label.className = "kc-row ks-option";
 
     const radio = document.createElement("input");
     radio.type = "radio";
@@ -115,11 +125,11 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
     const body = document.createElement("div");
     body.className = "ks-option-body";
     const head = document.createElement("div");
-    head.className = "ks-option-head";
+    head.className = "kc-label";
     head.textContent = `${edition} · ${mb(pinnedRelease(edition).size)}`;
     body.appendChild(head);
     const note = document.createElement("div");
-    note.className = "ks-option-note";
+    note.className = "kc-desc";
     note.textContent = editionNote(edition);
     body.appendChild(note);
     label.appendChild(body);
@@ -193,7 +203,7 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
     for (const [edition, radio] of radios) {
       radio.checked = edition === preferred;
       radio.disabled = !view.pickerEnabled;
-      radio.parentElement?.classList.toggle("ks-disabled", !view.pickerEnabled);
+      radio.parentElement?.classList.toggle("kc-inert", !view.pickerEnabled);
     }
 
     space.textContent =

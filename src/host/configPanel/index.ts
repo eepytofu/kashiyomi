@@ -12,6 +12,7 @@ import {
   getSettings,
 } from "../settings.ts";
 import { PANEL_CSS } from "./css.ts";
+import { UI_ROOT_CLASS, ensureSharedStyles } from "../uiStyles.ts";
 import { dictionaryInventory, onDictionaryChange } from "../dictionary.ts";
 import { dictionaryRow } from "./dictionaryRow.ts";
 import { onPanelTeardown, teardownPanel } from "./lifecycle.ts";
@@ -31,7 +32,7 @@ const REPO_URL = "https://github.com/eepytofu/kashiyomi";
 
 export function buildConfigPanel(): HTMLElement {
   const root = document.createElement("div");
-  root.className = "kashiyomi-config";
+  root.className = `kashiyomi-config ${UI_ROOT_CLASS}`;
   render(root);
   return root;
 }
@@ -40,6 +41,7 @@ function render(root: HTMLElement): void {
   // A rebuild detaches every node below, so anything still subscribed or still
   // ticking is writing into a document it has left. Four paths reach this
   // function, so a row that does not clean up leaks once per visit.
+  ensureSharedStyles();
   teardownPanel();
   root.textContent = "";
   const style = document.createElement("style");
@@ -66,22 +68,22 @@ function render(root: HTMLElement): void {
   // whole card. Font routing happens during classification (`applyScriptFont`),
   // before anything is analyzed, so the two font rows work with no dictionary at
   // all and greying them would misdescribe them.
-  const inert = [
+  const gated = [
     toggleRow("furigana", t("furigana"), t("furiganaDesc"), refreshPreview),
     toggleRow("romaji", t("romaji"), t("romajiDesc"), refreshPreview),
     toggleRow("readingHints", t("hints"), t("hintsDesc"), refreshPreview),
     toggleRow("hanRepair", t("repair"), t("repairDesc"), refreshPreview),
     sizeRow(refreshPreview),
   ];
-  for (const rowEl of inert) jp.appendChild(rowEl);
+  for (const rowEl of gated) jp.appendChild(rowEl);
   jp.appendChild(toggleRow("useJpFont", t("jpFont"), t("jpFontDesc"), refreshPreview, false));
   jp.appendChild(fontStackRow("jpFontStack", DEFAULT_JP_FONT_STACK, "fontStack", "fontStackDesc", refreshPreview));
   // Last in the Japanese card: it is the escape hatch for when everything
   // above got a reading wrong, so it reads in the order someone reaches for it.
   const overrides = readingOverridesRow();
   jp.appendChild(overrides);
-  inert.push(overrides);
-  gateOnDictionary(inert, needsDictionary);
+  gated.push(overrides);
+  gateOnDictionary(gated, needsDictionary);
   left.appendChild(jp);
 
   left.appendChild(sectionTitle(t("sectionChinese")));

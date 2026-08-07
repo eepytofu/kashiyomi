@@ -1,9 +1,11 @@
-// Styles for the settings panel only. The lyric-page stylesheet is separate
-// and lives in host/styles.ts.
+// Styles for the settings panel only.
+//
+// Cards, rows, labels, buttons and status dots are not here: they are shared
+// with the setup dialog and live in host/uiStyles.ts. The lyric-page stylesheet
+// is a third thing again, in host/styles.ts.
 
 export const PANEL_CSS = `
 .kashiyomi-config { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(250px, 0.75fr); gap: 14px; align-items: start; padding: 4px 2px 16px; max-width: 980px; }
-.kashiyomi-config * { box-sizing: border-box; }
 .kashiyomi-config .kc-full { grid-column: 1 / -1; }
 .kashiyomi-config .kc-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 /* The preview follows the settings down instead of scrolling away after the
@@ -20,28 +22,7 @@ export const PANEL_CSS = `
   background: rgba(255, 255, 255, 0.06); font-size: 13px;
 }
 .kashiyomi-config .kc-status-right { display: flex; align-items: center; gap: 14px; }
-.kashiyomi-config .kc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: #999; }
-.kashiyomi-config .kc-ready .kc-dot { background: #52c41a; }
-.kashiyomi-config .kc-bad .kc-dot { background: #ff4d4f; }
-.kashiyomi-config .kc-loading .kc-dot { background: #faad14; }
 .kashiyomi-config .kc-section-title { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.68; margin: 2px 2px -6px; }
-.kashiyomi-config .kc-card { border-radius: 10px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
-.kashiyomi-config .kc-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 14px; cursor: pointer; }
-.kashiyomi-config .kc-row + .kc-row { border-top: 1px solid rgba(255, 255, 255, 0.06); }
-.kashiyomi-config .kc-row:hover { background: rgba(255, 255, 255, 0.04); }
-/* Weight separates label from description, not opacity. The two were 13.5px and
-   12px — a 1.125 ratio, near-identical — so the whole hierarchy rested on
-   opacity, which is also what sets contrast. That made the two impossible to
-   tune apart: every step towards legibility flattened the hierarchy. With the
-   label carrying its own weight, opacity is free to serve contrast alone. */
-.kashiyomi-config .kc-label { font-size: 13.5px; font-weight: 500; line-height: 1.3; }
-.kashiyomi-config .kc-desc { font-size: 12px; opacity: 0.68; margin-top: 2px; line-height: 1.35; }
-/* A setting that cannot do anything yet, rather than one that is hidden. It
-   stays readable so the panel does not change shape when a dictionary arrives,
-   and its controls are genuinely disabled so nothing can be switched into a
-   state that silently has no effect. */
-.kashiyomi-config .kc-inert { opacity: 0.45; cursor: default; }
-.kashiyomi-config .kc-inert:hover { background: transparent; }
 .kashiyomi-config .kc-needs-dict { padding: 9px 14px; font-size: 12px; opacity: 0.68; }
 .kashiyomi-config .kc-switch { position: relative; flex: none; width: 40px; height: 24px; }
 .kashiyomi-config .kc-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
@@ -75,8 +56,6 @@ export const PANEL_CSS = `
 }
 .kashiyomi-config .kc-switch input:checked:focus-visible + .kc-track { box-shadow: 0 0 0 2px rgba(236, 65, 65, 0.75); }
 .kashiyomi-config .kc-switch input:checked + .kc-track::after { transform: translateX(16px); }
-.kashiyomi-config .kc-button { padding: 6px 14px; border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.1); color: inherit; font-size: 12.5px; cursor: pointer; }
-.kashiyomi-config .kc-button:hover { background: rgba(255, 255, 255, 0.16); }
 .kashiyomi-config .kc-select {
   position: relative; flex: none; display: inline-flex; align-items: center;
 }

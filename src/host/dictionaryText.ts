@@ -120,9 +120,22 @@ export function actionEdition(
   return action.kind === "installEdition" ? action.edition : preferred;
 }
 
-/** What an edition contains, in the publisher's own words. */
+/**
+ * Join two sentences the way the script they are written in would.
+ *
+ * A full-width stop already carries its own trailing space inside the glyph
+ * box, so following it with an ASCII space leaves a visible gap: measured in the
+ * live dialog as `仅收录 UniDic 的词汇。 从 PyPI 下载。`. Latin punctuation
+ * needs the space, CJK punctuation does not, and which one applies is a
+ * property of the preceding character rather than of the panel language.
+ */
+function joinSentences(first: string, second: string): string {
+  return /[。！？；：]$/u.test(first) ? `${first}${second}` : `${first} ${second}`;
+}
+
+/** What an edition contains, in the publisher's own words, and where it comes from. */
 export function editionNote(edition: DictionaryEdition): string {
   const key = ({ small: "dictEdSmall", core: "dictEdCore", full: "dictEdFull" } as const)[edition];
   // Every edition says where it comes from, not just the odd one out.
-  return `${t(key)} ${t(needsRelay(edition) ? "dictEdFromFull" : "dictEdFrom")}`;
+  return joinSentences(t(key), t(needsRelay(edition) ? "dictEdFromFull" : "dictEdFrom"));
 }

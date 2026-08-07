@@ -65,13 +65,21 @@ const STRINGS = {
     dictNeededForThese: "These need the Japanese dictionary.",
     dictManage: "Manage",
     dictSetUp: "Set up",
-    // Shown once, on the first launch with no dictionary. Says what works now,
-    // what does not, and why, because the alternative is a plugin that appears
-    // to do nothing on Japanese lyrics with no way to find out.
-    setupIntro: "Annotates NetEase's own lyrics page, in place: furigana and romaji for Japanese, pinyin for Mandarin, and optional AI translation.",
-    setupNeedsDictionary: "Japanese readings need a dictionary. Mandarin and translation work without one.",
+    // The two things a new install needs a decision about, and nothing else.
+    // Everything else is on by default and works with no setup at all, so
+    // listing it would be telling someone about work they do not have to do.
+    //
+    // The second line replaced "Mandarin and translation work without one",
+    // which was true about the dictionary and misleading about translation:
+    // `translator.ts` needs a key and a model before it runs, so a reader who
+    // believed that line and switched translation on got nothing, and no
+    // explanation. That is the silent failure this dialog exists to prevent.
+    setupNeedsDictionary:
+      "Japanese readings need a dictionary.\nAI translation needs your own API key, set in this plugin's settings.",
     setupSpace: "needs {needed} free, you have {free}",
-    setupLater: "Later",
+    // Not "Later": everything except Japanese readings already works, so
+    // deferring the dictionary is continuing rather than postponing the plugin.
+    setupLater: "Skip for now",
     setupNever: "Don't ask again",
     setupClose: "Close",
     dictInstall: "Download",
@@ -200,10 +208,10 @@ const STRINGS = {
     dictNeededForThese: "以下设置需要日语词典。",
     dictManage: "管理",
     dictSetUp: "设置",
-    setupIntro: "直接在网易云自带的歌词页面上标注：日语的振假名与罗马音、普通话的拼音，以及可选的 AI 翻译。",
-    setupNeedsDictionary: "日语读音需要词典。普通话与翻译无需词典即可使用。",
+    setupNeedsDictionary:
+      "日语读音需要词典。\nAI 翻译需要自备 API key，在本插件的设置中填写。",
     setupSpace: "需要 {needed} 可用空间，当前可用 {free}",
-    setupLater: "稍后",
+    setupLater: "暂时跳过",
     setupNever: "不再提示",
     setupClose: "关闭",
     dictInstall: "下载",
