@@ -42,28 +42,10 @@ const STRINGS = {
     dictNotInstalled: "not installed",
     // SudachiDict's own README, verbatim. The publisher describes its three
     // editions in one line each, so the plugin quotes them instead of writing a
-    // second description that would have to be re-verified against the
-    // dictionary every release.
-    //
-    // Whatever replaces these must not rank the editions on reading accuracy.
-    // Measured on all three: core is right on 赤巻紙, full on 千本桜 and
-    // 六兆年と一夜物語. Neither wins overall.
-    dictEdSmall: "Includes only the vocabulary of UniDic.",
-    dictEdCore: "Includes basic vocabulary.",
-    dictEdFull: "Includes miscellaneous proper nouns.",
-    // Where each edition comes from, said for **all three** rather than only the
-    // one that is different. A provenance line on `full` alone reads as a
-    // warning flag; next to two ordinary ones it reads as what it is, and the
-    // reason it differs (size, not trust) answers the obvious question before
-    // it is asked.
-    dictEdFromFull: "Not on PyPI, so it can fall back to a third-party relay.",
     // Shown over the settings that do nothing until a dictionary is installed.
     // Not all of the Japanese card: fonts route during classification, so they
     // work with no dictionary at all, and greying them would be a lie.
     dictNeededForThese: "These need the Japanese dictionary.",
-    dictInUse: "in use",
-    dictManage: "Manage",
-    dictSetUp: "Set up",
     // The two things a new install needs a decision about, and nothing else.
     // Everything else is on by default and works with no setup at all, so
     // listing it would be telling someone about work they do not have to do.
@@ -103,17 +85,13 @@ const STRINGS = {
     dictWorkDownloading: "Downloading…",
     dictWorkInstalling: "Installing…",
     // Free space, not download size: the archive and its extraction exist at
-    // once, so 121 MB of download needs about 548 MB free.
+    // once, so 68.9 MB of download needs about 340 MB free.
     dictNoSpace: (needed: string) => `not enough disk space, ${needed} free required`,
-    dictSpaceForOther: (wanted: string, fits: string, needed: string) =>
-      `not enough space for ${wanted}, ${fits} needs ${needed} free`,
-    dictDownloadEdition: (edition: string) => `Download ${edition}`,
     // Shown on the lyrics page itself when a Japanese line has no dictionary to
     // read it with. A fact and where to fix it, in that order, in one line: the
     // convention across published plugins is an inline notice in your own
     // surface, never a popup, and a statement rather than an instruction.
     dictNoticeMissing: "No Japanese dictionary installed. Download it in Kashiyomi settings.",
-    dictSwitch: "Switch",
     dictRetry: "Retry",
     dictFailed: "failed",
     dictFail_offline: "could not reach the download",
@@ -200,14 +178,7 @@ const STRINGS = {
     groupWordsDesc: "",
     dictionary: "日语词典",
     dictNotInstalled: "未安装",
-    dictEdSmall: "仅收录 UniDic 的词汇。",
-    dictEdCore: "收录基本词汇。",
-    dictEdFull: "另收录各类专有名词。",
-    dictEdFromFull: "PyPI 不提供，因此可能改用第三方中转。",
     dictNeededForThese: "以下设置需要日语词典。",
-    dictInUse: "使用中",
-    dictManage: "管理",
-    dictSetUp: "设置",
     setupNeedsDictionary:
       "日语读音需要词典。\nAI 翻译需要自备 API key，在本插件的设置中填写。",
     setupSpace: "需要 {needed} 可用空间，当前可用 {free}",
@@ -231,11 +202,7 @@ const STRINGS = {
     dictWorkDownloading: "下载中…",
     dictWorkInstalling: "安装中…",
     dictNoSpace: (needed: string) => `磁盘空间不足，需要 ${needed} 可用空间`,
-    dictSpaceForOther: (wanted: string, fits: string, needed: string) =>
-      `空间不足以安装 ${wanted}，${fits} 需要 ${needed} 可用空间`,
-    dictDownloadEdition: (edition: string) => `下载 ${edition}`,
     dictNoticeMissing: "尚未安装日语词典，请在 Kashiyomi 设置中下载。",
-    dictSwitch: "切换",
     dictRetry: "重试",
     dictFailed: "失败",
     dictFail_offline: "无法连接下载源",
@@ -314,10 +281,3 @@ export function tNoSpace(needed: string): string {
   return STRINGS[panelLang()].dictNoSpace(needed);
 }
 
-export function tSpaceForOther(wanted: string, fits: string, needed: string): string {
-  return STRINGS[panelLang()].dictSpaceForOther(wanted, fits, needed);
-}
-
-export function tDownloadEdition(edition: string): string {
-  return STRINGS[panelLang()].dictDownloadEdition(edition);
-}

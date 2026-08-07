@@ -11,14 +11,14 @@ import {
   dictionaryJob,
   dictionaryListenerCount,
   downloadDictionary,
-  installedEditions,
+  dictionaryOnDisk,
   planDownload,
   reportInventory,
   resolveRelease,
   simulateDictionaryFailure,
   sweepAbandonedDownloads,
 } from "./host/dictionary.ts";
-import { chooseBootEdition, dictionaryPath } from "./engine/dictionaryLayout.ts";
+import { dictionaryPath } from "./engine/dictionaryLayout.ts";
 import { resolveAssetPaths } from "./host/paths.ts";
 import { applyStyles } from "./host/styles.ts";
 import { getSettings } from "./host/settings.ts";
@@ -35,19 +35,18 @@ async function start(): Promise<void> {
   }
   log.info("asset paths", paths);
   // A download killed mid-flight leaves ~69 MB stranded. Sweeping at startup is
-  // what stops us being the cause of the full disk we otherwise report politely.
+  // what stops the plugin causing the full disk it otherwise reports politely.
   sweepAbandonedDownloads(paths.dictDir);
-  // Load what is on disk, not what settings wish were there. These can disagree
-  // — a failed install, a manual delete, a preference changed before the
-  // download ran — and the disk is the only one of the two that can be opened.
-  const installed = await installedEditions(paths.dictDir);
-  const boot = chooseBootEdition(getSettings().dictPreferredEdition, installed);
-  log.info(`dictionaries on disk: [${installed.join(", ")}], loading: ${boot.load ?? "none"}`);
-  reportInventory(installed, boot.load);
+  // Ask the disk, not the settings. The recorded version and the file can
+  // disagree (a failed install, a manual delete), and only one of the two can
+  // be opened.
+  const installed = await dictionaryOnDisk(paths.dictDir);
+  log.info(`dictionary on disk: ${installed}`);
+  reportInventory(installed, false);
   const status = nativeState();
   log.info("native state:", status.state, status.error ?? "");
-  if (boot.load && (status.state === "uninitialized" || status.state === "failed")) {
-    nativeInit(dictionaryPath(paths.dictDir, boot.load), paths.resourceDir);
+  if (installed && (status.state === "uninitialized" || status.state === "failed")) {
+    nativeInit(dictionaryPath(paths.dictDir), paths.resourceDir);
   }
   startAnnotator(paths);
   installCopyHandler();
@@ -60,8 +59,8 @@ async function start(): Promise<void> {
   // Raised here rather than from the panel because the whole problem is that a
   // new install shows no furigana and says nothing about why, and the settings
   // panel is the place someone goes *after* deciding something is wrong.
-  if (getSettings().dictSetupSeen === "" && installed.length === 0) {
-    openDictionarySetup({ firstRun: true });
+  if (getSettings().dictSetupSeen === "" && !installed) {
+    openDictionarySetup();
   }
 
   // Debug handle for testing from the console.
@@ -74,10 +73,11 @@ async function start(): Promise<void> {
       listeners: dictionaryListenerCount(),
     }),
     cancelDictionary: cancelDictionaryDownload,
-    // The setup dialog without clicking through to it. `firstRun` shows the
-    // introduction and the two dismissals, which is otherwise reachable only on
-    // a machine that has never had a dictionary.
-    setup: (firstRun = false) => openDictionarySetup({ firstRun }),
+    // The first-run dialog without clicking through to it, which is otherwise
+    // reachable only on a machine that has never had a dictionary. There is no
+    // settings button for it: re-running a first-run prompt is a thing to test,
+    // not a thing to offer.
+    setup: () => openDictionarySetup(),
     // Every dictionary failure state on demand, so the messages can be read in
     // the real panel without unplugging anything. Unit tests prove the state
     // machine; they cannot tell whether "could not reach the download" reads
@@ -90,14 +90,14 @@ async function start(): Promise<void> {
     // Runs the real fetch → verify → install → reload path against the data
     // directory, so it can be exercised without clicking and without touching a
     // development checkout's own dictionary.
-    downloadDictionary: async (edition: "small" | "core" = "core") => {
+    downloadDictionary: async () => {
       // Deliberately the data directory rather than `paths.dictDir`: under
       // dev-paths.json the latter is the checkout's own assets/dict, and a
       // debug download must not overwrite the dictionary being developed
       // against. The consequence is that in a dev install this exercises the
       // whole path without the result being what the analyzer then loads.
       const dataDir = `${await betterncm.app.getDataPath()}/kashiyomi`.replace(/\\/gu, "/");
-      const release = await resolveRelease(edition);
+      const release = await resolveRelease();
       const paths = await resolveAssetPaths();
       return downloadDictionary(planDownload(release.release, dataDir), paths?.resourceDir ?? "");
     },

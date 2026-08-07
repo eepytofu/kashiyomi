@@ -1,10 +1,8 @@
 // Plugin settings persisted as one JSON blob in localStorage.
 
-import type { DictionaryEdition } from "../engine/dictionarySource.ts";
 import {
   migrateDictionarySettings,
   type DictionarySetupSeen,
-  type DictionaryVersions,
 } from "../engine/dictionaryState.ts";
 
 export type Settings = {
@@ -19,13 +17,10 @@ export type Settings = {
   annotateCredits: boolean;
   debug: boolean;
   /**
-   * Which SudachiDict edition the user wants. **Never written by the install
-   * path**: it records a choice, and an install that failed or was interrupted
-   * used to overwrite it with whatever actually landed.
+   * The release on disk, e.g. "20260723", or undefined when nothing is
+   * installed or the file was placed there from outside the plugin.
    */
-  dictPreferredEdition: DictionaryEdition;
-  /** Release date per edition on disk, e.g. `{ core: "20260723" }`. */
-  dictVersions: DictionaryVersions;
+  dictVersion: string | undefined;
   /** Whether the first-run setup has been answered, and how. */
   dictSetupSeen: DictionarySetupSeen;
   /** rt size as a percentage of the base lyric font. */
@@ -90,8 +85,7 @@ const DEFAULTS: Settings = {
   readingHints: true,
   annotateCredits: false,
   debug: true,
-  dictPreferredEdition: "core",
-  dictVersions: {},
+  dictVersion: undefined,
   dictSetupSeen: "",
   furiganaSize: 50,
   useJpFont: true,

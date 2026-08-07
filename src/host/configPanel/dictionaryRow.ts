@@ -1,23 +1,36 @@
-// The dictionary's line in the settings panel: what is installed, and a way in.
+// The dictionary's line in the settings panel: what is installed, and the
+// button that does something about it.
 //
-// Everything else moved into the setup dialog. The row used to carry the
-// edition picker, a description of the selected edition, an action button and a
-// cancel button, which made it three times the height of its neighbours and
-// crushed its own label at any narrow window: measured at 1536px, the note left
-// the label 67px and wrapped "Japanese dictionary" over three lines.
+// It carries the whole feature now. There is one dictionary, so there is
+// nothing to choose and nothing to manage — the row that reports the state is
+// the right place to act on it, and a dialog for a single button would be a
+// dialog for its own sake. What the row shows is the state and one verb:
+// `Install` while there is nothing, `Update` once there is.
 //
-// The dialog was needed anyway for first run, so keeping a second copy of the
-// same choice here would have been two surfaces showing the same three editions
-// and drifting apart. One surface, one entry point.
+// The setup dialog still exists, but only for first run, where the point is
+// telling someone a 69 MB prerequisite is missing before they meet a plugin
+// that appears to do nothing.
 
 import { t } from "../i18n.ts";
-import { dictionaryInventory, dictionaryJob, onDictionaryChange } from "../dictionary.ts";
+import {
+  cancelDictionaryDownload,
+  checkForNewerRelease,
+  dictionaryInventory,
+  dictionaryJob,
+  onDictionaryChange,
+} from "../dictionary.ts";
+import { startDictionaryInstall } from "../dictionaryInstall.ts";
 import { dictionaryRowState } from "../../engine/dictionaryRowState.ts";
-import { describe } from "../dictionaryText.ts";
-import { openDictionarySetup } from "../setup/dialog.ts";
-import { getSettings } from "../settings.ts";
+import { actionLabel, describe } from "../dictionaryText.ts";
+import { currentAssetPaths } from "../annotator.ts";
+import { nativeFreeSpace } from "../native.ts";
 import { onPanelTeardown } from "./lifecycle.ts";
 import { row, rowText } from "./rows.ts";
+
+function readFreeSpace(): number | undefined {
+  const dir = currentAssetPaths()?.dictDir;
+  return dir === undefined ? undefined : nativeFreeSpace(dir);
+}
 
 export function dictionaryRow(): HTMLElement {
   const el = row();
@@ -28,36 +41,92 @@ export function dictionaryRow(): HTMLElement {
   // description underneath already reads "installed" or "not installed".
   el.appendChild(text);
 
-  const manage = document.createElement("button");
-  manage.className = "kc-button";
-  manage.onclick = () => openDictionarySetup();
-  el.appendChild(manage);
+  // Always in the DOM, shown and hidden rather than added and removed, so
+  // starting a download does not change the row's height or shift the button
+  // out from under the pointer that just pressed it.
+  const cancel = document.createElement("button");
+  cancel.className = "kc-button";
+  cancel.textContent = t("dictCancel");
+  cancel.onclick = () => cancelDictionaryDownload();
+  el.appendChild(cancel);
 
-  const paint = (): void => {
-    const view = dictionaryRowState({
-      preferred: getSettings().dictPreferredEdition,
+  const primary = document.createElement("button");
+  primary.className = "kc-button";
+  el.appendChild(primary);
+
+  // Asked once, then again after an install, rather than on every repaint: it
+  // is a native call and progress repaints several times a second.
+  let freeBytes = readFreeSpace();
+
+  const view = (): ReturnType<typeof dictionaryRowState> =>
+    dictionaryRowState({
       inventory: dictionaryInventory(),
       job: dictionaryJob(),
       now: Date.now(),
-      // The space check belongs to the surface that offers the download. This
-      // row only reports, so it never needs to say an edition will not fit.
-      freeBytes: undefined,
-      // A download running anywhere still shows here; its *outcome* does not.
-      // The row reports what is installed, and "already the newest release" on
-      // a row nobody pressed is a claim about a check it did not make.
-      ownsJob: false,
+      freeBytes,
+      // This row is where the button is, so it reports its own outcomes.
+      ownsJob: true,
     });
-    if (description) description.textContent = describe(view.message);
-    // `Set up` while there is nothing, `Manage` once there is: the same button,
-    // named for what pressing it is for at that moment.
-    manage.textContent =
-      dictionaryInventory().installed.length === 0 ? t("dictSetUp") : t("dictManage");
+
+  const paint = (): void => {
+    if (freeBytes === undefined) freeBytes = readFreeSpace();
+    const current = view();
+
+    if (description) description.textContent = describe(current.message);
+    primary.textContent = actionLabel(current.primary.action);
+    primary.disabled = current.primary.disabled;
+    cancel.style.display = current.cancel.shown ? "" : "none";
+    cancel.disabled = current.cancel.disabled;
+
+    if (current.settling) startPolling();
+  };
+
+  // A cooldown expiring and a progress figure advancing both change the view
+  // without anything calling the row, so `settling` is what asks to be
+  // repainted on a timer rather than only on a state change.
+  let poll: number | undefined;
+  const stopPolling = (): void => {
+    if (poll === undefined) return;
+    window.clearInterval(poll);
+    poll = undefined;
+  };
+  const startPolling = (): void => {
+    if (poll !== undefined) return;
+    poll = window.setInterval(() => {
+      const settling = view().settling;
+      paint();
+      if (!settling) stopPolling();
+    }, 300);
+  };
+
+  primary.onclick = () => {
+    startPolling();
+    void startDictionaryInstall().then(() => {
+      // The disk has changed by roughly 207 MB, so the cached answer is stale
+      // exactly when it next matters.
+      freeBytes = readFreeSpace();
+      paint();
+    });
   };
 
   paint();
-  // Follow the status wherever it is changed from, including the dialog this
-  // row opens, and surrender the subscription when the panel is rebuilt.
+  // Follow the status wherever it is changed from, including the first-run
+  // dialog, and surrender the subscription when the panel is rebuilt.
   const unsubscribe = onDictionaryChange(paint);
-  onPanelTeardown(unsubscribe);
+  onPanelTeardown(() => {
+    unsubscribe();
+    stopPolling();
+  });
+
+  // Check for a newer release as the panel opens, rather than waiting for a
+  // press. Without it the row could only repeat whatever the last manual check
+  // found, which is how "already the newest release" came to be shown by
+  // something that had checked nothing.
+  //
+  // Silent on failure: opening settings must not produce an error nobody asked
+  // for, and `resolveRelease` falls back to the pinned release reporting
+  // `checked: false`, which the view reads as "do not claim to know".
+  if (dictionaryInventory().installed) void checkForNewerRelease();
+
   return el;
 }

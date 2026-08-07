@@ -637,20 +637,6 @@
     "replace": "  return archiveBytes + MARGIN;"
   },
   {
-    "id": "dictionary/space-prefers-smallest",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "the edition order is reversed, so a roomy disk is given the small edition and boot picks a different file than the one it deletes",
-    "find": "export const DICTIONARY_EDITIONS = [\"full\", \"core\", \"small\"] as const;",
-    "replace": "export const DICTIONARY_EDITIONS = [\"small\", \"core\", \"full\"] as const;"
-  },
-  {
-    "id": "dictionary/offers-unpriced-edition",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "an edition whose size never resolved is offered anyway, so the disk check is skipped",
-    "find": "    if (archive === undefined) continue;",
-    "replace": "    if (archive === undefined) return edition;"
-  },
-  {
     "id": "dictionary/dead-end-offers-retry",
     "file": "src/engine/dictionarySource.ts",
     "what": "every failure offers a retry, including the one where retrying repeats the same two refusals",
@@ -658,32 +644,18 @@
     "replace": "  return true;"
   },
   {
-    "id": "dictionary/filename-drops-the-edition",
-    "file": "src/engine/dictionaryLayout.ts",
-    "what": "every edition installs to one filename again, so boot opens core's path over small's bytes",
-    "find": "  return `system_${edition}.dic`;",
-    "replace": "  return \"system_core.dic\";"
-  },
-  {
     "id": "dictionary/archive-is-not-sweepable",
     "file": "src/engine/dictionaryLayout.ts",
     "what": "a staged archive loses the .part suffix the startup sweeper matches on, stranding ~69 MB per killed download",
-    "find": "  return `sudachidict_${edition}-${version}.whl.part`;",
-    "replace": "  return `sudachidict_${edition}-${version}.whl`;"
-  },
-  {
-    "id": "dictionary/deletes-the-only-dictionary",
-    "file": "src/engine/dictionaryLayout.ts",
-    "what": "the edition boot just loaded is also marked deletable, so a machine whose preference never installed loses the one dictionary it had",
-    "find": "  return { load: present[0]!, deletable: [] };",
-    "replace": "  return { load: present[0]!, deletable: present };"
+    "find": "  return `sudachidict_core-${version}.whl.part`;",
+    "replace": "  return `sudachidict_core-${version}.whl`;"
   },
   {
     "id": "dictionary/listing-trusts-partials",
     "file": "src/engine/dictionaryLayout.ts",
     "what": "a half-written download counts as installed, so the row reports a dictionary the analyzer cannot open",
-    "find": "  return DICTIONARY_EDITIONS.find((edition) => dictionaryFileName(edition) === base);",
-    "replace": "  return DICTIONARY_EDITIONS.find((edition) => base.startsWith(dictionaryFileName(edition)));"
+    "find": "  return names.some((name) => baseName(name) === DICTIONARY_FILE);",
+    "replace": "  return names.some((name) => baseName(name).startsWith(DICTIONARY_FILE));"
   },
   {
     "id": "pinyin/modal-ying-ignored",
@@ -966,32 +938,11 @@
     "replace": "    if (reading === undefined || token.readingKana !== \"\") return token;"
   },
   {
-    "id": "dictstate/preference-follows-the-install",
+    "id": "dictstate/empty-version-stored",
     "file": "src/engine/dictionaryState.ts",
-    "what": "the legacy install field outranks the stored preference, so a failed switch rewrites what the user chose",
-    "find": "      asEdition(source.dictPreferredEdition) ?? asEdition(source.dictEdition) ?? \"core\",",
-    "replace": "      asEdition(source.dictEdition) ?? asEdition(source.dictPreferredEdition) ?? \"core\","
-  },
-  {
-    "id": "dictstate/empty-legacy-version-stored",
-    "file": "src/engine/dictionaryState.ts",
-    "what": "an empty legacy version becomes an entry, so a never-installed edition claims a release",
-    "find": "  if (typeof legacy === \"string\" && legacy !== \"\" && edition !== undefined) {",
-    "replace": "  if (typeof legacy === \"string\" && edition !== undefined) {"
-  },
-  {
-    "id": "dictstate/prune-keeps-absent-editions",
-    "file": "src/engine/dictionaryState.ts",
-    "what": "versions survive for editions no longer on disk, so the row dates a file nothing can open",
-    "find": "    if (!installed.includes(edition)) continue;",
-    "replace": "    if (false) continue;"
-  },
-  {
-    "id": "dictstate/switch-pending-on-empty-disk",
-    "file": "src/engine/dictionaryState.ts",
-    "what": "a machine with no dictionary reports a pending switch instead of a first install",
-    "find": "  return inventory.installed.length > 0 && !inventory.installed.includes(preferred);",
-    "replace": "  return !inventory.installed.includes(preferred);"
+    "what": "an empty version string is stored, so the row dates a dictionary with nothing",
+    "find": "    dictVersion: typeof version === \"string\" && version !== \"\" ? version : undefined,",
+    "replace": "    dictVersion: typeof version === \"string\" ? version : undefined,"
   },
   {
     "id": "rowstate/button-live-during-cooldown",
@@ -1001,18 +952,11 @@
     "replace": "    primary: { action: { kind: \"retry\" }, disabled: false },"
   },
   {
-    "id": "rowstate/picker-live-mid-install",
-    "file": "src/engine/dictionaryRowState.ts",
-    "what": "the edition picker stays enabled while an install runs, so the preference can be rewritten mid-flight",
-    "find": "    pickerEnabled: false,",
-    "replace": "    pickerEnabled: true,"
-  },
-  {
     "id": "rowstate/space-quotes-download-size",
     "file": "src/engine/dictionaryRowState.ts",
     "what": "the space warning quotes the archive size instead of the free space an install needs",
-    "find": "  const needed = requiredFreeBytes(pinnedRelease(wanted).size);",
-    "replace": "  const needed = pinnedRelease(wanted).size;"
+    "find": "  const needed = requiredFreeBytes(pinnedRelease().size);",
+    "replace": "  const needed = pinnedRelease().size;"
   },
   {
     "id": "rowstate/no-source-offers-retry",
@@ -1050,60 +994,11 @@
     "replace": "  return true"
   },
   {
-    "id": "dictionary/relay-tried-first",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "the third-party relay is tried before the publisher and its mirrors",
-    "find": "  const urls = [release.url];",
-    "replace": "  const urls = [`${RELAY}${github}`, release.url];"
-  },
-  {
-    "id": "dictionary/github-asset-unverified",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "a github asset with a non-sha256 digest is accepted, so unverifiable bytes install",
-    "find": "    if (!digest.startsWith(\"sha256:\")) return undefined;",
-    "replace": "    if (false) return undefined;"
-  },
-  {
-    "id": "dictionary/github-tag-keeps-its-v",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "the release tag keeps its leading v, so every derived filename and version is wrong",
-    "find": "  const version = tag.replace(/^v/u, \"\");",
-    "replace": "  const version = tag;"
-  },
-  {
-    "id": "dictionary/github-ignores-the-edition",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "any asset in the release is accepted, so asking for small can install full",
-    "find": "    if (asset.name !== wanted) continue;",
-    "replace": "    if (false) continue;"
-  },
-  {
-    "id": "dictionary/relay-trusted-for-metadata",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "the third-party relay is trusted to name a release, so it could supply both the url and the digest it is checked against",
-    "find": "    trusted: false,",
-    "replace": "    trusted: true,"
-  },
-  {
-    "id": "dictionary/pin-confirmed-on-version-alone",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "an untrusted source confirms the pin on a matching version alone, so a swapped digest passes",
-    "find": "  return release.version === pinned.version && release.sha256 === pinned.sha256;",
-    "replace": "  return release.version === pinned.version;"
-  },
-  {
-    "id": "rowstate/switch-labelled-as-update",
-    "file": "src/engine/dictionaryRowState.ts",
-    "what": "an installed edition that is not the loaded one offers Update, so pressing it reports no change and never switches",
-    "find": "      primary: { action: { kind: isSelection ? \"update\" : \"switch\" }, disabled: false },",
-    "replace": "      primary: { action: { kind: \"update\" }, disabled: false },"
-  },
-  {
     "id": "rowstate/unknown-version-reads-as-outdated",
     "file": "src/engine/dictionaryRowState.ts",
     "what": "a dictionary with no recorded version is reported as having an update, offering a download nobody can say is needed",
-    "find": "  return onDisk !== undefined && newest !== undefined && onDisk !== newest;",
-    "replace": "  return onDisk !== newest;"
+    "find": "  return version !== undefined && latest !== undefined && version !== latest;",
+    "replace": "  return version !== latest;"
   },
   {
     "id": "rowstate/bystander-reports-outcomes",
@@ -1111,19 +1006,5 @@
     "what": "a surface that did not press anything still reports the outcome, so the settings row claims a check it never made",
     "find": "  if (input.ownsJob === false) return undefined;",
     "replace": "  if (false) return undefined;"
-  },
-  {
-    "id": "rowstate/in-use-not-distinguished",
-    "file": "src/engine/dictionaryRowState.ts",
-    "what": "the loaded edition is not distinguished from a merely installed one, so the list cannot say which is actually reading the lyrics",
-    "find": "  if (inventory.loaded === edition) return \"in-use\";",
-    "replace": "  if (false) return \"in-use\";"
-  },
-  {
-    "id": "dictstate/supersedes-more-than-it-replaces",
-    "file": "src/engine/dictionaryState.ts",
-    "what": "an install deletes the loaded edition even when it is the one being updated, destroying the dictionary it just replaced in place",
-    "find": "  return loaded !== undefined && loaded !== target ? loaded : undefined;",
-    "replace": "  return loaded;"
   }
 ]

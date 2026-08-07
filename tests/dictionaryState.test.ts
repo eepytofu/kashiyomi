@@ -1,145 +1,78 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import {
-  migrateDictionarySettings,
-  pruneVersions,
-  supersededEdition,
-  switchPending,
-  withVersion,
-  type DictionaryInventory,
-} from "../src/engine/dictionaryState.ts";
+import { migrateDictionarySettings } from "../src/engine/dictionaryState.ts";
 
-const inventory = (
-  installed: readonly ("full" | "core" | "small")[],
-  loaded?: "full" | "core" | "small",
-): DictionaryInventory => ({ installed, versions: {}, loaded, latest: {} });
+// Not a migration, and there are no legacy-shape tests here on purpose: nothing
+// is released, so nothing needs backward compatibility (hard rule 10). What is
+// covered is the property that does matter — settings live in a JSON blob a
+// human can open and edit, and this runs on every read, so no value in it may
+// stop the plugin loading.
 
 test("a fresh install gets the defaults", () => {
-  const settings = migrateDictionarySettings({});
-  assert.equal(settings.dictPreferredEdition, "core");
-  assert.deepEqual(settings.dictVersions, {});
-  assert.equal(settings.dictSetupSeen, "");
+  assert.deepEqual(migrateDictionarySettings({}), {
+    dictVersion: undefined,
+    dictSetupSeen: "",
+  });
 });
 
-// The legacy shape is the one every existing install is holding right now:
-// one edition field doubling as installed-and-wanted, plus a single version
-// string. Losing either costs a 69 MB re-download to learn a date already on
-// the disk.
-test("the legacy edition and version carry over", () => {
-  const settings = migrateDictionarySettings({ dictEdition: "small", dictVersion: "20260723" });
-  assert.equal(settings.dictPreferredEdition, "small");
-  assert.deepEqual(settings.dictVersions, { small: "20260723" });
-});
-
-test("a legacy version with no edition is dropped rather than guessed", () => {
-  assert.deepEqual(migrateDictionarySettings({ dictVersion: "20260723" }).dictVersions, {});
-});
-
-test("an empty legacy version does not become an entry", () => {
-  assert.deepEqual(
-    migrateDictionarySettings({ dictEdition: "core", dictVersion: "" }).dictVersions,
-    {},
+test("a recorded version is read back", () => {
+  assert.equal(
+    migrateDictionarySettings({ dictVersion: "20260723" }).dictVersion,
+    "20260723",
   );
 });
 
-test("the new preference wins over the legacy field", () => {
-  const settings = migrateDictionarySettings({
-    dictPreferredEdition: "full",
-    dictEdition: "small",
-  });
-  assert.equal(settings.dictPreferredEdition, "full");
+test("a setup answer is read back", () => {
+  assert.equal(migrateDictionarySettings({ dictSetupSeen: "never" }).dictSetupSeen, "never");
 });
 
-// Once dictVersions exists it is the record, and the legacy string beside it is
-// a leftover. Merging the two would resurrect a version for an edition the user
-// has since deleted.
-test("dictVersions replaces the legacy string, it does not merge with it", () => {
-  const settings = migrateDictionarySettings({
-    dictEdition: "small",
-    dictVersion: "20260101",
-    dictVersions: { core: "20260723" },
-  });
-  assert.deepEqual(settings.dictVersions, { core: "20260723" });
-});
-
-// This runs on every settings read, so a blob edited by hand must not be able
-// to stop the plugin loading.
-test("junk falls back to the default instead of throwing", () => {
-  for (const raw of [null, undefined, 42, "core", [], { dictEdition: "medium" }]) {
-    const settings = migrateDictionarySettings(raw);
-    assert.equal(settings.dictPreferredEdition, "core");
-    assert.deepEqual(settings.dictVersions, {});
-    assert.equal(settings.dictSetupSeen, "");
+test("junk falls back to the defaults instead of throwing", () => {
+  for (const junk of [null, undefined, 0, "", "nonsense", [], true]) {
+    assert.deepEqual(
+      migrateDictionarySettings(junk),
+      { dictVersion: undefined, dictSetupSeen: "" },
+      JSON.stringify(junk),
+    );
   }
 });
 
-test("a non-string version is not stored", () => {
-  assert.deepEqual(
-    migrateDictionarySettings({ dictVersions: { core: 20260723, small: "20260101" } }).dictVersions,
-    { small: "20260101" },
-  );
+// A version describes a file. Storing a non-string would let the row format
+// something that is not a release date, and an empty one would read as a
+// version that exists while saying nothing.
+test("a version that is not a non-empty string is not stored", () => {
+  for (const bad of [42, null, {}, [], true, ""]) {
+    assert.equal(
+      migrateDictionarySettings({ dictVersion: bad }).dictVersion,
+      undefined,
+      JSON.stringify(bad),
+    );
+  }
 });
 
 test("an unknown setup answer falls back to unanswered", () => {
   assert.equal(migrateDictionarySettings({ dictSetupSeen: "maybe" }).dictSetupSeen, "");
-  assert.equal(migrateDictionarySettings({ dictSetupSeen: "later" }).dictSetupSeen, "later");
+  assert.equal(migrateDictionarySettings({ dictSetupSeen: 7 }).dictSetupSeen, "");
 });
 
-// A version describes a file. Keeping one for a file the user deleted by hand
-// lets the row claim a release for something nothing can open.
-test("versions for editions not on disk are pruned", () => {
-  assert.deepEqual(
-    pruneVersions({ core: "20260723", small: "20260101" }, ["core"]),
-    { core: "20260723" },
-  );
+// "" is a real answer meaning not asked yet, and it is what raises the first-run
+// dialog. Falling back to it is correct; treating it as invalid would not be.
+test("the unanswered state survives a round trip", () => {
+  assert.equal(migrateDictionarySettings({ dictSetupSeen: "" }).dictSetupSeen, "");
 });
 
-test("pruning to nothing gives an empty record, not the input", () => {
-  assert.deepEqual(pruneVersions({ core: "20260723" }, []), {});
+test("every answer the dialog can write is accepted", () => {
+  for (const seen of ["later", "never", "done"] as const) {
+    assert.equal(migrateDictionarySettings({ dictSetupSeen: seen }).dictSetupSeen, seen);
+  }
 });
 
-test("recording a release leaves the other editions alone", () => {
-  assert.deepEqual(withVersion({ small: "20260101" }, "core", "20260723"), {
-    core: "20260723",
-    small: "20260101",
+// Extra keys are what a hand-edited blob and an older build both leave behind.
+// Reading around them is the whole tolerance this function provides.
+test("unknown keys are ignored rather than carried", () => {
+  const settings = migrateDictionarySettings({
+    dictVersion: "20260723",
+    dictPreferredEdition: "full",
+    dictVersions: { core: "20260101" },
   });
-});
-
-test("recording the same edition twice overwrites rather than duplicates", () => {
-  assert.deepEqual(withVersion({ core: "20260101" }, "core", "20260723"), { core: "20260723" });
-});
-
-// The preference and the disk are allowed to disagree, because boot used to
-// resolve the disagreement by overwriting the preference. The row has to be
-// able to see it.
-test("a preference the disk does not satisfy is a pending switch", () => {
-  assert.equal(switchPending("full", inventory(["core"], "core")), true);
-  assert.equal(switchPending("core", inventory(["core"], "core")), false);
-});
-
-test("nothing installed is not a pending switch", () => {
-  assert.equal(switchPending("core", inventory([])), false);
-});
-
-test("the preference being present is enough, whatever else is", () => {
-  assert.equal(switchPending("core", inventory(["core", "small"], "core")), false);
-});
-
-// This rule deleted a dictionary. It read "any other edition on disk" instead
-// of "the one being replaced", so updating `full` on a machine that also held
-// `core` removed `core`, which that update had superseded nothing of. It lived
-// in host code, which imports betterncm and cannot be unit tested, so nothing
-// could have caught it there.
-test("an update replaces nothing, so nothing may be deleted", () => {
-  assert.equal(supersededEdition("full", "full"), undefined);
-  assert.equal(supersededEdition("core", "core"), undefined);
-});
-
-test("a switch replaces the edition that was open, and only that one", () => {
-  assert.equal(supersededEdition("core", "full"), "core");
-  assert.equal(supersededEdition("full", "small"), "full");
-});
-
-test("a first install has nothing open, so it replaces nothing", () => {
-  assert.equal(supersededEdition(undefined, "core"), undefined);
+  assert.deepEqual(settings, { dictVersion: "20260723", dictSetupSeen: "" });
 });

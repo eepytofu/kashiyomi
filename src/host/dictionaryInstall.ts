@@ -2,8 +2,8 @@
 //
 // The settings row and the setup dialog both press the same button, and the
 // order of operations here is not obvious enough to be worth writing twice:
-// resolve, decide whether anything actually needs fetching, ask the disk what
-// is already there, download, and only then throw away the annotation cache.
+// resolve, decide whether anything actually needs fetching, download, and only
+// then throw away the annotation cache.
 //
 // Kept out of `dictionary.ts` because it needs the asset paths, which are the
 // annotator's, and out of the panel because the dialog is not the panel.
@@ -18,69 +18,43 @@ import {
   reportNoSource,
   reportUpToDate,
   resolveRelease,
-  switchToInstalled,
   type DownloadPlan,
 } from "./dictionary.ts";
-import { updateSettings } from "./settings.ts";
-import type { DictionaryEdition } from "../engine/dictionarySource.ts";
 
 /**
- * Fetch and install `edition`, reporting through the dictionary job.
+ * Fetch and install the dictionary, reporting through the dictionary job.
  *
- * `edition` may differ from the user's preference when the view offered a
- * smaller one that fits. Taking that offer is a choice, so it is recorded as
- * one: otherwise the next launch tries the edition that does not fit all over
- * again.
+ * Serves both the first install and every later update, which are the same
+ * sequence: the only difference is whether anything is on disk to compare
+ * against, and that is a question about the version rather than about which
+ * button was pressed.
  */
-export async function startDictionaryInstall(edition: DictionaryEdition): Promise<void> {
+export async function startDictionaryInstall(): Promise<void> {
   const paths = currentAssetPaths();
   if (!paths) return;
-  updateSettings({ dictPreferredEdition: edition });
-  const dir = paths.dictDir;
-
-  // **Switching to something already on disk needs no network at all**, and
-  // that is checked before anything else because it used to be checked after
-  // the version comparison and therefore almost never reached. The recorded
-  // version is only known for editions this plugin installed: a dictionary put
-  // there by `npm run fetch-dict`, or carried over from an older build, has no
-  // entry, so "is it on disk at the version that would be downloaded" answered
-  // no and 69 MB was fetched to replace a file already sitting there.
-  //
-  // Whether the file is current is a separate question from whether it is
-  // there, and it is the question `Update` asks. `Switch` only has to open it.
-  const inventoryBefore = dictionaryInventory();
-  if (inventoryBefore.installed.includes(edition) && inventoryBefore.loaded !== edition) {
-    await switchToInstalled(edition, dir, paths.resourceDir);
-    resetAnalysisCache();
-    void rescan();
-    return;
-  }
 
   // Resolve live so an update gets the newest release; fall back to the pinned
   // one, which is always installable even with every source blocked.
-  const { release, checked } = await resolveRelease(edition);
+  const { release, checked } = await resolveRelease();
 
-  // Nothing to do if the installed dictionary is already this release.
-  // Re-downloading 69 MB to arrive at the same file is not an update, and the
-  // button was happy to do it as often as it was pressed. Asked per edition, so
-  // switching away and back does not re-fetch a file whose version is recorded.
+  // Nothing to do if what is on disk is already this release. Re-downloading
+  // 69 MB to arrive at the same file is not an update, and the button was happy
+  // to do it as often as it was pressed.
+  //
+  // The recorded version is only known for a dictionary this plugin installed.
+  // One placed by `npm run fetch-dict` has none, so this correctly declines to
+  // claim it is current and lets the install proceed.
   const inventory = dictionaryInventory();
-  if (
-    inventory.installed.includes(release.edition) &&
-    inventory.versions[release.edition] === release.version
-  ) {
+  if (inventory.installed && inventory.version === release.version) {
     // The one honest use of `no-source`: already at the pinned version, and
     // nothing answered when asked whether a newer one exists. Saying "already
     // the newest release" there would report an answer never received.
-    if (checked) reportUpToDate(release.edition);
-    else reportNoSource(release.edition);
+    if (checked) reportUpToDate();
+    else reportNoSource();
     return;
   }
 
-  // The loaded edition is what a switch replaces, and what an update does not.
-  // Passing the whole installed list here is what deleted a dictionary this
-  // install had nothing to do with.
-  const plan: DownloadPlan = planDownload(release, dir, dictionaryInventory().loaded);
+  const plan: DownloadPlan = planDownload(release, paths.dictDir);
   const result = await downloadDictionary(plan, paths.resourceDir);
 
   // A new dictionary changes every reading in the song. The annotation cache is

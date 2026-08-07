@@ -263,7 +263,7 @@ function annotateJapanese(
     // so the machines with no dictionary *and* a failed attempt were the only
     // ones told nothing at all.
     const first = pendingAnalysis[0];
-    if (first && dictionaryInventory().installed.length === 0) {
+    if (first && !dictionaryInventory().installed) {
       renderNoticeRow(first.line.el, t("dictNoticeMissing"));
     }
     for (const { line } of pendingAnalysis) {

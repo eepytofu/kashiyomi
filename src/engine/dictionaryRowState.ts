@@ -1,38 +1,28 @@
-// What the dictionary row shows, as a value.
+// What the dictionary control shows, as a value.
 //
 // The row used to compute this inline from a status string, which is where four
-// defects lived at once: the button re-enabled about 300 ms into any click
-// because `disabled` came from the status alone, so a second press started a
-// concurrent install; the edition and its size were printed by the picker and
-// again by the description; the button kept its idle label while working; and
-// the space warning quoted the archive size where the disk requirement is more
-// than three times that.
+// defects lived at once: the button re-enabled about 300 ms into any click, so a
+// second press started a concurrent install; the size was printed twice; the
+// button kept its idle label while working; and the space warning quoted the
+// archive size where the disk requirement is more than three times that.
 //
 // Returns **kinds and raw numbers, never formatted text**. Dates, megabytes and
 // wording belong to the panel's language, which this module must not know about
 // (`src/engine` cannot import from `src/host`). The caller formats.
 //
-// Pure: no DOM, no native calls, no clock. `now` is a parameter so a cooldown
-// is a function of its inputs rather than a `setTimeout` the panel has to own
-// and clean up.
+// Pure: no DOM, no native calls, no clock. `now` is a parameter so a cooldown is
+// a function of its inputs rather than a `setTimeout` the panel has to own.
 
-import {
-  DICTIONARY_EDITIONS,
-  isRetryable,
-  largestEditionThatFits,
-  requiredFreeBytes,
-  type DictionaryEdition,
-  type DictionaryFailure,
-} from "./dictionarySource.ts";
+import { isRetryable, requiredFreeBytes, type DictionaryFailure } from "./dictionarySource.ts";
 import { pinnedRelease } from "./dictionaryPins.ts";
 import type { DictionaryInventory, DictionaryJob, InstallPhase } from "./dictionaryState.ts";
 
 /**
  * How long a finished job keeps saying so.
  *
- * Long enough to read "already the newest release" before the row goes back to
- * looking untouched, short enough that it is not in the way. It also doubles as
- * the retry cooldown, which is what stops a double click starting two installs.
+ * Long enough to read "already the newest release" before the control goes back
+ * to looking untouched, short enough not to be in the way. It doubles as the
+ * retry cooldown, which is what stops a double click starting two installs.
  */
 export const DICTIONARY_COOLDOWN_MS = 4000;
 
@@ -43,21 +33,18 @@ export type RowDot = "ready" | "loading" | "bad" | "neutral";
  * string, so the panel owns every word and this module owns the decision.
  */
 export type RowMessage =
-  | { readonly kind: "absent"; readonly edition: DictionaryEdition; readonly version: string }
+  | { readonly kind: "absent"; readonly version: string }
   | {
       readonly kind: "installed";
-      readonly edition: DictionaryEdition;
       readonly version: string | undefined;
-      /** False when the installed edition is not the one selected, which is the only time it is named. */
-      readonly isSelection: boolean;
       readonly upToDate: boolean;
       /**
        * A check has seen a release newer than the one on disk.
        *
-       * Derived from the inventory, not from a job, so it stays true until
-       * something is done about it rather than fading with a cooldown. Both
-       * versions must be known: an edition placed on disk from outside the
-       * plugin has no recorded version, and "unknown" is not "behind".
+       * Derived from the inventory rather than from a job, so it stays true
+       * until something is done about it instead of fading with a cooldown.
+       * Both versions must be known: a dictionary placed on disk from outside
+       * the plugin has no recorded version, and "unknown" is not "behind".
        */
       readonly updateAvailable: boolean;
     }
@@ -72,55 +59,25 @@ export type RowMessage =
   | { readonly kind: "failed"; readonly reason: DictionaryFailure }
   | { readonly kind: "updateCheckFailed" }
   | { readonly kind: "cancelled" }
-  | { readonly kind: "noSpace"; readonly needed: number }
-  | {
-      readonly kind: "spaceForOther";
-      readonly wanted: DictionaryEdition;
-      readonly fits: DictionaryEdition;
-      readonly needed: number;
-    };
+  | { readonly kind: "noSpace"; readonly needed: number };
 
 export type RowAction =
   | { readonly kind: "install" }
   | { readonly kind: "update" }
-  | { readonly kind: "switch" }
   | { readonly kind: "retry" }
-  /** Install something other than the selection, because the selection does not fit. */
-  | { readonly kind: "installEdition"; readonly edition: DictionaryEdition }
   | { readonly kind: "working"; readonly of: "checking" | "downloading" | "installing" };
 
 export type RowView = {
   readonly dot: RowDot;
   readonly message: RowMessage;
   readonly primary: { readonly action: RowAction; readonly disabled: boolean };
-  /** Always in the DOM so the row never changes height; `shown` toggles visibility. */
+  /** Always in the DOM so the control never changes height; `shown` toggles visibility. */
   readonly cancel: { readonly shown: boolean; readonly disabled: boolean };
-  /** Off while an install runs, so the preference cannot be rewritten mid-flight. */
-  readonly pickerEnabled: boolean;
   /** The view will change without further input (progress, or a cooldown expiring). */
   readonly settling: boolean;
 };
 
-/**
- * What one edition is, from the reader's point of view.
- *
- * On the option itself rather than in a sentence underneath the list. The
- * status line used to carry this, which produced "full installed" while `core`
- * was the selection: true, and about a different edition than the one being
- * pointed at. A list of choices should say which is which on the choices.
- */
-export type EditionStatus = "in-use" | "installed" | "absent";
-
-export function editionStatus(
-  edition: DictionaryEdition,
-  inventory: DictionaryInventory,
-): EditionStatus {
-  if (inventory.loaded === edition) return "in-use";
-  return inventory.installed.includes(edition) ? "installed" : "absent";
-}
-
 export type RowInput = {
-  readonly preferred: DictionaryEdition;
   readonly inventory: DictionaryInventory;
   readonly job: DictionaryJob;
   readonly now: number;
@@ -130,14 +87,10 @@ export type RowInput = {
    * Whether this surface is the one whose button was pressed.
    *
    * A **running** job is a fact about the dictionary and every surface should
-   * show it: a download started in the dialog belongs on the settings row too.
-   * An **outcome** is a report of an action, and belongs only where the action
-   * was taken. Without the distinction, opening settings displayed "already the
-   * newest release" from a check the row had never performed, which asserts a
-   * result rather than describing a state.
-   *
-   * Defaults to true, so a surface that only ever reflects state has to say so
-   * deliberately.
+   * show it. An **outcome** is a report of an action, and belongs only where
+   * the action was taken. Without the distinction, opening settings displayed
+   * "already the newest release" from a check the row had never performed,
+   * which asserts a result rather than describing a state.
    */
   readonly ownsJob?: boolean;
 };
@@ -146,13 +99,12 @@ export type RowInput = {
  * Whether a check has seen something newer than what is installed.
  *
  * Both sides must be known. A dictionary put on disk from outside the plugin
- * has no recorded version, and treating unknown as behind would offer an
- * update nobody can say is needed.
+ * has no recorded version, and treating unknown as behind would offer an update
+ * nobody can say is needed.
  */
-function hasUpdate(edition: DictionaryEdition, inventory: DictionaryInventory): boolean {
-  const onDisk = inventory.versions[edition];
-  const newest = inventory.latest[edition];
-  return onDisk !== undefined && newest !== undefined && onDisk !== newest;
+function hasUpdate(inventory: DictionaryInventory): boolean {
+  const { version, latest } = inventory;
+  return version !== undefined && latest !== undefined && version !== latest;
 }
 
 export function dictionaryRowState(input: RowInput): RowView {
@@ -160,14 +112,12 @@ export function dictionaryRowState(input: RowInput): RowView {
   if (running) return running;
 
   const settled = settledView(input);
-  const recent = recentOutcomeView(input);
-  return recent ?? settled;
+  return recentOutcomeView(input, settled) ?? settled;
 }
 
 /**
- * Everything that is actively happening. The picker is off throughout, and the
- * primary button carries a working label rather than the one it will have when
- * the work stops.
+ * Everything actively happening. The primary button carries a working label
+ * rather than the one it will have when the work stops.
  */
 function runningView(input: RowInput): RowView | undefined {
   const { job } = input;
@@ -187,18 +137,13 @@ function runningView(input: RowInput): RowView | undefined {
         true,
       );
     case "installing":
-      // Cancel stays *shown* through all four phases and is only enabled for
+      // Cancel stays *shown* through all four phases and is enabled only for
       // the two that can be abandoned. After the swap begins the old dictionary
       // is already unloaded and the rename may have landed, so there is nothing
       // safe to stop; a button that vanishes at that moment reads as a bug,
       // where a disabled one reads as "not now".
       return working(
-        {
-          kind: "installing",
-          phase: job.phase,
-          done: job.done,
-          total: job.total,
-        },
+        { kind: "installing", phase: job.phase, done: job.done, total: job.total },
         "installing",
         job.phase === "verifying" || job.phase === "extracting",
       );
@@ -217,20 +162,19 @@ function working(
     message,
     primary: { action: { kind: "working", of }, disabled: true },
     cancel: { shown: true, disabled: !cancellable },
-    pickerEnabled: false,
     settling: true,
   };
 }
 
 /**
  * How a finished job reads while its cooldown runs, or undefined once it has
- * elapsed and the row goes back to describing the disk.
+ * elapsed and the control goes back to describing the disk.
  *
  * The cooldown is what closes the double-click hole: a failure or an up-to-date
  * answer keeps the button disabled for a beat instead of re-enabling the moment
  * the status stops being "downloading".
  */
-function recentOutcomeView(input: RowInput): RowView | undefined {
+function recentOutcomeView(input: RowInput, settled: RowView): RowView | undefined {
   const { job, now } = input;
   if (input.ownsJob === false) return undefined;
   if (job.kind !== "failed" && job.kind !== "upToDate") return undefined;
@@ -238,7 +182,6 @@ function recentOutcomeView(input: RowInput): RowView | undefined {
 
   if (job.kind === "upToDate") {
     if (!cooling) return undefined;
-    const settled = settledView(input);
     const message = settled.message;
     return {
       ...settled,
@@ -248,18 +191,17 @@ function recentOutcomeView(input: RowInput): RowView | undefined {
     };
   }
 
-  // Cancelling is not a fault. The row says so once and then goes back to
+  // Cancelling is not a fault. The control says so once and then goes back to
   // offering exactly what it offered before the button was pressed.
   if (job.reason === "cancelled") {
     if (!cooling) return undefined;
-    const settled = settledView(input);
     return { ...settled, dot: "neutral", message: { kind: "cancelled" }, settling: true };
   }
 
-  // A disk-space failure is the same question as the eager check, so it gets the
-  // same answer rather than a second wording for one condition.
+  // A disk-space failure is the same question as the eager check, so it gets
+  // the same answer rather than a second wording for one condition.
   if (job.reason === "disk-space") {
-    const space = spaceView(input, job.edition);
+    const space = spaceView(input);
     if (space) return { ...space, settling: cooling };
   }
 
@@ -267,7 +209,6 @@ function recentOutcomeView(input: RowInput): RowView | undefined {
   // same two requests. Offer the normal action, disabled, instead of a Retry
   // that cannot work.
   if (!isRetryable(job.reason)) {
-    const settled = settledView(input);
     return {
       ...settled,
       dot: "bad",
@@ -282,113 +223,67 @@ function recentOutcomeView(input: RowInput): RowView | undefined {
     message: { kind: "failed", reason: job.reason },
     primary: { action: { kind: "retry" }, disabled: cooling },
     cancel: { shown: false, disabled: true },
-    pickerEnabled: true,
     settling: cooling,
   };
 }
 
 /** What the disk says, with nothing running and no recent outcome to report. */
 function settledView(input: RowInput): RowView {
-  const { preferred, inventory } = input;
-  const installed = inventory.loaded ?? inventory.installed[0];
+  const { inventory } = input;
 
-  if (installed !== undefined && inventory.installed.includes(preferred)) {
-    // On disk but not the one the analyzer opened is a **switch**, even though
-    // nothing needs downloading. Calling it Update was the label following the
-    // download rather than the outcome: pressing it changes which dictionary
-    // reads the lyrics, which is exactly what Switch means everywhere else here.
-    const isSelection = installed === preferred;
+  if (inventory.installed) {
     return {
       dot: "ready",
       message: {
         kind: "installed",
-        edition: installed,
-        version: inventory.versions[installed],
-        isSelection,
+        version: inventory.version,
         upToDate: false,
-        updateAvailable: hasUpdate(installed, inventory),
+        updateAvailable: hasUpdate(inventory),
       },
-      primary: { action: { kind: isSelection ? "update" : "switch" }, disabled: false },
+      primary: { action: { kind: "update" }, disabled: false },
       cancel: { shown: false, disabled: true },
-      pickerEnabled: true,
       settling: false,
     };
   }
 
-  // From here the selection is not on disk, so the action downloads it and the
-  // free-space question is live *before* the click rather than after it.
-  const space = spaceView(input, preferred);
+  // Nothing on disk, so the action downloads it and the free-space question is
+  // live *before* the click rather than after it.
+  const space = spaceView(input);
   if (space) return space;
-
-  if (installed !== undefined) {
-    return {
-      dot: "ready",
-      message: {
-        kind: "installed",
-        edition: installed,
-        version: inventory.versions[installed],
-        isSelection: false,
-        upToDate: false,
-        updateAvailable: hasUpdate(installed, inventory),
-      },
-      primary: { action: { kind: "switch" }, disabled: false },
-      cancel: { shown: false, disabled: true },
-      pickerEnabled: true,
-      settling: false,
-    };
-  }
 
   return {
     dot: "bad",
-    message: { kind: "absent", edition: preferred, version: pinnedRelease(preferred).version },
+    message: { kind: "absent", version: pinnedRelease().version },
     primary: { action: { kind: "install" }, disabled: false },
     cancel: { shown: false, disabled: true },
-    pickerEnabled: true,
     settling: false,
   };
 }
 
 /**
- * The two disk-space answers, or undefined when the wanted edition fits.
+ * The disk-space answer, or undefined when there is room.
  *
  * Quotes `requiredFreeBytes`, not the archive size: the archive and its
- * extraction exist at once, so 121 MB of download needs about 548 MB free. The
- * row used to print the download size next to the words "not enough space",
- * which understates the requirement by more than a factor of four.
+ * extraction exist at once, so 69 MB of download needs about 340 MB free. The
+ * control used to print the download size next to the words "not enough space",
+ * understating the requirement by more than a factor of four.
+ *
+ * There is no smaller edition to offer any more, so this states the requirement
+ * and stops. That is a real answer rather than a loop to retry: Japanese
+ * annotation is unavailable on that machine, while pinyin, kanji repair and
+ * translation keep working, so it is a missing feature and not a broken plugin.
  */
-function spaceView(input: RowInput, wanted: DictionaryEdition): RowView | undefined {
+function spaceView(input: RowInput): RowView | undefined {
   const { freeBytes } = input;
   if (freeBytes === undefined) return undefined;
-  const needed = requiredFreeBytes(pinnedRelease(wanted).size);
+  const needed = requiredFreeBytes(pinnedRelease().size);
   if (freeBytes >= needed) return undefined;
-
-  const sizes = new Map<DictionaryEdition, number>(
-    DICTIONARY_EDITIONS.map((edition) => [edition, pinnedRelease(edition).size]),
-  );
-  const fits = largestEditionThatFits(freeBytes, sizes);
-
-  if (fits === undefined) {
-    return {
-      dot: "bad",
-      message: { kind: "noSpace", needed: requiredFreeBytes(pinnedRelease("small").size) },
-      primary: { action: { kind: "install" }, disabled: true },
-      cancel: { shown: false, disabled: true },
-      pickerEnabled: true,
-      settling: false,
-    };
-  }
 
   return {
     dot: "bad",
-    message: {
-      kind: "spaceForOther",
-      wanted,
-      fits,
-      needed: requiredFreeBytes(pinnedRelease(fits).size),
-    },
-    primary: { action: { kind: "installEdition", edition: fits }, disabled: false },
+    message: { kind: "noSpace", needed },
+    primary: { action: { kind: "install" }, disabled: true },
     cancel: { shown: false, disabled: true },
-    pickerEnabled: true,
     settling: false,
   };
 }

@@ -153,7 +153,7 @@ function gateOnDictionary(
   before: HTMLElement,
 ): void {
   const paint = (): void => {
-    const absent = dictionaryInventory().installed.length === 0;
+    const absent = !dictionaryInventory().installed;
     // Inserted and removed, never hidden. `.kc-row + .kc-row` draws the divider
     // between settings, and a `display:none` element still sits between two
     // rows as far as the sibling combinator is concerned, so hiding it silently

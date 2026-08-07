@@ -1,24 +1,23 @@
-// The dictionary setup dialog: choose an edition, download it, watch it go.
+// The first-run dictionary dialog: say what is missing, offer to fetch it.
 //
-// One surface for two jobs. On first run it raises itself; from settings it is
-// the Manage button. They are the same states, so they are the same dialog
-// rather than two that drift, and `firstRun` changes only the dismissals.
+// **First run only.** It used to double as a manage surface reached from
+// settings, because there were three editions and something had to present the
+// choice. There is one edition now, so managing is a single button and it lives
+// on the settings row where the state is already reported. What is left here is
+// the job a settings row cannot do: speak up on a fresh install, before the
+// user meets a plugin that silently does nothing on Japanese lyrics.
 //
 // **It does not describe the plugin.** An earlier version opened with a summary
 // of every feature, which is a pitch in a place where nobody needs one: whoever
-// is looking at this either installed from a listing that already described it,
-// or pressed a button inside its own settings. What earns space is only what
-// the user must act on, and measured against the shipped defaults that is two
-// things. The Japanese dictionary, which is here. And an API key, which cannot
-// be here, because the settings panel has six coupled controls for it and half
-// a copy would be two places to configure one feature.
+// is looking at this installed from a listing that already described it. What
+// earns space is only what the user must act on, and against the shipped
+// defaults that is one thing, which is the dictionary.
 //
 // **Why a dialog is allowed here.** The project's first rule protects the lyrics
-// page: never replace it, never overlay it. A transient, dismissible,
-// user-invoked surface is not the lyrics page, and a plugin that cannot speak
-// about a 69 MB prerequisite it does not have is a plugin that silently does
-// nothing. BetterNCM has no toast or notification API, so this is the only way
-// to say it.
+// page: never replace it, never overlay it. A transient, dismissible surface is
+// not the lyrics page, and a plugin that cannot mention a 69 MB prerequisite it
+// does not have is a plugin that silently does nothing. BetterNCM has no toast
+// or notification API, so this is the only way to say it.
 //
 // `<dialog>` and `::backdrop` were checked against the real runtime before this
 // was written (CEF 91 / Chrome 91.0.4472.164): both work. `inert` and `:has()`
@@ -27,41 +26,20 @@
 import { t } from "../i18n.ts";
 import {
   cancelDictionaryDownload,
-  checkForNewerRelease,
-  clearFinishedJob,
   dictionaryInventory,
   dictionaryJob,
   onDictionaryChange,
 } from "../dictionary.ts";
 import { startDictionaryInstall } from "../dictionaryInstall.ts";
-import { dictionaryRowState, editionStatus } from "../../engine/dictionaryRowState.ts";
+import { dictionaryRowState } from "../../engine/dictionaryRowState.ts";
 import { pinnedRelease } from "../../engine/dictionaryPins.ts";
-import type { DictionaryEdition } from "../../engine/dictionarySource.ts";
 import { requiredFreeBytes } from "../../engine/dictionarySource.ts";
-import {
-  actionEdition,
-  actionLabel,
-  describeDetail,
-  editionHeading,
-  editionNote,
-  editionStatusLabel,
-  mb,
-  size,
-} from "../dictionaryText.ts";
+import { actionLabel, describe, mb, size } from "../dictionaryText.ts";
 import { currentAssetPaths } from "../annotator.ts";
 import { nativeFreeSpace } from "../native.ts";
 import { getSettings, updateSettings } from "../settings.ts";
 import { SETUP_CSS } from "./styles.ts";
 import { UI_ROOT_CLASS, ensureSharedStyles } from "../uiStyles.ts";
-
-/**
- * Smallest first, unlike `DICTIONARY_EDITIONS`.
- *
- * A list of choices reads as a ladder, and the recommended option should not be
- * the last thing considered. `core` sits in the middle for the same reason it is
- * the default.
- */
-const OFFERED: readonly DictionaryEdition[] = ["small", "core", "full"];
 
 let open: HTMLDialogElement | undefined;
 
@@ -79,93 +57,29 @@ function readFreeSpace(): number | undefined {
   return dir === undefined ? undefined : nativeFreeSpace(dir);
 }
 
-/**
- * Show the dialog, or bring the existing one forward.
- *
- * `firstRun` adds the introduction and the two dismissals. Everything below that
- * line is identical, which is the point of having one component.
- */
-export function openDictionarySetup(options: { firstRun?: boolean } = {}): void {
+/** Show the dialog, or bring an existing one forward. */
+export function openDictionarySetup(): void {
   if (open?.isConnected) {
     open.showModal();
     return;
   }
   ensureStyles();
-  const firstRun = options.firstRun === true;
 
   const dialog = document.createElement("dialog");
   dialog.className = `kashiyomi-setup ${UI_ROOT_CLASS}`;
   open = dialog;
 
-  // The plugin's name introduces it to someone who has just installed it. From
-  // Manage it says nothing: they opened this from inside Kashiyomi's own
-  // settings, so the only useful title is what the dialog is *for*.
+  // The plugin's name, because this is the first thing it ever says and the
+  // person reading it has just installed something.
   const title = document.createElement("div");
   title.className = "ks-title";
-  title.textContent = firstRun ? "Kashiyomi（歌詞読み）" : t("dictionary");
+  title.textContent = "Kashiyomi（歌詞読み）";
   dialog.appendChild(title);
 
-  // No pitch, and **first run only**. Opened from Manage this is a dictionary
-  // manager, where a line about API keys is advice nobody asked for; opened on
-  // a fresh install it is the one place the two things needing setup can be
-  // named at all.
-  if (firstRun) {
-    const need = document.createElement("div");
-    need.className = "ks-need";
-    need.textContent = t("setupNeedsDictionary");
-    dialog.appendChild(need);
-  }
-
-  // The same card-of-rows the settings panel is built from, rather than a
-  // second list idiom that happens to look similar.
-  const list = document.createElement("div");
-  list.className = "kc-card";
-  dialog.appendChild(list);
-
-  const radios = new Map<DictionaryEdition, HTMLInputElement>();
-  const states = new Map<DictionaryEdition, HTMLElement>();
-  for (const edition of OFFERED) {
-    const label = document.createElement("label");
-    label.className = "kc-row ks-option";
-
-    const radio = document.createElement("input");
-    radio.type = "radio";
-    radio.name = "kashiyomi-edition";
-    radio.value = edition;
-    radio.onchange = () => {
-      updateSettings({ dictPreferredEdition: edition });
-      // A finished job describes the edition it ran for, so choosing another
-      // makes it stale. Left in place its cooldown also disabled the button,
-      // which read as the dialog lagging behind the click.
-      clearFinishedJob();
-      paint();
-    };
-    radios.set(edition, radio);
-    label.appendChild(radio);
-
-    const body = document.createElement("div");
-    body.className = "ks-option-body";
-    const head = document.createElement("div");
-    head.className = "kc-label";
-    head.textContent = editionHeading(edition);
-    body.appendChild(head);
-    const note = document.createElement("div");
-    note.className = "kc-desc";
-    note.textContent = editionNote(edition);
-    body.appendChild(note);
-    label.appendChild(body);
-
-    // Which edition is installed, and which one the analyzer actually has open,
-    // shown on the options rather than asserted underneath them. The status
-    // line used to carry it and produced "full installed" while core was
-    // selected: true, and about a different edition than the one pointed at.
-    const state = document.createElement("span");
-    state.className = "ks-option-state";
-    states.set(edition, state);
-    label.appendChild(state);
-
-    list.appendChild(label);
-  }
+  const need = document.createElement("div");
+  need.className = "ks-need";
+  need.textContent = t("setupNeedsDictionary").replace("{size}", mb(pinnedRelease().size));
+  dialog.appendChild(need);
 
   const space = document.createElement("div");
   space.className = "ks-space";
@@ -193,79 +107,65 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
   spacer.className = "ks-spacer";
   actions.appendChild(spacer);
 
-  // `Later` and `Never` only on first run. From settings the dialog is something
-  // the user opened on purpose, so the only sensible dismissal is closing it.
   const close = document.createElement("button");
   close.className = "kc-button";
-  close.textContent = firstRun ? t("setupLater") : t("setupClose");
+  close.textContent = t("setupLater");
   close.onclick = () => {
-    if (firstRun) updateSettings({ dictSetupSeen: "later" });
+    updateSettings({ dictSetupSeen: "later" });
     dialog.close();
   };
   actions.appendChild(close);
 
-  if (firstRun) {
-    const never = document.createElement("button");
-    never.className = "kc-button";
-    never.textContent = t("setupNever");
-    never.onclick = () => {
-      // The settings row stays the way back in, which is what makes this safe
-      // to offer rather than a decision the user cannot undo.
-      updateSettings({ dictSetupSeen: "never" });
-      dialog.close();
-    };
-    actions.appendChild(never);
-  }
+  const never = document.createElement("button");
+  never.className = "kc-button";
+  never.textContent = t("setupNever");
+  never.onclick = () => {
+    // The settings row stays the way back in, which is what makes this safe to
+    // offer rather than a decision the user cannot undo.
+    updateSettings({ dictSetupSeen: "never" });
+    dialog.close();
+  };
+  actions.appendChild(never);
 
   let freeBytes = readFreeSpace();
 
-  const paint = (): void => {
-    if (freeBytes === undefined) freeBytes = readFreeSpace();
-    const preferred = getSettings().dictPreferredEdition;
-    const view = dictionaryRowState({
-      preferred,
+  const view = (): ReturnType<typeof dictionaryRowState> =>
+    dictionaryRowState({
       inventory: dictionaryInventory(),
       job: dictionaryJob(),
       now: Date.now(),
       freeBytes,
+      ownsJob: true,
     });
 
-    const inventory = dictionaryInventory();
-    for (const [edition, radio] of radios) {
-      radio.checked = edition === preferred;
-      radio.disabled = !view.pickerEnabled;
-      radio.parentElement?.classList.toggle("kc-inert", !view.pickerEnabled);
-      const state = states.get(edition);
-      if (state) {
-        const status = editionStatus(edition, inventory);
-        state.textContent = editionStatusLabel(status);
-        state.classList.toggle("ks-in-use", status === "in-use");
-      }
-    }
+  const paint = (): void => {
+    if (freeBytes === undefined) freeBytes = readFreeSpace();
+    const current = view();
 
     // Hidden once something is running: it answers "will this fit", which is a
     // question about a download that has already started.
     space.textContent =
-      freeBytes === undefined || view.settling
+      freeBytes === undefined || current.settling
         ? ""
         : t("setupSpace")
-            .replace("{needed}", mb(requiredFreeBytes(pinnedRelease(preferred).size)))
+            .replace("{needed}", mb(requiredFreeBytes(pinnedRelease().size)))
             .replace("{free}", size(freeBytes));
 
-    status.textContent = describeDetail(view.message);
-    status.className = `ks-status ks-${view.dot}`;
+    status.textContent = describe(current.message);
+    status.className = `ks-status ks-${current.dot}`;
 
-    primary.textContent = actionLabel(view.primary.action);
-    primary.disabled = view.primary.disabled;
-    cancel.style.display = view.cancel.shown ? "" : "none";
-    cancel.disabled = view.cancel.disabled;
+    primary.textContent = actionLabel(current.primary.action);
+    primary.disabled = current.primary.disabled;
+    cancel.style.display = current.cancel.shown ? "" : "none";
+    cancel.disabled = current.cancel.disabled;
 
     // Once a dictionary is in place the dialog has done its job, so the way out
     // stops being a deferral and becomes an ordinary close.
-    if (firstRun && dictionaryInventory().installed.length > 0) {
+    if (dictionaryInventory().installed) {
       close.textContent = t("setupClose");
+      never.style.display = "none";
     }
-    if (view.settling) startPolling();
+    if (current.settling) startPolling();
   };
 
   let poll: number | undefined;
@@ -277,29 +177,15 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
   const startPolling = (): void => {
     if (poll !== undefined) return;
     poll = window.setInterval(() => {
-      const settling = dictionaryRowState({
-        preferred: getSettings().dictPreferredEdition,
-        inventory: dictionaryInventory(),
-        job: dictionaryJob(),
-        now: Date.now(),
-        freeBytes,
-      }).settling;
+      const settling = view().settling;
       paint();
       if (!settling) stopPolling();
     }, 300);
   };
 
   primary.onclick = () => {
-    const preferred = getSettings().dictPreferredEdition;
-    const view = dictionaryRowState({
-      preferred,
-      inventory: dictionaryInventory(),
-      job: dictionaryJob(),
-      now: Date.now(),
-      freeBytes,
-    });
     startPolling();
-    void startDictionaryInstall(actionEdition(view.primary.action, preferred)).then(() => {
+    void startDictionaryInstall().then(() => {
       freeBytes = readFreeSpace();
       paint();
     });
@@ -312,9 +198,7 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
     // Marked as answered however it was dismissed. Reaching this dialog and
     // walking away is still an answer, and re-raising it every launch after
     // that would be nagging.
-    if (firstRun && getSettings().dictSetupSeen === "") {
-      updateSettings({ dictSetupSeen: "later" });
-    }
+    if (getSettings().dictSetupSeen === "") updateSettings({ dictSetupSeen: "later" });
     dialog.remove();
     if (open === dialog) open = undefined;
   });
@@ -322,16 +206,4 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
   document.body.appendChild(dialog);
   paint();
   dialog.showModal();
-
-  // Check for a newer release as the dialog appears, rather than waiting for a
-  // press. Without it the row could only ever repeat whatever the last manual
-  // check found, which is how "already the newest release" came to be shown on
-  // opening settings by something that had checked nothing.
-  //
-  // Silent on failure: opening a dialog must not produce an error nobody asked
-  // for, and `resolveRelease` already falls back to the pinned release and
-  // reports `checked: false`, which the row reads as "do not claim to know".
-  if (dictionaryInventory().installed.length > 0) {
-    void checkForNewerRelease(getSettings().dictPreferredEdition);
-  }
 }
