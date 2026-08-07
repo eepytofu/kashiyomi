@@ -53,8 +53,9 @@ export function describe(message: RowMessage): string {
     case "installed": {
       let line = t("dictInstalledState");
       if (message.version !== undefined) line += ` · ${releaseDate(message.version)}`;
-      // A standing fact about the disk, so it outlives the cooldown that
-      // "already the newest release" fades with.
+      // Both are standing facts now rather than transient reports: one compares
+      // the recorded version against what a check saw, the other says a check
+      // ran recently and found nothing. Mutually exclusive by construction.
       if (message.updateAvailable) line += ` · ${t("dictUpdateAvailable")}`;
       else if (message.upToDate) line += ` · ${t("dictUpToDate")}`;
       return line;
@@ -94,11 +95,12 @@ export function actionLabel(action: RowAction): string {
       return t("dictUpdate");
     case "retry":
       return t("dictRetry");
+    // The one button becomes the way out while a download or an early install
+    // phase can still be abandoned; the description beside it carries the
+    // progress, so no label is lost by not saying "Downloading…" here.
+    case "cancel":
+      return t("dictCancel");
     case "working":
-      return action.of === "checking"
-        ? t("dictWorkChecking")
-        : action.of === "downloading"
-          ? t("dictWorkDownloading")
-          : t("dictWorkInstalling");
+      return action.of === "checking" ? t("dictWorkChecking") : t("dictWorkInstalling");
   }
 }

@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
+  CHECK_INTERVAL_MS,
   DICTIONARY_COOLDOWN_MS,
   dictionaryRowState,
   type RowInput,
@@ -15,7 +16,13 @@ const ROOMY = requiredFreeBytes(pinnedRelease().size) * 2;
 
 function view(over: Partial<RowInput> = {}): RowView {
   return dictionaryRowState({
-    inventory: { installed: false, loaded: false, version: undefined, latest: undefined },
+    inventory: {
+      installed: false,
+      loaded: false,
+      version: undefined,
+      latest: undefined,
+      checkedAt: undefined,
+    },
     job: { kind: "idle" },
     now: NOW,
     freeBytes: ROOMY,
@@ -23,11 +30,16 @@ function view(over: Partial<RowInput> = {}): RowView {
   });
 }
 
-const installed = (version?: string, latest?: string): RowInput["inventory"] => ({
+const installed = (
+  version?: string,
+  latest?: string,
+  checkedAt?: number,
+): RowInput["inventory"] => ({
   installed: true,
   loaded: true,
   version,
   latest,
+  checkedAt,
 });
 
 const job = (over: DictionaryJob): DictionaryJob => over;
@@ -38,7 +50,6 @@ test("nothing installed offers to install it at the pinned release", () => {
   assert.equal(v.primary.disabled, false);
   assert.equal(v.message.kind, "absent");
   assert.equal(v.dot, "bad");
-  assert.equal(v.cancel.shown, false);
   assert.equal(v.settling, false);
   if (v.message.kind === "absent") assert.equal(v.message.version, pinnedRelease().version);
 });
@@ -99,25 +110,27 @@ test("an installed dictionary is not blocked by the space check", () => {
   assert.equal(v.primary.action.kind, "update");
 });
 
-test("resolving says what it is doing and can be cancelled", () => {
+// The reported bug: a two-request metadata check finishes in about a second,
+// and a Cancel offered inside that window appeared and vanished before it could
+// be aimed at.
+test("the update check offers no way to cancel it", () => {
   const v = view({ job: job({ kind: "resolving" }) });
   assert.equal(v.message.kind, "checking");
+  assert.equal(v.primary.action.kind, "working");
   assert.equal(v.primary.disabled, true);
   assert.equal(v.dot, "loading");
-  assert.equal(v.cancel.shown, true);
-  assert.equal(v.cancel.disabled, false, "a stalling source is when cancel is reached for");
   assert.equal(v.settling, true);
 });
 
-test("downloading carries progress and the one cancel that always works", () => {
+test("downloading carries progress and turns the button into the way out", () => {
   const v = view({ job: job({ kind: "downloading", received: 100, total: 1000 }) });
   assert.equal(v.message.kind, "downloading");
   if (v.message.kind === "downloading") {
     assert.equal(v.message.received, 100);
     assert.equal(v.message.total, 1000);
   }
-  assert.equal(v.cancel.shown, true);
-  assert.equal(v.cancel.disabled, false);
+  assert.equal(v.primary.action.kind, "cancel");
+  assert.equal(v.primary.disabled, false);
   assert.equal(v.settling, true);
 });
 
@@ -127,8 +140,8 @@ test("verifying and unpacking carry their own progress and can be cancelled", ()
   for (const phase of ["verifying", "extracting"] as const) {
     const v = view({ job: job({ kind: "installing", phase, done: 5, total: 10 }) });
     assert.equal(v.message.kind, "installing", phase);
-    assert.equal(v.cancel.shown, true, phase);
-    assert.equal(v.cancel.disabled, false, phase);
+    assert.equal(v.primary.action.kind, "cancel", phase);
+    assert.equal(v.primary.disabled, false, phase);
     if (v.message.kind === "installing") {
       assert.equal(v.message.phase, phase);
       assert.equal(v.message.done, 5);
@@ -137,19 +150,43 @@ test("verifying and unpacking carry their own progress and can be cancelled", ()
 });
 
 // Past the swap the old dictionary is already unloaded and the rename may have
-// landed, so there is nothing safe to stop. The button stays visible because one
-// that vanishes at that moment reads as a bug, where a disabled one reads as
-// "not now".
-test("the swap and the load show cancel disabled rather than removing it", () => {
+// landed, so there is nothing safe to stop. The button keeps its place and reads
+// as busy rather than offering a stop that would not be honoured.
+test("the swap and the load stop offering cancel without the button vanishing", () => {
   for (const phase of ["swapping", "loading"] as const) {
     const v = view({ job: job({ kind: "installing", phase, done: 0, total: 0 }) });
-    assert.equal(v.cancel.shown, true, phase);
-    assert.equal(v.cancel.disabled, true, phase);
+    assert.equal(v.primary.action.kind, "working", phase);
+    assert.equal(v.primary.disabled, true, phase);
+  }
+});
+
+// One button in one place, always. Every state must name an action rather than
+// leaving the control blank or letting a second one appear beside it.
+test("every state yields exactly one action", () => {
+  const states: Partial<RowInput>[] = [
+    {},
+    { freeBytes: 1024 },
+    { inventory: installed("20260723") },
+    { inventory: installed("20260723", "20260723", NOW) },
+    { job: job({ kind: "resolving" }) },
+    { job: job({ kind: "downloading", received: 1, total: 2 }) },
+    { job: job({ kind: "installing", phase: "extracting", done: 1, total: 2 }) },
+    { job: job({ kind: "installing", phase: "swapping", done: 0, total: 0 }) },
+    { job: job({ kind: "failed", reason: "offline", at: NOW }) },
+    { job: job({ kind: "failed", reason: "no-source", at: NOW }) },
+  ];
+  for (const state of states) {
+    const v = view(state);
+    assert.ok(
+      ["install", "update", "retry", "cancel", "working"].includes(v.primary.action.kind),
+      JSON.stringify(state),
+    );
   }
 });
 
 // D14: the label used to stay "Update" for the whole install, so the row read as
-// though nothing had happened yet.
+// though nothing had happened yet. It must now read as busy or as the way out,
+// never as the action that started it.
 test("the button never keeps its idle label while working", () => {
   const running: DictionaryJob[] = [
     { kind: "resolving" },
@@ -159,34 +196,58 @@ test("the button never keeps its idle label while working", () => {
   ];
   for (const j of running) {
     const v = view({ job: j, inventory: installed("20260723") });
-    assert.equal(v.primary.action.kind, "working", j.kind);
-    assert.equal(v.primary.disabled, true, j.kind);
+    assert.notEqual(v.primary.action.kind, "update", j.kind);
+    assert.ok(["working", "cancel"].includes(v.primary.action.kind), j.kind);
     assert.equal(v.settling, true, j.kind);
   }
 });
 
-test("up to date says so over the installed state, with the button held", () => {
-  const v = view({
-    inventory: installed("20260723"),
-    job: job({ kind: "upToDate", at: NOW }),
-  });
+// SudachiDict ships roughly quarterly, so a second check moments after the
+// first cannot return anything the first did not. The old 4s cooldown gated
+// this only by accident.
+test("a check that found nothing holds the button for the whole interval", () => {
+  const v = view({ inventory: installed("20260723", "20260723", NOW - 1000) });
   assert.equal(v.message.kind, "installed");
   if (v.message.kind === "installed") assert.equal(v.message.upToDate, true);
-  assert.equal(v.primary.disabled, true, "the cooldown is what closes the double-click hole");
-  assert.equal(v.settling, true);
+  assert.equal(v.primary.disabled, true);
+  // Twelve hours must never start a repaint timer, or an open panel polls for
+  // as long as it stays open.
+  assert.equal(v.settling, false, "a 12h window is not something to poll on");
 });
 
-// A pure function of (job, now), so the panel needs no timer of its own to
-// clear it.
-test("up to date expires on its own instead of needing a timer", () => {
-  const after = view({
-    inventory: installed("20260723"),
-    job: job({ kind: "upToDate", at: NOW - DICTIONARY_COOLDOWN_MS - 1 }),
+test("the button comes back once the interval has elapsed", () => {
+  const v = view({
+    inventory: installed("20260723", "20260723", NOW - CHECK_INTERVAL_MS - 1),
   });
-  assert.equal(after.message.kind, "installed");
-  if (after.message.kind === "installed") assert.equal(after.message.upToDate, false);
-  assert.equal(after.primary.disabled, false);
-  assert.equal(after.settling, false);
+  assert.equal(v.primary.disabled, false);
+  if (v.message.kind === "installed") assert.equal(v.message.upToDate, false);
+});
+
+// The interval gates *checking*. Once something newer has been seen the press
+// installs rather than asks, and refusing it would strand the user in front of
+// an update they can see and cannot take.
+test("an update found inside the interval keeps the button live", () => {
+  const v = view({ inventory: installed("20260428", "20260723", NOW - 1000) });
+  assert.equal(v.primary.disabled, false, "this press downloads, it does not ask");
+  assert.equal(v.primary.action.kind, "update");
+  if (v.message.kind === "installed") {
+    assert.equal(v.message.updateAvailable, true);
+    assert.equal(v.message.upToDate, false, "never both at once");
+  }
+});
+
+// Undefined means no check has ever been recorded, which must read as "ask",
+// never as "asked and found nothing".
+test("a dictionary that has never been checked offers the check", () => {
+  const v = view({ inventory: installed("20260723", undefined, undefined) });
+  assert.equal(v.primary.disabled, false);
+  if (v.message.kind === "installed") assert.equal(v.message.upToDate, false);
+});
+
+// The cooldown keeps its own job, which is the double-click guard on failures.
+// It is not the update interval and must stay far shorter than it.
+test("the double-click cooldown is nowhere near the check interval", () => {
+  assert.ok(DICTIONARY_COOLDOWN_MS < CHECK_INTERVAL_MS / 100);
 });
 
 // D11: the hole was the button re-enabling ~300 ms into a click, so a second
@@ -255,7 +316,13 @@ test("a cancelled job stops being mentioned after the cooldown", () => {
 // analyzer could not load must not read as one that is not there.
 test("a dictionary on disk that failed to load still reports as installed", () => {
   const v = view({
-    inventory: { installed: true, loaded: false, version: "20260723", latest: undefined },
+    inventory: {
+      installed: true,
+      loaded: false,
+      version: "20260723",
+      latest: undefined,
+      checkedAt: undefined,
+    },
   });
   assert.equal(v.message.kind, "installed");
   assert.equal(v.primary.action.kind, "update");
@@ -267,7 +334,13 @@ test("a dictionary on disk that failed to load still reports as installed", () =
 // report.
 test("a failure keeps reporting itself after the cooldown, with retry now live", () => {
   const v = view({
-    inventory: { installed: true, loaded: false, version: "20260723", latest: undefined },
+    inventory: {
+      installed: true,
+      loaded: false,
+      version: "20260723",
+      latest: undefined,
+      checkedAt: undefined,
+    },
     job: job({ kind: "failed", reason: "load", at: NOW - DICTIONARY_COOLDOWN_MS - 1 }),
   });
   assert.equal(v.message.kind, "failed");
@@ -298,23 +371,31 @@ test("an update is offered only when both versions are known and differ", () => 
   }
 });
 
-// The settings row reflects a running job but must not report an outcome it did
-// not cause: "already the newest release" on opening settings asserted a check
-// that surface had never performed.
-test("a surface that does not own the job ignores finished outcomes", () => {
-  const inventory = installed("20260723");
-  const upToDate = view({ inventory, job: job({ kind: "upToDate", at: NOW }), ownsJob: false });
-  assert.equal(upToDate.message.kind, "installed");
-  if (upToDate.message.kind === "installed") assert.equal(upToDate.message.upToDate, false);
-  assert.equal(upToDate.primary.disabled, false, "no cooldown from a press it did not make");
-
+// A failure is a report of a press and belongs where the press happened. The
+// original defect was a surface asserting an outcome it had not caused.
+test("a surface that does not own the job ignores failures", () => {
   const failed = view({
-    inventory,
+    inventory: installed("20260723"),
     job: job({ kind: "failed", reason: "offline", at: NOW }),
     ownsJob: false,
   });
   assert.equal(failed.message.kind, "installed", "someone else's failure is not this row's news");
   assert.notEqual(failed.primary.action.kind, "retry");
+});
+
+// The other half of that defect is now fixed the honest way round. "Already the
+// newest release" used to be a 4s cooldown pretending to be an answer, so a
+// surface that had checked nothing had to be stopped from claiming it. It is a
+// recorded timestamp now, so it is true wherever it is shown, and `ownsJob` has
+// no business suppressing it.
+test("a recorded check is reported by every surface, owner or not", () => {
+  const inventory = installed("20260723", "20260723", NOW - 1000);
+  for (const ownsJob of [true, false]) {
+    const v = view({ inventory, ownsJob });
+    assert.equal(v.message.kind, "installed", String(ownsJob));
+    if (v.message.kind === "installed") assert.equal(v.message.upToDate, true, String(ownsJob));
+    assert.equal(v.primary.disabled, true, String(ownsJob));
+  }
 });
 
 // A running job is a fact about the dictionary, so every surface shows it. Only
@@ -326,6 +407,6 @@ test("a running job is shown even on a surface that does not own it", () => {
     ownsJob: false,
   });
   assert.equal(v.message.kind, "downloading");
-  assert.equal(v.primary.action.kind, "working");
+  assert.equal(v.primary.action.kind, "cancel");
   assert.equal(v.settling, true);
 });

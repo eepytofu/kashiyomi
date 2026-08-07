@@ -41,15 +41,10 @@ export function dictionaryRow(): HTMLElement {
   // description underneath already reads "installed" or "not installed".
   el.appendChild(text);
 
-  // Always in the DOM, shown and hidden rather than added and removed, so
-  // starting a download does not change the row's height or shift the button
-  // out from under the pointer that just pressed it.
-  const cancel = document.createElement("button");
-  cancel.className = "kc-button";
-  cancel.textContent = t("dictCancel");
-  cancel.onclick = () => cancelDictionaryDownload();
-  el.appendChild(cancel);
-
+  // One button, and it never moves. It used to have a Cancel beside it, which
+  // the row's `space-between` rendered wedged between the description and the
+  // action, and which appeared and vanished inside the ~1s an update check
+  // takes. The label is now whatever pressing it would do right now.
   const primary = document.createElement("button");
   primary.className = "kc-button";
   el.appendChild(primary);
@@ -75,8 +70,6 @@ export function dictionaryRow(): HTMLElement {
     if (description) description.textContent = describe(current.message);
     primary.textContent = actionLabel(current.primary.action);
     primary.disabled = current.primary.disabled;
-    cancel.style.display = current.cancel.shown ? "" : "none";
-    cancel.disabled = current.cancel.disabled;
 
     if (current.settling) startPolling();
   };
@@ -100,6 +93,13 @@ export function dictionaryRow(): HTMLElement {
   };
 
   primary.onclick = () => {
+    // Read the action rather than tracking a mode: the button is whatever the
+    // view says it is at the moment of the press, so the two can never disagree
+    // about what it was showing.
+    if (view().primary.action.kind === "cancel") {
+      cancelDictionaryDownload();
+      return;
+    }
     startPolling();
     void startDictionaryInstall().then(() => {
       // The disk has changed by roughly 207 MB, so the cached answer is stale

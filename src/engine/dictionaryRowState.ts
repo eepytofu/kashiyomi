@@ -20,11 +20,26 @@ import type { DictionaryInventory, DictionaryJob, InstallPhase } from "./diction
 /**
  * How long a finished job keeps saying so.
  *
- * Long enough to read "already the newest release" before the control goes back
- * to looking untouched, short enough not to be in the way. It doubles as the
- * retry cooldown, which is what stops a double click starting two installs.
+ * Long enough to read a failure before the control goes back to looking
+ * untouched, short enough not to be in the way. It doubles as the retry
+ * cooldown, which is what stops a double click starting two installs.
+ *
+ * **Not the update interval.** This one is about a press that just happened;
+ * `CHECK_INTERVAL_MS` is about how often asking is worth anything at all.
  */
 export const DICTIONARY_COOLDOWN_MS = 4000;
+
+/**
+ * How long a check that found nothing keeps the button down.
+ *
+ * SudachiDict ships roughly quarterly, so a check seconds after the last one
+ * cannot return anything the last one did not. The old 4s cooldown was sized as
+ * a double-click guard and gated re-checking only by accident.
+ *
+ * Gates **checking, never installing**: once a check has found a newer release
+ * the button stays live, because that press downloads rather than asks.
+ */
+export const CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
 
 export type RowDot = "ready" | "loading" | "bad" | "neutral";
 
@@ -65,14 +80,26 @@ export type RowAction =
   | { readonly kind: "install" }
   | { readonly kind: "update" }
   | { readonly kind: "retry" }
-  | { readonly kind: "working"; readonly of: "checking" | "downloading" | "installing" };
+  | { readonly kind: "cancel" }
+  | { readonly kind: "working"; readonly of: "checking" | "installing" };
 
+/**
+ * One button, always in the same place, naming the only action available.
+ *
+ * There was a second Cancel button beside it until 2026-08-07. It appeared and
+ * vanished inside the ~1s an update check takes, which is flicker rather than an
+ * affordance, and it rendered wedged between the description and the primary
+ * button because the row is `space-between`. Folding cancellation into the one
+ * button removes both: the position never changes, and the label is whatever
+ * pressing it would do right now.
+ *
+ * Nothing is lost by the button no longer reading "Downloading…" — the
+ * description beside it already carries `downloading 34.2 / 68.9 MB`.
+ */
 export type RowView = {
   readonly dot: RowDot;
   readonly message: RowMessage;
   readonly primary: { readonly action: RowAction; readonly disabled: boolean };
-  /** Always in the DOM so the control never changes height; `shown` toggles visibility. */
-  readonly cancel: { readonly shown: boolean; readonly disabled: boolean };
   /** The view will change without further input (progress, or a cooldown expiring). */
   readonly settling: boolean;
 };
@@ -123,73 +150,75 @@ function runningView(input: RowInput): RowView | undefined {
   const { job } = input;
   switch (job.kind) {
     case "resolving":
-      // Cancellable: the update check is a `fetch` behind the same abort
-      // controller the transfer uses, and a source that is timing out is
-      // exactly when someone reaches for this.
-      return working({ kind: "checking" }, "checking", true);
+      // **Not cancellable, deliberately.** Two HTTP requests that finish in
+      // about a second: a Cancel here only ever appeared and disappeared before
+      // it could be aimed at. If a source hangs, `fetch` fails on its own and
+      // the row offers Retry.
+      return busy({ kind: "checking" });
     case "downloading":
-      // The one window where cancelling is both safe and implemented: nothing
-      // has been written to the live path and the transfer holds an abort
-      // signal.
-      return working(
-        { kind: "downloading", received: job.received, total: job.total },
-        "downloading",
-        true,
-      );
-    case "installing":
-      // Cancel stays *shown* through all four phases and is enabled only for
-      // the two that can be abandoned. After the swap begins the old dictionary
-      // is already unloaded and the rename may have landed, so there is nothing
-      // safe to stop; a button that vanishes at that moment reads as a bug,
-      // where a disabled one reads as "not now".
-      return working(
-        { kind: "installing", phase: job.phase, done: job.done, total: job.total },
-        "installing",
-        job.phase === "verifying" || job.phase === "extracting",
-      );
+      // The clearest window where cancelling is both safe and implemented:
+      // nothing has been written to the live path and the transfer holds an
+      // abort signal.
+      return cancellable({ kind: "downloading", received: job.received, total: job.total });
+    case "installing": {
+      const message: RowMessage = {
+        kind: "installing",
+        phase: job.phase,
+        done: job.done,
+        total: job.total,
+      };
+      // Verifying and extracting still have nothing on the live path, so they
+      // can be abandoned. Past the swap the old dictionary is already unloaded
+      // and the rename may have landed, so there is nothing safe to stop: the
+      // button keeps its place and reads as busy instead of offering a stop
+      // that would not be honoured.
+      return job.phase === "verifying" || job.phase === "extracting"
+        ? cancellable(message)
+        : busy(message);
+    }
     default:
       return undefined;
   }
 }
 
-function working(
-  message: RowMessage,
-  of: "checking" | "downloading" | "installing",
-  cancellable: boolean,
-): RowView {
+/** Work in progress that cannot be stopped: the button names it and is dead. */
+function busy(message: RowMessage): RowView {
+  const of = message.kind === "checking" ? "checking" : "installing";
   return {
     dot: "loading",
     message,
     primary: { action: { kind: "working", of }, disabled: true },
-    cancel: { shown: true, disabled: !cancellable },
+    settling: true,
+  };
+}
+
+/** Work in progress that can be abandoned: the button becomes the way out. */
+function cancellable(message: RowMessage): RowView {
+  return {
+    dot: "loading",
+    message,
+    primary: { action: { kind: "cancel" }, disabled: false },
     settling: true,
   };
 }
 
 /**
- * How a finished job reads while its cooldown runs, or undefined once it has
- * elapsed and the control goes back to describing the disk.
+ * How a failure reads while its cooldown runs, or undefined once it has elapsed
+ * and the control goes back to describing the disk.
  *
- * The cooldown is what closes the double-click hole: a failure or an up-to-date
- * answer keeps the button disabled for a beat instead of re-enabling the moment
- * the status stops being "downloading".
+ * The cooldown is what closes the double-click hole: a failure keeps the button
+ * disabled for a beat instead of re-enabling the moment the status stops being
+ * "downloading".
+ *
+ * Only failures reach here. "Already the newest release" used to be a job kind
+ * with its own branch, faking a durable answer out of a 4s cooldown; it is a
+ * recorded timestamp now, so `settledView` states it as the fact it is.
  */
 function recentOutcomeView(input: RowInput, settled: RowView): RowView | undefined {
   const { job, now } = input;
   if (input.ownsJob === false) return undefined;
-  if (job.kind !== "failed" && job.kind !== "upToDate") return undefined;
+  if (job.kind !== "failed") return undefined;
   const cooling = now - job.at < DICTIONARY_COOLDOWN_MS;
-
-  if (job.kind === "upToDate") {
-    if (!cooling) return undefined;
-    const message = settled.message;
-    return {
-      ...settled,
-      message: message.kind === "installed" ? { ...message, upToDate: true } : message,
-      primary: { action: settled.primary.action, disabled: true },
-      settling: true,
-    };
-  }
 
   // Cancelling is not a fault. The control says so once and then goes back to
   // offering exactly what it offered before the button was pressed.
@@ -222,26 +251,40 @@ function recentOutcomeView(input: RowInput, settled: RowView): RowView | undefin
     dot: "bad",
     message: { kind: "failed", reason: job.reason },
     primary: { action: { kind: "retry" }, disabled: cooling },
-    cancel: { shown: false, disabled: true },
     settling: cooling,
   };
 }
 
 /** What the disk says, with nothing running and no recent outcome to report. */
 function settledView(input: RowInput): RowView {
-  const { inventory } = input;
+  const { inventory, now } = input;
 
   if (inventory.installed) {
+    const updateAvailable = hasUpdate(inventory);
+    // A check within the interval that found nothing is the one case worth
+    // holding the button down for: pressing again cannot return an answer the
+    // last check did not already have.
+    //
+    // `!updateAvailable` guards it, and that guard is the point. Once something
+    // newer has been seen the button installs rather than asks, and refusing
+    // that press would strand a user in front of an update they can see and
+    // cannot take.
+    const fresh =
+      !updateAvailable &&
+      inventory.checkedAt !== undefined &&
+      now - inventory.checkedAt < CHECK_INTERVAL_MS;
+
     return {
       dot: "ready",
       message: {
         kind: "installed",
         version: inventory.version,
-        upToDate: false,
-        updateAvailable: hasUpdate(inventory),
+        upToDate: fresh,
+        updateAvailable,
       },
-      primary: { action: { kind: "update" }, disabled: false },
-      cancel: { shown: false, disabled: true },
+      primary: { action: { kind: "update" }, disabled: fresh },
+      // Never `true` here. `settling` starts a repaint timer and this window is
+      // twelve hours, so the panel would poll for as long as it stayed open.
       settling: false,
     };
   }
@@ -255,7 +298,6 @@ function settledView(input: RowInput): RowView {
     dot: "bad",
     message: { kind: "absent", version: pinnedRelease().version },
     primary: { action: { kind: "install" }, disabled: false },
-    cancel: { shown: false, disabled: true },
     settling: false,
   };
 }
@@ -283,7 +325,6 @@ function spaceView(input: RowInput): RowView | undefined {
     dot: "bad",
     message: { kind: "noSpace", needed },
     primary: { action: { kind: "install" }, disabled: true },
-    cancel: { shown: false, disabled: true },
     settling: false,
   };
 }

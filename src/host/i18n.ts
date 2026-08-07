@@ -82,7 +82,6 @@ const STRINGS = {
     // The button says what is happening, not what it will do when it stops. It
     // used to keep reading "Update" for the whole install.
     dictWorkChecking: "Checking…",
-    dictWorkDownloading: "Downloading…",
     dictWorkInstalling: "Installing…",
     // Free space, not download size: the archive and its extraction exist at
     // once, so 68.9 MB of download needs about 340 MB free.
@@ -199,7 +198,6 @@ const STRINGS = {
     dictUpdateCheckFailed: "无法检查更新",
     dictCancel: "取消",
     dictWorkChecking: "检查中…",
-    dictWorkDownloading: "下载中…",
     dictWorkInstalling: "安装中…",
     dictNoSpace: (needed: string) => `磁盘空间不足，需要 ${needed} 可用空间`,
     dictNoticeMissing: "尚未安装日语词典，请在 Kashiyomi 设置中下载。",

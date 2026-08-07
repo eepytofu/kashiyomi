@@ -23,6 +23,8 @@ export type Settings = {
   dictVersion: string | undefined;
   /** Whether the first-run setup has been answered, and how. */
   dictSetupSeen: DictionarySetupSeen;
+  /** When the last update check got a real answer, epoch ms. */
+  dictCheckedAt: number | undefined;
   /** rt size as a percentage of the base lyric font. */
   furiganaSize: number;
   /** Use a Japanese font stack on Japanese lyric lines (Han unification). */
@@ -87,6 +89,7 @@ const DEFAULTS: Settings = {
   debug: true,
   dictVersion: undefined,
   dictSetupSeen: "",
+  dictCheckedAt: undefined,
   furiganaSize: 50,
   useJpFont: true,
   jpFontStack: DEFAULT_JP_FONT_STACK,

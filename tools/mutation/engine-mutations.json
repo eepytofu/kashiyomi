@@ -975,16 +975,16 @@
   {
     "id": "rowstate/cancel-live-during-swap",
     "file": "src/engine/dictionaryRowState.ts",
-    "what": "cancel stays enabled through the swap and load, offering to stop work that cannot be stopped",
-    "find": "        job.phase === \"verifying\" || job.phase === \"extracting\",",
-    "replace": "        true,"
+    "what": "cancel stays offered through the swap and the load, where nothing can honour it",
+    "find": "      return job.phase === \"verifying\" || job.phase === \"extracting\"\n        ? cancellable(message)\n        : busy(message);",
+    "replace": "      return cancellable(message);"
   },
   {
-    "id": "rowstate/resolve-not-cancellable",
+    "id": "rowstate/resolve-offers-cancel",
     "file": "src/engine/dictionaryRowState.ts",
-    "what": "the update check cannot be cancelled, so a source that hangs leaves the row stuck with a dead button",
-    "find": "      return working({ kind: \"checking\" }, \"checking\", true);",
-    "replace": "      return working({ kind: \"checking\" }, \"checking\", false);"
+    "what": "the ~1s update check offers a cancel button again, which only ever flickers",
+    "find": "      return busy({ kind: \"checking\" });",
+    "replace": "      return cancellable({ kind: \"checking\" });"
   },
   {
     "id": "dictionary/mirror-swap-unguarded",
@@ -1006,5 +1006,26 @@
     "what": "a surface that did not press anything still reports the outcome, so the settings row claims a check it never made",
     "find": "  if (input.ownsJob === false) return undefined;",
     "replace": "  if (false) return undefined;"
+  },
+  {
+    "id": "rowstate/check-interval-ignored",
+    "file": "src/engine/dictionaryRowState.ts",
+    "what": "a check that found nothing stops holding the button, so update re-asks immediately",
+    "find": "      primary: { action: { kind: \"update\" }, disabled: fresh },",
+    "replace": "      primary: { action: { kind: \"update\" }, disabled: false },"
+  },
+  {
+    "id": "rowstate/interval-blocks-a-real-update",
+    "file": "src/engine/dictionaryRowState.ts",
+    "what": "the interval also gates a check that found something newer, stranding the user in front of an update they cannot take",
+    "find": "    const fresh =\n      !updateAvailable &&\n      inventory.checkedAt !== undefined &&",
+    "replace": "    const fresh =\n      inventory.checkedAt !== undefined &&"
+  },
+  {
+    "id": "dictstate/check-timestamp-accepts-junk",
+    "file": "src/engine/dictionaryState.ts",
+    "what": "NaN is stored as a check timestamp, so every comparison against the interval is false and the throttle silently stops working",
+    "find": "      typeof checkedAt === \"number\" && Number.isFinite(checkedAt) && checkedAt > 0",
+    "replace": "      typeof checkedAt === \"number\""
   }
 ]

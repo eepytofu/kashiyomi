@@ -16,7 +16,7 @@ import {
   downloadDictionary,
   planDownload,
   reportNoSource,
-  reportUpToDate,
+  recordCheck,
   resolveRelease,
   type DownloadPlan,
 } from "./dictionary.ts";
@@ -49,7 +49,7 @@ export async function startDictionaryInstall(): Promise<void> {
     // The one honest use of `no-source`: already at the pinned version, and
     // nothing answered when asked whether a newer one exists. Saying "already
     // the newest release" there would report an answer never received.
-    if (checked) reportUpToDate();
+    if (checked) recordCheck();
     else reportNoSource();
     return;
   }
@@ -61,6 +61,9 @@ export async function startDictionaryInstall(): Promise<void> {
   // keyed by line text, so rescan alone would put every line back with its old
   // reading and the whole download would look like it did nothing.
   if (result.kind === "idle") {
+    // The install just proved what the newest release is, so the next open has
+    // nothing to ask about.
+    recordCheck();
     resetAnalysisCache();
     void rescan();
   }

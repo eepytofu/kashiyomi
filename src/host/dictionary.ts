@@ -25,6 +25,7 @@ import {
 import { archivePath, dictionaryPath, hasDictionary } from "../engine/dictionaryLayout.ts";
 import type { DictionaryInventory, DictionaryJob } from "../engine/dictionaryState.ts";
 import { pinnedRelease } from "../engine/dictionaryPins.ts";
+import { CHECK_INTERVAL_MS } from "../engine/dictionaryRowState.ts";
 import { log } from "./log.ts";
 import { getSettings, updateSettings } from "./settings.ts";
 import {
@@ -40,6 +41,7 @@ let inventory: DictionaryInventory = {
   loaded: false,
   version: undefined,
   latest: undefined,
+  checkedAt: undefined,
 };
 let job: DictionaryJob = { kind: "idle" };
 let inFlight = false;
@@ -143,6 +145,9 @@ export function reportInventory(installed: boolean, loaded: boolean): void {
     loaded,
     version: installed ? getSettings().dictVersion : undefined,
     latest: inventory.latest,
+    // Read from settings rather than carried, so a boot picks up a check made
+    // in an earlier session and the throttle survives an NCM restart.
+    checkedAt: getSettings().dictCheckedAt,
   };
   announce();
 }
@@ -164,6 +169,31 @@ async function refreshInventory(dictDir: string, loaded: boolean): Promise<void>
 }
 
 /**
+ * Whether a check ran recently enough that another one cannot learn anything.
+ *
+ * The interval lives in the engine beside the view that reads it, so the rule
+ * the button is disabled by and the rule the network request is skipped by are
+ * the same number rather than two that can drift.
+ */
+export function checkedRecently(): boolean {
+  const at = getSettings().dictCheckedAt;
+  return at !== undefined && Date.now() - at < CHECK_INTERVAL_MS;
+}
+
+/**
+ * Record that a check got a real answer.
+ *
+ * Written on any answered check, including one that found nothing: "nothing
+ * newer exists" is exactly the answer worth remembering, since it is the one
+ * that makes asking again pointless for a while.
+ */
+export function recordCheck(): void {
+  const at = Date.now();
+  updateSettings({ dictCheckedAt: at });
+  inventory = { ...inventory, checkedAt: at };
+}
+
+/**
  * Check for a newer release without anyone pressing anything.
  *
  * Refuses while anything else is happening, so it can never interrupt an
@@ -171,32 +201,37 @@ async function refreshInventory(dictDir: string, loaded: boolean): Promise<void>
  * afterwards so a background check does not leave the button reading
  * "Checking…" forever.
  *
+ * Also refuses inside the interval. Opening settings used to fire two requests
+ * every time, which for a dictionary that ships quarterly is a network call to
+ * re-learn what is already on disk.
+ *
  * A failure records nothing. `latest` staying undefined means "not asked",
  * which is exactly why it can never be mistaken for "up to date": a control
  * asserting a check it had never made is what this exists to end.
  */
 export async function checkForNewerRelease(): Promise<void> {
-  if (inFlight || job.kind !== "idle") return;
+  if (inFlight || job.kind !== "idle" || checkedRecently()) return;
   const { release, checked } = await resolveRelease();
-  if (checked) inventory = { ...inventory, latest: release.version };
+  if (checked) {
+    inventory = { ...inventory, latest: release.version };
+    recordCheck();
+  }
   if (dictionaryJob().kind === "resolving") setJob({ kind: "idle" });
   else announce();
 }
 
 /**
- * Forget a finished job, leaving a running one alone.
+ * Forget the last check, so the next open asks again.
  *
- * `upToDate` and `failed` are reports of a press, and their cooldown disables
- * the button; leaving one in place after the situation changed read as the
- * control lagging behind the click.
+ * Debug only, on `kashiyomi.forgetDictCheck`. A twelve-hour throttle that
+ * persists across restarts is otherwise untestable without hand-editing
+ * settings, which is how a test ends up proving something about a blob rather
+ * than about the code.
  */
-export function clearFinishedJob(): void {
-  if (job.kind === "upToDate" || job.kind === "failed") setJob({ kind: "idle" });
-}
-
-/** The update check found nothing newer. */
-export function reportUpToDate(): void {
-  setJob({ kind: "upToDate", at: Date.now() });
+export function forgetDictionaryCheck(): void {
+  updateSettings({ dictCheckedAt: undefined });
+  inventory = { ...inventory, checkedAt: undefined, latest: undefined };
+  announce();
 }
 
 /**

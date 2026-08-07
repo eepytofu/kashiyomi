@@ -37,6 +37,15 @@ export type DictionaryInventory = {
    * Undefined means "not asked", never "up to date".
    */
   readonly latest: string | undefined;
+  /**
+   * When that check happened, as an epoch millisecond.
+   *
+   * Persisted, so it outlives the panel and an NCM restart. It is what lets
+   * "already the newest release" be a durable statement about a check that
+   * really ran, rather than the residue of a 4s cooldown after a press — and it
+   * is what stops the button asking again within `CHECK_INTERVAL_MS`.
+   */
+  readonly checkedAt: number | undefined;
 };
 
 /**
@@ -48,6 +57,10 @@ export type DictionaryInventory = {
  *
  * `at` is a timestamp so a cooldown can be a pure function of `(job, now)`
  * instead of a `setTimeout` the panel has to own and clean up.
+ *
+ * There is no success variant. "Already the newest release" was one until
+ * 2026-08-07, which made a lasting answer out of a 4s window; it lives on the
+ * inventory as `checkedAt` now, because it is a fact rather than an event.
  */
 export type DictionaryJob =
   | { readonly kind: "idle" }
@@ -60,8 +73,7 @@ export type DictionaryJob =
       /** Zero while the size is not knowable yet, which reads as indeterminate. */
       readonly total: number;
     }
-  | { readonly kind: "failed"; readonly reason: DictionaryFailure; readonly at: number }
-  | { readonly kind: "upToDate"; readonly at: number };
+  | { readonly kind: "failed"; readonly reason: DictionaryFailure; readonly at: number };
 
 /** Whether the first-run prompt has been answered, and how. */
 export type DictionarySetupSeen = "" | "later" | "never" | "done";
@@ -71,6 +83,8 @@ const SETUP_SEEN: readonly DictionarySetupSeen[] = ["", "later", "never", "done"
 export type DictionarySettings = {
   readonly dictVersion: string | undefined;
   readonly dictSetupSeen: DictionarySetupSeen;
+  /** When the last update check got a real answer; see `DictionaryInventory`. */
+  readonly dictCheckedAt: number | undefined;
 };
 
 /**
@@ -86,8 +100,16 @@ export function migrateDictionarySettings(raw: unknown): DictionarySettings {
   const source: Record<string, unknown> =
     typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
   const version = source.dictVersion;
+  const checkedAt = source.dictCheckedAt;
   return {
     dictVersion: typeof version === "string" && version !== "" ? version : undefined,
     dictSetupSeen: SETUP_SEEN.find((seen) => seen === source.dictSetupSeen) ?? "",
+    // A timestamp has to be a usable number or absent. NaN and Infinity both
+    // survive a `typeof` check and would make every comparison against the
+    // interval false, silently disabling the throttle they were read for.
+    dictCheckedAt:
+      typeof checkedAt === "number" && Number.isFinite(checkedAt) && checkedAt > 0
+        ? checkedAt
+        : undefined,
   };
 }

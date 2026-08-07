@@ -8,6 +8,7 @@ import { nativeInit, nativeState } from "./host/native.ts";
 import {
   cancelDictionaryDownload,
   dictionaryInventory,
+  forgetDictionaryCheck,
   dictionaryJob,
   dictionaryListenerCount,
   downloadDictionary,
@@ -77,6 +78,11 @@ async function start(): Promise<void> {
       listeners: dictionaryListenerCount(),
     }),
     cancelDictionary: cancelDictionaryDownload,
+    // Forget the last update check, so the next settings open asks again.
+    // Without it a twelve-hour throttle that persists across restarts can only
+    // be exercised by hand-editing settings, which tests the blob rather than
+    // the code.
+    forgetDictCheck: forgetDictionaryCheck,
     // The first-run dialog without clicking through to it, which is otherwise
     // reachable only on a machine that has never had a dictionary. There is no
     // settings button for it: re-running a first-run prompt is a thing to test,

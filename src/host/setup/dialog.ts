@@ -97,12 +97,6 @@ export function openDictionarySetup(): void {
   primary.className = "kc-button ks-primary";
   actions.appendChild(primary);
 
-  const cancel = document.createElement("button");
-  cancel.className = "kc-button";
-  cancel.textContent = t("dictCancel");
-  cancel.onclick = () => cancelDictionaryDownload();
-  actions.appendChild(cancel);
-
   const spacer = document.createElement("div");
   spacer.className = "ks-spacer";
   actions.appendChild(spacer);
@@ -156,8 +150,6 @@ export function openDictionarySetup(): void {
 
     primary.textContent = actionLabel(current.primary.action);
     primary.disabled = current.primary.disabled;
-    cancel.style.display = current.cancel.shown ? "" : "none";
-    cancel.disabled = current.cancel.disabled;
 
     // Once a dictionary is in place the dialog has done its job, so the way out
     // stops being a deferral and becomes an ordinary close.
@@ -184,6 +176,12 @@ export function openDictionarySetup(): void {
   };
 
   primary.onclick = () => {
+    // Same single button as the settings row: it is the download while one can
+    // be started, and the way out while one can still be abandoned.
+    if (view().primary.action.kind === "cancel") {
+      cancelDictionaryDownload();
+      return;
+    }
     startPolling();
     void startDictionaryInstall().then(() => {
       freeBytes = readFreeSpace();
