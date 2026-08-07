@@ -70,6 +70,11 @@ const STRINGS = {
       "Only the Japanese dictionary is set up here. AI translation needs your own API key, and everything else is in the settings panel.",
     setupInstalled: "Dictionary installed. Japanese lyrics will show readings from now on.",
     setupDone: "Done",
+    // The countdown is shown, not silent. A dialog that closes on a hidden
+    // timer gives no chance to read it and can steal a click already moving
+    // toward the button; a labelled one does neither, and the button keeps
+    // doing the same thing if pressed early.
+    setupDoneIn: (seconds: number) => `Done (closing in ${seconds})`,
     setupSpace: "needs {needed} free, you have {free}",
     // Not "Later": everything except Japanese readings already works, so
     // deferring the dictionary is continuing rather than postponing the plugin.
@@ -199,6 +204,7 @@ const STRINGS = {
       "此处仅设置日语词典。AI 翻译需自备 API key，其余设置均在设置面板中。",
     setupInstalled: "词典已安装，之后日语歌词将显示读音。",
     setupDone: "完成",
+    setupDoneIn: (seconds: number) => `完成（${seconds} 秒后关闭）`,
     setupSpace: "需要 {needed} 可用空间，当前可用 {free}",
     setupLater: "暂时跳过",
     setupClose: "关闭",
@@ -293,6 +299,10 @@ export function t(key: StringKey): string {
 
 export function tSongsCached(count: number): string {
   return STRINGS[panelLang()].songsCached(count);
+}
+
+export function tCloseIn(seconds: number): string {
+  return STRINGS[panelLang()].setupDoneIn(seconds);
 }
 
 export function tNoSpace(needed: string): string {

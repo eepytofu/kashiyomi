@@ -26,7 +26,7 @@
 // was written (CEF 91 / Chrome 91.0.4472.164): both work. `inert` and `:has()`
 // do not, so focus containment is by hand.
 
-import { t } from "../i18n.ts";
+import { t, tCloseIn } from "../i18n.ts";
 import {
   cancelDictionaryDownload,
   dictionaryInventory,
@@ -151,16 +151,12 @@ export function openDictionarySetup(): void {
     if (freeBytes === undefined) freeBytes = readFreeSpace();
     const now = state();
 
-    // Held through the download, dropped only once it is done.
-    //
-    // It answers "will this fit", so strictly it stops being a question the
-    // moment a transfer starts. Blanking it there is defensible and looked
-    // wrong: the row is height-reserved, so the text vanished and left an empty
-    // gap above the status, and an element disappearing with no replacement
-    // reads as something broken. At DONE the success line takes over and the
-    // dialog is ending, which is a natural place for it to go.
+    // Only before anything starts. It answers "will this fit", which is settled
+    // the moment a transfer begins, so carrying it through the download is
+    // restating a decision already made. The row collapses when empty rather
+    // than holding a blank line (see ks-space:empty).
     space.textContent =
-      now !== "done" && freeBytes !== undefined
+      now === "needed" && freeBytes !== undefined
         ? t("setupSpace")
             .replace("{needed}", mb(requiredFreeBytes(pinnedRelease().size)))
             .replace("{free}", size(freeBytes))
@@ -188,9 +184,9 @@ export function openDictionarySetup(): void {
       status.className = "ks-status ks-ready";
       // The task is finished, so the button finishes it. No update step: this
       // flow does not have one, and the settings row is where updating lives.
-      primary.textContent = t("setupDone");
       primary.disabled = false;
       close.style.display = "none";
+      startCountdown();
       return;
     }
 
@@ -199,6 +195,36 @@ export function openDictionarySetup(): void {
     primary.textContent = t("dictInstall");
     primary.disabled = false;
     close.style.display = "";
+  };
+
+  /**
+   * Close by itself once the dictionary is in, counting down on the button.
+   *
+   * Started only on reaching `done`, and only once: `paint` runs on every
+   * dictionary change, so an unguarded start would reset the count each time
+   * and the dialog would never actually close.
+   */
+  const CLOSE_AFTER_SECONDS = 5;
+  let countdown: number | undefined;
+  let remaining = CLOSE_AFTER_SECONDS;
+  const stopCountdown = (): void => {
+    if (countdown === undefined) return;
+    window.clearInterval(countdown);
+    countdown = undefined;
+  };
+  const startCountdown = (): void => {
+    if (countdown !== undefined) return;
+    primary.textContent = tCloseIn(remaining);
+    countdown = window.setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        stopCountdown();
+        updateSettings({ dictSetupAnswered: true });
+        dialog.close();
+        return;
+      }
+      primary.textContent = tCloseIn(remaining);
+    }, 1000);
   };
 
   let poll: number | undefined;
@@ -239,6 +265,7 @@ export function openDictionarySetup(): void {
   dialog.addEventListener("close", () => {
     unsubscribe();
     stopPolling();
+    stopCountdown();
     // Marked as answered however it was dismissed. Reaching this dialog and
     // walking away is still an answer, and re-raising it every launch after
     // that would be nagging.

@@ -43,7 +43,12 @@ export const SETUP_CSS = `
    on the option rather than in a sentence under the list. */
 .kashiyomi-setup .ks-option-state { flex: none; font-size: 11.5px; opacity: 0.55; white-space: nowrap; }
 .kashiyomi-setup .ks-in-use { color: #8fd97a; opacity: 0.9; }
-.kashiyomi-setup .ks-space { font-size: 12px; opacity: 0.68; margin-top: 12px; min-height: 17px; }
+/* No min-height: the row is removed once a download starts, and reserving its
+   height left a gap where a line used to be, which reads as something broken.
+   Collapsing shrinks the dialog once, at the click that also swaps the button
+   to Cancel and the status to progress, so it reads as a response. */
+.kashiyomi-setup .ks-space:empty { display: none; }
+.kashiyomi-setup .ks-space { font-size: 12px; opacity: 0.68; margin-top: 12px; }
 /* Reserves its line whether or not there is anything to say, so starting a
    download does not shift every control below it. */
 .kashiyomi-setup .ks-status { font-size: 12.5px; margin-top: 6px; min-height: 18px; }
