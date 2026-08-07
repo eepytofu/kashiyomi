@@ -1,14 +1,14 @@
-﻿// Downloading, verifying and switching the Sudachi dictionary.
+// Downloading, verifying and switching the Sudachi dictionary.
 //
 // Splits the work where each side is strong: `fetch` here, because it is
 // already HTTPS, already streams, and already honours whatever proxy the user
-// has configured â€” a Rust client would need all three written by hand, and the
+// has configured — a Rust client would need all three written by hand, and the
 // users who most need a proxy are exactly the ones this feature exists for.
 // Verification and extraction happen natively, because the extracted
 // dictionary is 207 MB and has no business in this heap.
 //
-// Policy â€” which source to try, what each failure means, whether an edition
-// fits the disk â€” lives in `engine/dictionarySource.ts` so it can be tested
+// Policy — which source to try, what each failure means, whether an edition
+// fits the disk — lives in `engine/dictionarySource.ts` so it can be tested
 // without a network.
 
 import {
@@ -78,8 +78,8 @@ export function dictionaryListenerCount(): number {
  * Notify a listener whenever either changes, whoever changed it.
  *
  * The settings row used to repaint only in response to its own button, so a
- * download started anywhere else â€” the debug handle, and in future an automatic
- * first fetch â€” left it reading "not installed" over a dictionary that was
+ * download started anywhere else — the debug handle, and in future an automatic
+ * first fetch — left it reading "not installed" over a dictionary that was
  * installed and working. A control whose whole job is reporting state has to
  * follow the state rather than its own last click.
  */
@@ -147,7 +147,7 @@ export function reportInventory(
  * Which editions are on disk, asked of the disk.
  *
  * This used to take the *preferred* edition's path and, on finding any file
- * there, report whatever edition settings claimed â€” so a machine holding
+ * there, report whatever edition settings claimed — so a machine holding
  * `system_small.dic` while settings said `core` was described as having core
  * installed, and the analyzer was then pointed at a file that did not exist.
  * Settings record what the user wants; only the directory knows what arrived.
@@ -199,7 +199,7 @@ export function cancelDictionaryDownload(): void {
 
 /**
  * Force the next attempt to fail a given way, for checking the messages read
- * sensibly. Wired to `kashiyomi.simulateDictFailure` â€” unit tests can prove the
+ * sensibly. Wired to `kashiyomi.simulateDictFailure` — unit tests can prove the
  * state machine but cannot judge wording, and wording is what a user meets.
  */
 let simulated: DictionaryFailure | undefined;
@@ -310,7 +310,7 @@ export type DownloadPlan = {
   /**
    * A dictionary this install replaces, deleted once the new one loads.
    *
-   * Only ever set when switching to a *different* edition â€” an update writes
+   * Only ever set when switching to a *different* edition — an update writes
    * the same filename, so there is nothing left over. Without this, switching
    * core to small left 207 MB of a dictionary nothing would open again, on a
    * disk the user had just been asked to make room on.
@@ -337,7 +337,7 @@ export function planDownload(
 }
 
 /**
- * Fetch, verify, install, and load â€” in that order, and never any other.
+ * Fetch, verify, install, and load — in that order, and never any other.
  *
  * The old dictionary is only replaced by a rename of a file that has already
  * been hash-checked and extracted, so a failure at any step leaves the working
@@ -373,7 +373,7 @@ export async function downloadDictionary(
     }
 
     // The data directory does not exist on a fresh install, and writeFile does
-    // not create it â€” the first real run failed here with "cannot find the path
+    // not create it — the first real run failed here with "cannot find the path
     // specified" after downloading the whole archive.
     try {
       await betterncm.fs.mkdir(dir);
@@ -483,7 +483,7 @@ async function awaitInstall(edition: DictionaryEdition): Promise<InstallOutcome>
  * Stream the archive to disk, updating progress as it goes.
  *
  * Read through a `ReadableStream` rather than awaiting `.blob()` so the status
- * can move while a 69 MB transfer is in flight â€” a progress bar that only moves
+ * can move while a 69 MB transfer is in flight — a progress bar that only moves
  * at the end is worse than none.
  */
 async function fetchArchive(
