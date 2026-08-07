@@ -2,6 +2,7 @@
 // replaced with ruby markup; reading rows (romaji or pinyin) are appended as
 // small sublines inside the same element so they scroll with the line.
 
+import { panelLang } from "./i18n.ts";
 import type { JapaneseLineAnnotation } from "../engine/japanese.ts";
 
 export const MARK_ATTR = "data-kashiyomi";
@@ -95,6 +96,13 @@ function romajiRow(annotation: JapaneseLineAnnotation): HTMLElement {
 export function renderNoticeRow(el: HTMLElement, message: string): void {
   const row = document.createElement("div");
   row.className = `${ROW_CLASS} kashiyomi-notice`;
+  // Tagged with the panel language, not the song's. Rows are normally tagged
+  // from their own text and an untagged one is assumed Latin, which is true of
+  // every other row the plugin injects: romaji, pinyin, a translation. This one
+  // is the plugin talking, so it is CJK whenever the panel is Chinese, and
+  // untagged it inherited the reading-row stack — a Japanese face rendering
+  // Simplified Chinese, Han-unified into the wrong glyph forms.
+  row.setAttribute("lang", panelLang() === "zh" ? "zh" : "en");
   row.textContent = message;
   el.appendChild(row);
 }

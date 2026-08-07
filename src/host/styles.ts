@@ -3,7 +3,12 @@
 // line, this one writes a single <style> element from settings.
 
 import { ROW_CLASS } from "./render.ts";
-import { getSettings, MAX_FURIGANA_SIZE, MIN_FURIGANA_SIZE } from "./settings.ts";
+import {
+  DEFAULT_ZH_FONT_STACK,
+  getSettings,
+  MAX_FURIGANA_SIZE,
+  MIN_FURIGANA_SIZE,
+} from "./settings.ts";
 
 /**
  * (Re)build the injected stylesheet from current settings. Cheap; call after
@@ -44,6 +49,14 @@ export function applyStyles(): void {
     fontRule += `ul.lyric li p[lang="zh"] { font-family: ${settings.zhFontStack} !important; }\n`;
     fontRule += `.${ROW_CLASS}[lang="zh"] { font-family: ${settings.zhFontStack} !important; }\n`;
   }
+  // The notice is the plugin's own copy, so it follows the panel language and
+  // not the song. Emitted unconditionally and last: `useZhFont` is off by
+  // default and governs *lyrics*, so leaving this to that setting would render
+  // a Chinese sentence in a Japanese face on a default install, which is the
+  // bug being fixed. Specificity (0,3,0) beats `.row[lang="ja"]` (0,2,0), so it
+  // wins wherever the row stacks would otherwise reach it.
+  const noticeZh = settings.zhFontStack.trim() === "" ? DEFAULT_ZH_FONT_STACK : settings.zhFontStack;
+  fontRule += `.${ROW_CLASS}.kashiyomi-notice[lang="zh"] { font-family: ${noticeZh} !important; }\n`;
   style.textContent = `
 .${ROW_CLASS} {
   font-size: 0.72em;
