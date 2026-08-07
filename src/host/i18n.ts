@@ -61,7 +61,6 @@ const STRINGS = {
     // Not "Later": everything except Japanese readings already works, so
     // deferring the dictionary is continuing rather than postponing the plugin.
     setupLater: "Skip for now",
-    setupNever: "Don't ask again",
     setupClose: "Close",
     dictInstall: "Download",
     dictDownloading: "downloading",
@@ -182,7 +181,6 @@ const STRINGS = {
       "日语读音需要词典。\nAI 翻译需要自备 API key，在本插件的设置中填写。",
     setupSpace: "需要 {needed} 可用空间，当前可用 {free}",
     setupLater: "暂时跳过",
-    setupNever: "不再提示",
     setupClose: "关闭",
     dictInstall: "下载",
     dictDownloading: "下载中",

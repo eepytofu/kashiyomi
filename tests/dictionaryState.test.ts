@@ -11,7 +11,7 @@ import { migrateDictionarySettings } from "../src/engine/dictionaryState.ts";
 test("a fresh install gets the defaults", () => {
   assert.deepEqual(migrateDictionarySettings({}), {
     dictVersion: undefined,
-    dictSetupSeen: "",
+    dictSetupAnswered: false,
     dictCheckedAt: undefined,
   });
 });
@@ -24,14 +24,14 @@ test("a recorded version is read back", () => {
 });
 
 test("a setup answer is read back", () => {
-  assert.equal(migrateDictionarySettings({ dictSetupSeen: "never" }).dictSetupSeen, "never");
+  assert.equal(migrateDictionarySettings({ dictSetupAnswered: true }).dictSetupAnswered, true);
 });
 
 test("junk falls back to the defaults instead of throwing", () => {
   for (const junk of [null, undefined, 0, "", "nonsense", [], true]) {
     assert.deepEqual(
       migrateDictionarySettings(junk),
-      { dictVersion: undefined, dictSetupSeen: "", dictCheckedAt: undefined },
+      { dictVersion: undefined, dictSetupAnswered: false, dictCheckedAt: undefined },
       JSON.stringify(junk),
     );
   }
@@ -50,21 +50,23 @@ test("a version that is not a non-empty string is not stored", () => {
   }
 });
 
-test("an unknown setup answer falls back to unanswered", () => {
-  assert.equal(migrateDictionarySettings({ dictSetupSeen: "maybe" }).dictSetupSeen, "");
-  assert.equal(migrateDictionarySettings({ dictSetupSeen: 7 }).dictSetupSeen, "");
-});
-
-// "" is a real answer meaning not asked yet, and it is what raises the first-run
-// dialog. Falling back to it is correct; treating it as invalid would not be.
-test("the unanswered state survives a round trip", () => {
-  assert.equal(migrateDictionarySettings({ dictSetupSeen: "" }).dictSetupSeen, "");
-});
-
-test("every answer the dialog can write is accepted", () => {
-  for (const seen of ["later", "never", "done"] as const) {
-    assert.equal(migrateDictionarySettings({ dictSetupSeen: seen }).dictSetupSeen, seen);
+// Only a literal `true` counts as answered. Anything else has to mean "not
+// asked yet", because the failure that matters is a new install being silently
+// treated as one that already declined, and never seeing the prompt at all.
+test("anything but true reads as unanswered", () => {
+  for (const bad of ["maybe", 7, "true", 1, {}, [], null, "later", "never"]) {
+    assert.equal(
+      migrateDictionarySettings({ dictSetupAnswered: bad }).dictSetupAnswered,
+      false,
+      JSON.stringify(bad),
+    );
   }
+});
+
+// Unanswered is what raises the first-run dialog, so an absent key must land
+// there rather than being treated as invalid input.
+test("a missing answer is unanswered, which is what raises the dialog", () => {
+  assert.equal(migrateDictionarySettings({}).dictSetupAnswered, false);
 });
 
 // Extra keys are what a hand-edited blob and an older build both leave behind.
@@ -77,7 +79,7 @@ test("unknown keys are ignored rather than carried", () => {
   });
   assert.deepEqual(settings, {
     dictVersion: "20260723",
-    dictSetupSeen: "",
+    dictSetupAnswered: false,
     dictCheckedAt: undefined,
   });
 });

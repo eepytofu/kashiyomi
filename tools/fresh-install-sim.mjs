@@ -1,6 +1,7 @@
 // Put this machine into the state a brand new install is in, and get it back.
 //
 //   node tools/fresh-install-sim.mjs on     pretend nothing is installed
+//   node tools/fresh-install-sim.mjs again  back to the very first launch
 //   node tools/fresh-install-sim.mjs off    put everything back
 //   node tools/fresh-install-sim.mjs status
 //
@@ -137,6 +138,27 @@ if (mode === "on") {
   process.exit(0);
 }
 
+// Answering the dialog is a one-way door by design: it records the answer so a
+// new install is not nagged every launch. Testing the *other* branches
+// therefore needs the sandbox emptied and the answer forgotten, which is three
+// fiddly steps done by hand between every attempt.
+if (mode === "again") {
+  if (!existsSync(BACKUP)) {
+    console.error("Not on. Run `on` first, or this would clear the real settings.");
+    process.exit(1);
+  }
+  const { ws, evaluate, reload } = await cdp();
+  // Only ever the sandbox. The real dictionary directory is never a target
+  // here, whatever dev-paths.json currently says.
+  rmSync(SANDBOX, { recursive: true, force: true });
+  mkdirSync(SANDBOX, { recursive: true });
+  await evaluate(`localStorage.removeItem(${JSON.stringify(SETTINGS_KEY)})`);
+  await reload();
+  ws.close();
+  console.log("Back to a first launch: sandbox emptied, settings cleared, NCM reloaded.");
+  process.exit(0);
+}
+
 if (mode === "off") {
   if (!existsSync(BACKUP)) {
     console.error("Not on: no backup to restore from.");
@@ -158,5 +180,5 @@ if (mode === "off") {
   process.exit(0);
 }
 
-console.error(`unknown mode "${mode}". Use on, off or status.`);
+console.error(`unknown mode "${mode}". Use on, again, off or status.`);
 process.exit(1);

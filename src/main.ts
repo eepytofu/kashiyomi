@@ -60,7 +60,7 @@ async function start(): Promise<void> {
   // Raised here rather than from the panel because the whole problem is that a
   // new install shows no furigana and says nothing about why, and the settings
   // panel is the place someone goes *after* deciding something is wrong.
-  if (getSettings().dictSetupSeen === "" && !installed) {
+  if (!getSettings().dictSetupAnswered && !installed) {
     openDictionarySetup();
   }
 

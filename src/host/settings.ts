@@ -1,9 +1,6 @@
 // Plugin settings persisted as one JSON blob in localStorage.
 
-import {
-  migrateDictionarySettings,
-  type DictionarySetupSeen,
-} from "../engine/dictionaryState.ts";
+import { migrateDictionarySettings } from "../engine/dictionaryState.ts";
 
 export type Settings = {
   furigana: boolean;
@@ -22,7 +19,7 @@ export type Settings = {
    */
   dictVersion: string | undefined;
   /** Whether the first-run setup has been answered, and how. */
-  dictSetupSeen: DictionarySetupSeen;
+  dictSetupAnswered: boolean;
   /** When the last update check got a real answer, epoch ms. */
   dictCheckedAt: number | undefined;
   /** rt size as a percentage of the base lyric font. */
@@ -88,7 +85,7 @@ const DEFAULTS: Settings = {
   annotateCredits: false,
   debug: true,
   dictVersion: undefined,
-  dictSetupSeen: "",
+  dictSetupAnswered: false,
   dictCheckedAt: undefined,
   furiganaSize: 50,
   useJpFont: true,

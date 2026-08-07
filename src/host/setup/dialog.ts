@@ -104,25 +104,16 @@ export function openDictionarySetup(): void {
   spacer.className = "ks-spacer";
   actions.appendChild(spacer);
 
+  // One dismissal. A second button offering "don't ask again" said nothing the
+  // first did not already do, because nothing re-raises this dialog either way.
   const close = document.createElement("button");
   close.className = "kc-button";
   close.textContent = t("setupLater");
   close.onclick = () => {
-    updateSettings({ dictSetupSeen: "later" });
+    updateSettings({ dictSetupAnswered: true });
     dialog.close();
   };
   actions.appendChild(close);
-
-  const never = document.createElement("button");
-  never.className = "kc-button";
-  never.textContent = t("setupNever");
-  never.onclick = () => {
-    // The settings row stays the way back in, which is what makes this safe to
-    // offer rather than a decision the user cannot undo.
-    updateSettings({ dictSetupSeen: "never" });
-    dialog.close();
-  };
-  actions.appendChild(never);
 
   let freeBytes = readFreeSpace();
 
@@ -156,10 +147,7 @@ export function openDictionarySetup(): void {
 
     // Once a dictionary is in place the dialog has done its job, so the way out
     // stops being a deferral and becomes an ordinary close.
-    if (dictionaryInventory().installed) {
-      close.textContent = t("setupClose");
-      never.style.display = "none";
-    }
+    if (dictionaryInventory().installed) close.textContent = t("setupClose");
     if (current.settling) startPolling();
   };
 
@@ -199,7 +187,7 @@ export function openDictionarySetup(): void {
     // Marked as answered however it was dismissed. Reaching this dialog and
     // walking away is still an answer, and re-raising it every launch after
     // that would be nagging.
-    if (getSettings().dictSetupSeen === "") updateSettings({ dictSetupSeen: "later" });
+    if (!getSettings().dictSetupAnswered) updateSettings({ dictSetupAnswered: true });
     dialog.remove();
     if (open === dialog) open = undefined;
   });

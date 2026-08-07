@@ -79,14 +79,23 @@ export type DictionaryJob =
     }
   | { readonly kind: "failed"; readonly reason: DictionaryFailure; readonly at: number };
 
-/** Whether the first-run prompt has been answered, and how. */
-export type DictionarySetupSeen = "" | "later" | "never" | "done";
-
-const SETUP_SEEN: readonly DictionarySetupSeen[] = ["", "later", "never", "done"];
 
 export type DictionarySettings = {
   readonly dictVersion: string | undefined;
-  readonly dictSetupSeen: DictionarySetupSeen;
+  /**
+   * Whether the first-run prompt has been answered.
+   *
+   * A plain flag, because there is only one dismissal. It used to record *how*
+   * it was dismissed ("later" against "never"), and the two were then treated
+   * identically by the only code that read it, so "Skip for now" and "Don't ask
+   * again" did exactly the same thing while promising different things.
+   *
+   * Nothing re-raises this dialog. The reminder job belongs to the lyric-line
+   * notice, which speaks when a Japanese line cannot be read and says where to
+   * fix it, so a launch-time popup would only nag people who are not listening
+   * to Japanese at all.
+   */
+  readonly dictSetupAnswered: boolean;
   /** When the last update check got a real answer; see `DictionaryInventory`. */
   readonly dictCheckedAt: number | undefined;
 };
@@ -107,7 +116,7 @@ export function migrateDictionarySettings(raw: unknown): DictionarySettings {
   const checkedAt = source.dictCheckedAt;
   return {
     dictVersion: typeof version === "string" && version !== "" ? version : undefined,
-    dictSetupSeen: SETUP_SEEN.find((seen) => seen === source.dictSetupSeen) ?? "",
+    dictSetupAnswered: source.dictSetupAnswered === true,
     // A timestamp has to be a usable number or absent. NaN and Infinity both
     // survive a `typeof` check and would make every comparison against the
     // interval false, silently disabling the throttle they were read for.
