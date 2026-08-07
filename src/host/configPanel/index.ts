@@ -158,8 +158,18 @@ function gateOnDictionary(
     // between settings, and a `display:none` element still sits between two
     // rows as far as the sibling combinator is concerned, so hiding it silently
     // deleted the line under the dictionary row.
-    if (absent && !notice.isConnected) card.insertBefore(notice, before);
-    else if (!absent && notice.isConnected) notice.remove();
+    //
+    // `parentNode`, never `isConnected`: this panel is built detached and
+    // handed to BetterNCM to insert, so `isConnected` is false for the whole of
+    // construction. Boot resolves the asset paths asynchronously (measured at
+    // 8.6s once), and opening settings inside that window inserted the notice
+    // and then had the removal skipped, because the dictionary arrived while
+    // the card was still detached. The panel then attached with a notice under
+    // a row already reading "installed", and it stayed until some later change
+    // repainted it.
+    const inCard = notice.parentNode !== null;
+    if (absent && !inCard) card.insertBefore(notice, before);
+    else if (!absent && inCard) notice.remove();
     for (const rowEl of rows) {
       rowEl.classList.toggle("kc-inert", absent);
       for (const control of rowEl.querySelectorAll("input, select, textarea, button")) {
