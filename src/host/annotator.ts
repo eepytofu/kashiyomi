@@ -253,8 +253,6 @@ function annotateJapanese(
   // The disk is the authority on whether a dictionary exists, so this asks the
   // inventory rather than trying to read intent out of a backend state.
   if (!dictionaryInventory().installed) {
-    const first = pendingAnalysis[0];
-    if (first) renderNoticeRow(first.line.el, t("dictNoticeMissing"));
     for (const { line } of pendingAnalysis) {
       // Kanji repair still applies. It is a character-by-character glyph map
       // that ships in the bundle and needs no dictionary, so leaving 梦见ては on
@@ -278,6 +276,12 @@ function annotateJapanese(
       );
       markAnnotated(line.el, line.original, repaired);
     }
+    // **After the loop, never before it.** `renderJapaneseLine` opens with
+    // `el.textContent = ""`, so a notice appended to the first line's own
+    // element is wiped by that line's own repair pass. Rendered first, it never
+    // survived to be seen.
+    const first = pendingAnalysis[0];
+    if (first) renderNoticeRow(first.line.el, t("dictNoticeMissing"));
     return;
   }
 
