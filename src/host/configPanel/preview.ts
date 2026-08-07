@@ -5,7 +5,8 @@ import { t } from "../i18n.ts";
 import { renderJapaneseLine, renderPinyinRow } from "../render.ts";
 import { romanizeMandarin } from "../../engine/pinyin.ts";
 import { ensurePinyinDict } from "../pinyinDict.ts";
-import { currentAssetPaths } from "../annotator.ts";
+import { resolveAssetPaths } from "../paths.ts";
+import { log } from "../log.ts";
 import { getSettings } from "../settings.ts";
 import { applyStyles } from "../styles.ts";
 import { card, sectionTitle } from "./rows.ts";
@@ -147,7 +148,16 @@ export function buildPreviewCard(column: HTMLElement): () => void {
   refresh();
   // Word grouping is invisible without the complete dictionary, so pull it in
   // and redraw once it lands rather than showing a reading that cannot group.
-  const paths = currentAssetPaths();
-  if (paths) void ensurePinyinDict(paths.pinyinDictPath).then(() => refresh());
+  //
+  // Resolved here rather than read from `currentAssetPaths()`, which is only
+  // populated once `startAnnotator` runs. BetterNCM builds this panel at plugin
+  // load, inside the ~700ms `start()` spends awaiting the paths, so that getter
+  // returned undefined, the request was skipped, and nothing ever retried:
+  // "group pinyin by word" then did nothing in the preview for the whole
+  // session, whatever the toggle said.
+  void resolveAssetPaths()
+    .then((paths) => (paths ? ensurePinyinDict(paths.pinyinDictPath) : undefined))
+    .then(() => refresh())
+    .catch((err) => log.debug("preview could not load the pinyin dictionary", err));
   return refresh;
 }
