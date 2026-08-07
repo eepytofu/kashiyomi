@@ -25,6 +25,7 @@ import {
   sizeRow,
   textRow,
   toggleRow,
+  type BooleanSettingKey,
 } from "./rows.ts";
 import { apiKeysRow, clearCacheRow, providerRow, targetLangRow } from "./translationRows.ts";
 
@@ -104,6 +105,30 @@ function render(root: HTMLElement): void {
   zh.appendChild(toggleRow("pinyinJoinWords", t("groupWords"), t("groupWordsDesc"), refreshPreview));
   left.appendChild(zh);
 
+  // Typography in one place. Six rows used to sit across three sections, and the
+  // reading-row font had to live in Advanced with a comment explaining it
+  // belonged to neither language — the per-feature grouping failing out loud.
+  // The same split appears in the author's spicy-lyrics fork, which keeps
+  // readings under Languages and font stacks under Appearance, and in browsers,
+  // where per-script font choices are one panel rather than one page each.
+  //
+  // Directly under the two language sections, because all three are about how
+  // a lyric renders; translation is a separate capability and Advanced is the
+  // leftovers. The reading-row font does also style translation rows, but
+  // grouping by what the reader is looking at beats grouping by coverage.
+  left.appendChild(sectionTitle(t("sectionFonts")));
+  const fonts = card();
+  fontPair(fonts, "useJpFont", t("jpFont"), t("jpFontDesc"), refreshPreview, () =>
+    fontStackRow("jpFontStack", DEFAULT_JP_FONT_STACK, "fontStack", "fontStackDesc", refreshPreview),
+  );
+  fontPair(fonts, "useZhFont", t("zhFont"), t("zhFontDesc"), refreshPreview, () =>
+    fontStackRow("zhFontStack", DEFAULT_ZH_FONT_STACK, "zhFontStack", "fontStackDesc", refreshPreview),
+  );
+  fontPair(fonts, "useRowFont", t("rowFont"), t("rowFontDesc"), refreshPreview, () =>
+    fontStackRow("rowFontStack", DEFAULT_JP_FONT_STACK, "rowFontStack", "fontStackDesc", refreshPreview),
+  );
+  left.appendChild(fonts);
+
   left.appendChild(sectionTitle(t("sectionAi")));
   const ai = card();
   ai.appendChild(toggleRow("aiAutoTranslate", t("aiAuto"), t("aiAutoDesc"), resetTranslation));
@@ -124,25 +149,6 @@ function render(root: HTMLElement): void {
   ai.appendChild(clearCacheRow());
   left.appendChild(ai);
 
-  // Typography in one place. Six rows used to sit across three sections, and the
-  // reading-row font had to live in Advanced with a comment explaining it
-  // belonged to neither language — the per-feature grouping failing out loud.
-  // The same split appears in the author's spicy-lyrics fork, which keeps
-  // readings under Languages and font stacks under Appearance, and in browsers,
-  // where per-script font choices are one panel rather than one page each.
-  //
-  // After AI, because the reading-row font covers Japanese, Chinese and
-  // translation rows alike, so it follows everything it applies to.
-  left.appendChild(sectionTitle(t("sectionFonts")));
-  const fonts = card();
-  fonts.appendChild(toggleRow("useJpFont", t("jpFont"), t("jpFontDesc"), refreshPreview, false));
-  fonts.appendChild(fontStackRow("jpFontStack", DEFAULT_JP_FONT_STACK, "fontStack", "fontStackDesc", refreshPreview));
-  fonts.appendChild(toggleRow("useZhFont", t("zhFont"), t("zhFontDesc"), refreshPreview, false));
-  fonts.appendChild(fontStackRow("zhFontStack", DEFAULT_ZH_FONT_STACK, "zhFontStack", "fontStackDesc", refreshPreview));
-  fonts.appendChild(toggleRow("useRowFont", t("rowFont"), t("rowFontDesc"), refreshPreview, false));
-  fonts.appendChild(fontStackRow("rowFontStack", DEFAULT_JP_FONT_STACK, "rowFontStack", "fontStackDesc", refreshPreview));
-  left.appendChild(fonts);
-
   left.appendChild(sectionTitle(t("sectionAdvanced")));
   const adv = card();
   adv.appendChild(toggleRow("annotateCredits", t("credits"), t("creditsDesc")));
@@ -160,6 +166,53 @@ function render(root: HTMLElement): void {
 
   root.appendChild(left);
   root.appendChild(right);
+}
+
+/**
+ * A font toggle with its stack row, where the stack only exists while the
+ * toggle is on.
+ *
+ * Six rows showing at once made the section read as a wall of text boxes, three
+ * of which did nothing: a stack under a toggle that is off is a control with no
+ * effect, and two of the three are off on a default install. The same idea is
+ * already in this panel, where the AI base URL row is only built for
+ * OpenAI-compatible providers.
+ *
+ * Inserted and removed, never hidden. `.kc-row + .kc-row` draws the divider
+ * between rows, and a `display: none` element still sits between two rows as
+ * far as the sibling combinator is concerned, so hiding it deletes the line
+ * above. That exact bug shipped once already in the dictionary gate.
+ */
+function fontPair(
+  card: HTMLElement,
+  key: BooleanSettingKey,
+  label: string,
+  description: string,
+  refreshPreview: () => void,
+  buildStack: () => HTMLElement,
+): void {
+  const stack = buildStack();
+  let reveal = (): void => {};
+  // `false` for triggersRescan: a font change is styling, and restyling does
+  // not need every line analyzed again.
+  const toggle = toggleRow(
+    key,
+    label,
+    description,
+    () => {
+      refreshPreview();
+      reveal();
+    },
+    false,
+  );
+  card.appendChild(toggle);
+  reveal = (): void => {
+    const on = getSettings()[key];
+    const inCard = stack.parentNode !== null;
+    if (on && !inCard) card.insertBefore(stack, toggle.nextSibling);
+    else if (!on && inCard) stack.remove();
+  };
+  reveal();
 }
 
 /**
