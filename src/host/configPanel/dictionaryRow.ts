@@ -23,13 +23,19 @@ import { startDictionaryInstall } from "../dictionaryInstall.ts";
 import { dictionaryRowState } from "../../engine/dictionaryRowState.ts";
 import { actionLabel, describe } from "../dictionaryText.ts";
 import { currentAssetPaths } from "../annotator.ts";
-import { nativeFreeSpace } from "../native.ts";
+import { nativeFreeSpace, nativeState } from "../native.ts";
 import { onPanelTeardown } from "./lifecycle.ts";
 import { row, rowText } from "./rows.ts";
 
 function readFreeSpace(): number | undefined {
   const dir = currentAssetPaths()?.dictDir;
   return dir === undefined ? undefined : nativeFreeSpace(dir);
+}
+
+function analyzerSegment(): "loading" | "failed" | undefined {
+  const state = nativeState().state;
+  if (state === "loading") return "loading";
+  return state === "failed" || state === "unavailable" ? "failed" : undefined;
 }
 
 export function dictionaryRow(): HTMLElement {
@@ -61,6 +67,13 @@ export function dictionaryRow(): HTMLElement {
       freeBytes,
       // This row is where the button is, so it reports its own outcomes.
       ownsJob: true,
+      // Asked fresh on every paint, never stored. This replaced a status bar
+      // above the panel that said the same thing in different words; the row
+      // owns what is on disk, so whether the analyzer opened it belongs here
+      // too. `ready` and `uninitialized` add nothing: the first is the ordinary
+      // case, and the second only happens when there is no dictionary, which
+      // the row already says in plainer words.
+      analyzer: analyzerSegment(),
     });
 
   const paint = (): void => {

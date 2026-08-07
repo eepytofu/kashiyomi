@@ -16,12 +16,29 @@ export const PANEL_CSS = `
    changes. Sticky on the grid item itself: the grid area spans the full row
    height, so with align-self:start the item has 1481px to travel through. */
 .kashiyomi-config .kc-col-side { position: sticky; top: 8px; align-self: start; }
-.kashiyomi-config .kc-status {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 10px 14px; border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06); font-size: 13px;
+/* NCM's own settings strip: tabs left, underline on the active one, in its red.
+   Not a card and not a pill row — flat, with a hairline under the whole strip,
+   which is what the host does and what makes this read as part of the app
+   rather than as a control this plugin invented. */
+.kashiyomi-config .kc-tabs {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  margin-bottom: 2px;
 }
-.kashiyomi-config .kc-status-right { display: flex; align-items: center; gap: 14px; }
+.kashiyomi-config .kc-tablist { display: flex; align-items: flex-end; gap: 22px; min-width: 0; flex-wrap: wrap; }
+.kashiyomi-config .kc-tab {
+  appearance: none; -webkit-appearance: none; background: none; border: none;
+  padding: 8px 0 9px; margin: 0; cursor: pointer;
+  color: inherit; opacity: 0.62; font-size: 14px; font-weight: 500;
+  /* The 2px is transparent rather than absent, so switching tabs moves no text:
+     a label that gains a border on activation would shift by its width. */
+  border-bottom: 2px solid transparent;
+  transition: opacity 0.12s ease;
+}
+.kashiyomi-config .kc-tab:hover { opacity: 0.85; }
+.kashiyomi-config .kc-tab-on { opacity: 1; font-weight: 600; border-bottom-color: #ec4141; }
+.kashiyomi-config .kc-tab:focus-visible { outline: 2px solid rgba(236, 65, 65, 0.75); outline-offset: 2px; }
+.kashiyomi-config .kc-status-right { display: flex; align-items: center; gap: 14px; padding-bottom: 6px; }
 .kashiyomi-config .kc-section-title { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.68; margin: 2px 2px -6px; }
 .kashiyomi-config .kc-needs-dict { padding: 9px 14px; font-size: 12px; opacity: 0.68; }
 .kashiyomi-config .kc-switch { position: relative; flex: none; width: 40px; height: 24px; }

@@ -49,6 +49,13 @@ export const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 export type RowDot = "ready" | "loading" | "bad" | "neutral";
 
 /**
+ * The analyzer states worth reporting. Not the backend's full set: `ready` says
+ * nothing a user needs, and `uninitialized` only happens when there is no
+ * dictionary to load, which the row already says in plainer words.
+ */
+export type AnalyzerState = "loading" | "failed";
+
+/**
  * What the description says. A discriminated union rather than a preformatted
  * string, so the panel owns every word and this module owns the decision.
  */
@@ -67,6 +74,17 @@ export type RowMessage =
        * the plugin has no recorded version, and "unknown" is not "behind".
        */
       readonly updateAvailable: boolean;
+      /**
+       * What the analyzer is doing with the file on disk, when that is worth
+       * saying. Undefined once it is open, which is the ordinary case and needs
+       * no words.
+       *
+       * The disk and the analyzer are separate authorities: a dictionary can be
+       * present and still fail to open. That used to be reported by a status bar
+       * above the panel, which said the same thing as this row in different
+       * words and drifted apart from it. One place now.
+       */
+      readonly analyzer: AnalyzerState | undefined;
     }
   | { readonly kind: "checking" }
   | { readonly kind: "downloading"; readonly received: number; readonly total: number }
@@ -125,6 +143,15 @@ export type RowInput = {
    * which asserts a result rather than describing a state.
    */
   readonly ownsJob?: boolean;
+  /**
+   * Read fresh at paint time, never stored.
+   *
+   * A boolean captured once goes stale the moment a background load finishes,
+   * which is why the inventory's old `loaded` field was deleted after it spent
+   * a session reporting `false` over an analyzer that had been ready for
+   * minutes.
+   */
+  readonly analyzer?: AnalyzerState;
 };
 
 /**
@@ -292,6 +319,7 @@ function settledView(input: RowInput): RowView {
         version: inventory.version,
         upToDate: fresh,
         updateAvailable,
+        analyzer: input.analyzer,
       },
       // **Live once the guard passes.** The interval exists to stop the plugin
       // re-asking on every panel open, not to stop the user asking: a press is

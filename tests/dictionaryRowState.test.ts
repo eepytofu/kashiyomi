@@ -392,6 +392,30 @@ test("an update is offered only when both versions are known and differ", () => 
 
 // A failure is a report of a press and belongs where the press happened. The
 // original defect was a surface asserting an outcome it had not caused.
+// The analyzer segment. It exists because deleting the panel's status bar
+// deleted the only display of what the analyzer was doing, and the disk and the
+// analyzer are separate authorities: a dictionary can be present and unusable.
+test("a dictionary that will not open says so", () => {
+  const v = view({ inventory: installed("20260723"), analyzer: "failed" });
+  assert.equal(v.message.kind, "installed");
+  if (v.message.kind === "installed") {
+    assert.equal(v.message.analyzer, "failed", "present but unusable must stay visible");
+    assert.equal(v.message.version, "20260723", "still reports what is on disk");
+  }
+});
+
+test("a dictionary still being opened says so", () => {
+  const v = view({ inventory: installed("20260723"), analyzer: "loading" });
+  if (v.message.kind === "installed") assert.equal(v.message.analyzer, "loading");
+});
+
+// The ordinary case needs no words, and neither does "nothing to load", which
+// the absent state already says in plainer terms.
+test("a working analyzer adds nothing to the row", () => {
+  const v = view({ inventory: installed("20260723") });
+  if (v.message.kind === "installed") assert.equal(v.message.analyzer, undefined);
+});
+
 test("a surface that does not own the job ignores failures", () => {
   const failed = view({
     inventory: installed("20260723"),

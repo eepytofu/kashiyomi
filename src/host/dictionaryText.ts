@@ -53,6 +53,11 @@ export function describe(message: RowMessage): string {
     case "installed": {
       let line = t("dictInstalledState");
       if (message.version !== undefined) line += ` · ${releaseDate(message.version)}`;
+      // Before the update segments: what the analyzer is doing with the file
+      // outranks whether a newer one exists, because a dictionary that will not
+      // open is the more urgent fact.
+      if (message.analyzer === "loading") line += ` · ${t("dictAnalyzerLoading")}`;
+      else if (message.analyzer === "failed") line += ` · ${t("dictAnalyzerFailed")}`;
       // Both are standing facts now rather than transient reports: one compares
       // the recorded version against what a check saw, the other says a check
       // ran recently and found nothing. Mutually exclusive by construction.

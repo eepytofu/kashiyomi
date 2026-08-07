@@ -4,7 +4,6 @@
 
 import { rescan } from "../annotator.ts";
 import { panelLang, setPanelLang, t, type PanelLang } from "../i18n.ts";
-import { nativeState } from "../native.ts";
 import { resetTranslation } from "../translationLane.ts";
 import {
   DEFAULT_JP_FONT_STACK,
@@ -38,6 +37,31 @@ export function buildConfigPanel(): HTMLElement {
   return root;
 }
 
+
+/**
+ * The tabs, in reading order. Labels reuse the section titles that were already
+ * there, so the strip introduced no new strings.
+ */
+const TABS = [
+  { key: "japanese", title: "sectionJapanese" },
+  { key: "chinese", title: "sectionChinese" },
+  { key: "fonts", title: "sectionFonts" },
+  { key: "translation", title: "sectionAi" },
+  { key: "advanced", title: "sectionAdvanced" },
+] as const;
+
+type TabKey = (typeof TABS)[number]["key"];
+
+/**
+ * Module-scoped, not a local.
+ *
+ * `render(root)` is called by the provider dropdown and by Re-annotate, so a
+ * local would snap back to Japanese the moment someone changed the AI provider
+ * from inside the Translation tab. Not persisted either: NCM's own settings
+ * opens on its first tab, and a remembered tab is state nobody asked for.
+ */
+let activeTab: TabKey = "japanese";
+
 function render(root: HTMLElement): void {
   // A rebuild detaches every node below, so anything still subscribed or still
   // ticking is writing into a document it has left. Four paths reach this
@@ -49,7 +73,7 @@ function render(root: HTMLElement): void {
   style.textContent = PANEL_CSS;
   root.appendChild(style);
 
-  root.appendChild(buildStatusBar(root));
+  root.appendChild(buildTabStrip(root));
 
   const left = document.createElement("div");
   left.className = "kc-col";
@@ -58,6 +82,7 @@ function render(root: HTMLElement): void {
 
   const refreshPreview = buildPreviewCard(right);
 
+  if (activeTab === "japanese") {
   left.appendChild(sectionTitle(t("sectionJapanese")));
   const jp = card();
   jp.appendChild(dictionaryRow());
@@ -106,13 +131,16 @@ function render(root: HTMLElement): void {
   // fixed position now that it no longer has to sit above its subjects.
   gateOnDictionary(gated, needsDictionary, jp, furiganaRow);
   left.appendChild(jp);
+  }
 
+  if (activeTab === "chinese") {
   left.appendChild(sectionTitle(t("sectionChinese")));
   const zh = card();
   zh.appendChild(toggleRow("pinyin", t("pinyin"), t("pinyinDesc"), refreshPreview));
   zh.appendChild(toggleRow("pinyinTones", t("tones"), t("tonesDesc"), refreshPreview));
   zh.appendChild(toggleRow("pinyinJoinWords", t("groupWords"), t("groupWordsDesc"), refreshPreview));
   left.appendChild(zh);
+  }
 
   // Typography in one place. Six rows used to sit across three sections, and the
   // reading-row font had to live in Advanced with a comment explaining it
@@ -125,6 +153,7 @@ function render(root: HTMLElement): void {
   // a lyric renders; translation is a separate capability and Advanced is the
   // leftovers. The reading-row font does also style translation rows, but
   // grouping by what the reader is looking at beats grouping by coverage.
+  if (activeTab === "fonts") {
   left.appendChild(sectionTitle(t("sectionFonts")));
   const fonts = card();
   // `triggersRescan: false` throughout: a font change is styling, and restyling
@@ -139,7 +168,9 @@ function render(root: HTMLElement): void {
     fontStackRow("rowFontStack", DEFAULT_JP_FONT_STACK, "rowFontStack", "fontStackDesc", refreshPreview),
   ], { onChange: refreshPreview, triggersRescan: false });
   left.appendChild(fonts);
+  }
 
+  if (activeTab === "translation") {
   left.appendChild(sectionTitle(t("sectionAi")));
   const ai = card();
   ai.appendChild(toggleRow("aiAutoTranslate", t("aiAuto"), t("aiAutoDesc"), resetTranslation));
@@ -159,7 +190,9 @@ function render(root: HTMLElement): void {
   ai.appendChild(textRow("aiCustomPrompt", "aiCustomPrompt", "aiCustomPromptDesc", {}));
   ai.appendChild(clearCacheRow());
   left.appendChild(ai);
+  }
 
+  if (activeTab === "advanced") {
   left.appendChild(sectionTitle(t("sectionAdvanced")));
   const adv = card();
   adv.appendChild(toggleRow("annotateCredits", t("credits"), t("creditsDesc")));
@@ -172,6 +205,7 @@ function render(root: HTMLElement): void {
     adv,
   );
   left.appendChild(adv);
+  }
 
   buildAboutCard(right);
 
@@ -300,48 +334,44 @@ function followMissingDictionary(row: HTMLElement, card: HTMLElement): void {
   onPanelTeardown(onDictionaryChange(paint));
 }
 
-function buildStatusBar(root: HTMLElement): HTMLElement {
+/**
+ * NCM's own settings navigation: a horizontal strip, active tab underlined,
+ * only that tab's content below.
+ *
+ * Copied from the host rather than invented. NCM's settings page runs
+ * 账号 / 常规 / 系统 / 播放 / … the same way, and it is the surface a user is
+ * actually comparing this against, so it reads as native instead of as a
+ * control this plugin made up.
+ *
+ * It also replaced an "Analyzer ready" status line that sat here. That line was
+ * Japanese-specific on a global bar, said the same thing as the dictionary row
+ * in different words, and read like a crash when it said "not started". What it
+ * genuinely reported — that a dictionary can be on disk and still fail to open —
+ * now lives on the row that owns the dictionary.
+ *
+ * Re-annotate and the language toggle keep the right end. The toggle in
+ * particular has to stay reachable without scrolling: it was tried inside a
+ * section once and landed 1500px down a page that someone who cannot read the
+ * panel has to traverse to reach the control that fixes it.
+ */
+function buildTabStrip(root: HTMLElement): HTMLElement {
   const bar = document.createElement("div");
-  const label = document.createElement("span");
-  const dot = document.createElement("span");
-  dot.className = "kc-dot";
+  bar.className = "kc-tabs";
 
-  const paint = (): string => {
-    const s = nativeState();
-    bar.className =
-      "kc-status kc-full " +
-      (s.state === "ready" ? "kc-ready" : s.state === "loading" ? "kc-loading" : "kc-bad");
-    label.textContent = "";
-    label.appendChild(dot);
-    label.appendChild(document.createTextNode(
-      s.state === "ready"
-        ? t("analyzerReady")
-        : s.state === "loading"
-          ? t("analyzerLoading")
-          : s.state === "uninitialized"
-            ? t("analyzerNotStarted")
-            : `${t("analyzerFailed")}${s.error ? `: ${s.error}` : ""}`,
-    ));
-    return s.state;
-  };
-
-  // Poll only while the answer can still change. `status` costs 0.044ms
-  // (measured over 200 calls), so a ~10s load is under 1ms of work in total,
-  // and steady state runs no timer at all.
-  //
-  // Live while the analyzer is still loading, because the status is otherwise
-  // sampled once at build time: opening the panel during the dictionary load
-  // showed "loading" and kept showing it after the load finished, the one
-  // element whose job is reporting current state reporting a stale one.
-  const initial = paint();
-  if (initial === "loading" || initial === "uninitialized") {
-    const statusPoll = window.setInterval(() => {
-      const state = paint();
-      if (state !== "loading" && state !== "uninitialized") window.clearInterval(statusPoll);
-    }, 500);
-    onPanelTeardown(() => window.clearInterval(statusPoll));
+  const list = document.createElement("div");
+  list.className = "kc-tablist";
+  for (const tab of TABS) {
+    const button = document.createElement("button");
+    button.className = tab.key === activeTab ? "kc-tab kc-tab-on" : "kc-tab";
+    button.textContent = t(tab.title);
+    button.onclick = () => {
+      if (activeTab === tab.key) return;
+      activeTab = tab.key;
+      render(root);
+    };
+    list.appendChild(button);
   }
-  bar.appendChild(label);
+  bar.appendChild(list);
 
   const rightSide = document.createElement("div");
   rightSide.className = "kc-status-right";
@@ -353,16 +383,11 @@ function buildStatusBar(root: HTMLElement): HTMLElement {
     render(root);
   };
   rightSide.appendChild(reannotate);
-  // Tried and rejected: moving this into a settings row under Advanced, which
-  // is where a preference "belongs". Two things killed it. The segments wrap
-  // (中文 broke onto two lines in the narrower row), and it lands 1500px down a
-  // 2036px scroll — so someone who opens an English panel they cannot read must
-  // scroll past every section they cannot read to reach the control that fixes
-  // it. Visibility wins over categorical tidiness for this one control.
   rightSide.appendChild(buildLangToggle(root));
   bar.appendChild(rightSide);
   return bar;
 }
+
 
 function buildLangToggle(root: HTMLElement): HTMLElement {
   const wrap = document.createElement("span");

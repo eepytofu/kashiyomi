@@ -7,10 +7,11 @@ export type PanelLang = "en" | "zh";
 
 const STRINGS = {
   en: {
-    analyzerReady: "Analyzer ready",
-    analyzerLoading: "Dictionary loading",
-    analyzerNotStarted: "Analyzer not started",
-    analyzerFailed: "Analyzer failed",
+    // On the dictionary row, not a status bar: the row owns what is on disk,
+    // and whether the analyzer opened it belongs beside that rather than in a
+    // second sentence somewhere else.
+    dictAnalyzerLoading: "loading",
+    dictAnalyzerFailed: "failed to load",
     reannotate: "Re-annotate",
     sectionJapanese: "Japanese",
     sectionChinese: "Chinese",
@@ -164,10 +165,8 @@ const STRINGS = {
     songsCached: (n: number) => (n === 1 ? "1 song stored" : `${n} songs stored`),
   },
   zh: {
-    analyzerReady: "分析器就绪",
-    analyzerLoading: "词典加载中",
-    analyzerNotStarted: "分析器未启动",
-    analyzerFailed: "分析器加载失败",
+    dictAnalyzerLoading: "加载中",
+    dictAnalyzerFailed: "加载失败",
     reannotate: "重新标注",
     sectionJapanese: "日语",
     sectionChinese: "中文",
