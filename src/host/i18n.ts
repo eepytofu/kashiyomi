@@ -59,7 +59,14 @@ const STRINGS = {
     // 100 MiB cap), so it is the one whose download may not come from the
     // publisher or an official mirror. Said plainly rather than explained: the
     // supply chain belongs in the code and the docs, the choice belongs here.
-    dictEdFullWarning: "Downloads from GitHub, or a community relay if that fails.",
+    // Where each edition comes from, said for **all three** rather than only the
+    // one that is different. A provenance line on `full` alone reads as a
+    // warning flag; next to two ordinary ones it reads as what it is, and the
+    // reason it differs (size, not trust) answers the obvious question before
+    // it is asked.
+    dictEdFrom: "Downloads from PyPI.",
+    dictEdFromFull:
+      "Too large for PyPI. Downloads from GitHub, or a third-party relay if that fails.",
     dictManage: "Manage",
     dictSetUp: "Set up",
     // Shown once, on the first launch with no dictionary. Says what works now,
@@ -192,7 +199,8 @@ const STRINGS = {
     dictEdSmall: "仅收录 UniDic 的词汇。",
     dictEdCore: "收录基本词汇。默认。",
     dictEdFull: "另收录各类专有名词。",
-    dictEdFullWarning: "从 GitHub 下载，失败时改用社区中转。",
+    dictEdFrom: "从 PyPI 下载。",
+    dictEdFromFull: "体积超出 PyPI 限制。从 GitHub 下载，失败时改用第三方中转。",
     dictManage: "管理",
     dictSetUp: "设置",
     setupIntro: "直接在网易云自带的歌词页面上标注：日语的振假名与罗马音、普通话的拼音，以及可选的 AI 翻译。",

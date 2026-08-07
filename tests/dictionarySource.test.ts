@@ -8,6 +8,7 @@ import {
   parsePypiRelease,
   parseSimpleIndexRelease,
   requiredFreeBytes,
+  confirmsPinned,
   dictionaryMember,
   downloadUrls,
   mirrorUrl,
@@ -105,10 +106,43 @@ test("sources are ordered by preference, with the mirror second", () => {
 });
 
 // PyPI knows full's version but can never serve it, so an answer from there
-// could not carry the digest an install needs. GitHub is the only source.
-test("full resolves from github alone", () => {
+// could not carry the digest an install needs. GitHub is the only source, and
+// leaving it at that made the update check fail outright wherever GitHub is
+// blocked, which is the same place the relay was added for the bytes.
+test("full checks github, then github through the relay", () => {
   const sources = metadataSources("full");
-  assert.deepEqual(sources.map((s) => s.kind), ["github"]);
+  assert.deepEqual(sources.map((s) => s.kind), ["github", "github"]);
+  assert.ok(sources[1]!.url.startsWith("https://gh-proxy.org/"));
+});
+
+// The security boundary, and it is not the download list's. A download is
+// checked against a digest, so any host may serve bytes. Metadata is where that
+// digest comes from, so a source trusted here could hand over
+// `{url: theirs, sha256: hash(theirs)}` and the check would pass against a file
+// nobody vetted.
+test("only the publisher and its own mirrors are trusted to name a release", () => {
+  for (const edition of ["small", "core", "full"] as const) {
+    for (const source of metadataSources(edition)) {
+      const isRelay = source.url.startsWith("https://gh-proxy.org/");
+      assert.equal(source.trusted, !isRelay, `${edition} ${source.url}`);
+    }
+  }
+});
+
+test("an untrusted source may confirm the pin and nothing else", () => {
+  const pinned: DictionaryRelease = {
+    edition: "full",
+    version: "20260723",
+    url: "https://github.com/x/full.whl",
+    sha256: "c".repeat(64),
+    size: 126614513,
+  };
+  assert.equal(confirmsPinned(pinned, pinned), true);
+  // A newer version has no pin to check it against, and the source offering it
+  // is the same one that would supply the digest.
+  assert.equal(confirmsPinned({ ...pinned, version: "20261115" }, pinned), false);
+  // The version matching is not enough: a swapped digest is the whole attack.
+  assert.equal(confirmsPinned({ ...pinned, sha256: "d".repeat(64) }, pinned), false);
 });
 
 test("free space is checked for archive plus extraction, not just the download", () => {

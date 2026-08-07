@@ -7,7 +7,7 @@
 
 import { panelLang, t, tDownloadEdition, tNoSpace, tSpaceForOther } from "./i18n.ts";
 import type { RowAction, RowMessage } from "../engine/dictionaryRowState.ts";
-import type { DictionaryEdition } from "../engine/dictionarySource.ts";
+import { needsRelay, type DictionaryEdition } from "../engine/dictionarySource.ts";
 
 const MEGABYTE = 1024 * 1024;
 const GIGABYTE = 1024 * MEGABYTE;
@@ -123,5 +123,6 @@ export function actionEdition(
 /** What an edition contains, in the publisher's own words. */
 export function editionNote(edition: DictionaryEdition): string {
   const key = ({ small: "dictEdSmall", core: "dictEdCore", full: "dictEdFull" } as const)[edition];
-  return edition === "full" ? `${t(key)} ${t("dictEdFullWarning")}` : t(key);
+  // Every edition says where it comes from, not just the odd one out.
+  return `${t(key)} ${t(needsRelay(edition) ? "dictEdFromFull" : "dictEdFrom")}`;
 }

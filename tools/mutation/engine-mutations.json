@@ -1076,5 +1076,19 @@
     "what": "any asset in the release is accepted, so asking for small can install full",
     "find": "    if (asset.name !== wanted) continue;",
     "replace": "    if (false) continue;"
+  },
+  {
+    "id": "dictionary/relay-trusted-for-metadata",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "the third-party relay is trusted to name a release, so it could supply both the url and the digest it is checked against",
+    "find": "    trusted: false,",
+    "replace": "    trusted: true,"
+  },
+  {
+    "id": "dictionary/pin-confirmed-on-version-alone",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "an untrusted source confirms the pin on a matching version alone, so a swapped digest passes",
+    "find": "  return release.version === pinned.version && release.sha256 === pinned.sha256;",
+    "replace": "  return release.version === pinned.version;"
   }
 ]

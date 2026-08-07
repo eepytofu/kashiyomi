@@ -15,6 +15,7 @@ import {
   SIMPLE_INDEX_ACCEPT,
   downloadUrls,
   metadataSources,
+  confirmsPinned,
   dictionaryMember,
   parseGithubRelease,
   parsePypiRelease,
@@ -256,7 +257,16 @@ export async function resolveRelease(edition: DictionaryEdition): Promise<Resolv
           : source.kind === "github"
             ? parseGithubRelease(edition, body)
             : parsePypiRelease(edition, body);
-      if (release) return { release, checked: true };
+      if (!release) continue;
+      if (source.trusted) return { release, checked: true };
+      // An untrusted source supplies the digest an install would be checked
+      // against, so it is allowed to confirm the pinned release and nothing
+      // else. A newer version from here is ignored rather than fetched: the
+      // build has no digest for it, and the source that offered it is the one
+      // that would also be supplying that digest.
+      const pinned = pinnedRelease(edition);
+      if (confirmsPinned(release, pinned)) return { release: pinned, checked: true };
+      log.debug(`ignoring an unverifiable release from ${source.url}`);
     } catch (err) {
       // A cancel must end the whole attempt, not advance to the next source.
       // Falling through would have Cancel walk the list one press at a time.

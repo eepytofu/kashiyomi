@@ -155,7 +155,27 @@ const packageName = (edition: DictionaryEdition): string => `SudachiDict-${editi
 /** How a metadata response has to be read. */
 export type MetadataKind = "pypi" | "simple" | "github";
 
-export type MetadataSource = { readonly url: string; readonly kind: MetadataKind };
+export type MetadataSource = {
+  readonly url: string;
+  readonly kind: MetadataKind;
+  /**
+   * Whether this source may introduce a release the build has no pin for.
+   *
+   * **This is the security boundary, and it is not the same one the download
+   * list has.** A download is checked against a digest, so any host may serve
+   * the bytes. Metadata is where that digest *comes from*, so a source trusted
+   * here could hand over `{url: theirs, sha256: hash(theirs)}` and the check
+   * would pass against a file nobody vetted.
+   *
+   * True for the publisher's own index and for a mirror the publisher's index
+   * points at, both over HTTPS, both publishing digests verified identical to
+   * PyPI's. False for the third-party relay, which is therefore allowed to
+   * *confirm* the pinned release and nothing else: the worst it can then do is
+   * lie about whether an update exists, which withholds an update rather than
+   * installing something.
+   */
+  readonly trusted: boolean;
+};
 
 /**
  * Metadata endpoints in the order they should be tried.
@@ -170,17 +190,44 @@ export type MetadataSource = { readonly url: string; readonly kind: MetadataKind
  * digest an install needs. GitHub is where the artifact and its digest both
  * live.
  */
+const GITHUB_API =
+  "https://api.github.com/repos/WorksApplications/SudachiDict/releases/latest";
+
 export function metadataSources(edition: DictionaryEdition): readonly MetadataSource[] {
-  const github = {
-    url: `https://api.github.com/repos/WorksApplications/SudachiDict/releases/latest`,
-    kind: "github" as const,
+  const github: MetadataSource = { url: GITHUB_API, kind: "github", trusted: true };
+  // Reached when GitHub itself is not, which is the mainland case. Untrusted,
+  // so it can only confirm the pinned release; measured 2026-08-07 to relay the
+  // API intact, digest included, and on its own token rather than the caller's
+  // 60-an-hour allowance.
+  const relayed: MetadataSource = {
+    url: `${RELAY}${GITHUB_API}`,
+    kind: "github",
+    trusted: false,
   };
-  if (edition === "full") return [github];
+  // `full` has no PyPI wheel to describe, so GitHub is its only *trusted*
+  // answer. Leaving it at that made the update check fail outright wherever
+  // GitHub is blocked, which is precisely where the relay was added for the
+  // bytes: relaying one leg and not the other was inconsistent.
+  if (edition === "full") return [github, relayed];
   return [
-    { url: `${PYPI}/${packageName(edition)}/json`, kind: "pypi" },
-    { url: `${MIRROR}/${packageName(edition).toLowerCase()}/`, kind: "simple" },
+    { url: `${PYPI}/${packageName(edition)}/json`, kind: "pypi", trusted: true },
+    { url: `${MIRROR}/${packageName(edition).toLowerCase()}/`, kind: "simple", trusted: true },
     github,
   ];
+}
+
+/**
+ * What an untrusted source is allowed to have said.
+ *
+ * Only that the pinned release is still the current one. Version *and* digest
+ * must match, and the pinned release is returned rather than the one that came
+ * back, so nothing a relay sends is carried forward into an install.
+ */
+export function confirmsPinned(
+  release: DictionaryRelease,
+  pinned: DictionaryRelease,
+): boolean {
+  return release.version === pinned.version && release.sha256 === pinned.sha256;
 }
 /** PEP 691 requires this to get JSON rather than HTML from a simple index. */
 export const SIMPLE_INDEX_ACCEPT = "application/vnd.pypi.simple.v1+json";
