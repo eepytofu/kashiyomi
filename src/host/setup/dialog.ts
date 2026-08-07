@@ -11,7 +11,10 @@
 // of every feature, which is a pitch in a place where nobody needs one: whoever
 // is looking at this installed from a listing that already described it. What
 // earns space is only what the user must act on, and against the shipped
-// defaults that is one thing, which is the dictionary.
+// defaults that is two things. The dictionary, which is here. And an API key,
+// which cannot be here, because the settings panel has six coupled controls for
+// it and half a copy would be two places to configure one feature -- so it is
+// named and pointed at, not offered.
 //
 // **Why a dialog is allowed here.** The project's first rule protects the lyrics
 // page: never replace it, never overlay it. A transient, dismissible surface is
@@ -78,7 +81,7 @@ export function openDictionarySetup(): void {
 
   const need = document.createElement("div");
   need.className = "ks-need";
-  need.textContent = t("setupNeedsDictionary").replace("{size}", mb(pinnedRelease().size));
+  need.textContent = t("setupNeedsDictionary");
   dialog.appendChild(need);
 
   const space = document.createElement("div");

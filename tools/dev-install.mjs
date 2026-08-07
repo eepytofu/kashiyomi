@@ -48,8 +48,7 @@ await cp(path.join(repo, "assets", "sudachi"), path.join(target, "assets", "suda
   recursive: true,
 });
 const devPaths = {
-  // The directory, not a file: which edition to open is decided at boot from
-  // what is actually in it.
+  // The directory, not a file: boot asks it whether the dictionary is there.
   dictDir: path.join(repo, "assets", "dict").replaceAll("\\", "/"),
   resourceDir: path.join(repo, "assets", "sudachi").replaceAll("\\", "/"),
   pinyinDictPath: path.join(repo, "assets", "pinyin", "complete.json").replaceAll("\\", "/"),

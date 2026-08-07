@@ -10,9 +10,17 @@
 // itself, which proves the code runs but does not let anyone *use* the thing.
 //
 // **Nothing is deleted.** The real dictionaries stay where they are; only the
-// pointer moves. `dev-paths.json` is redirected to an empty directory, the
-// settings that record what has been installed and answered are cleared, and
-// both are written to a backup file first. `off` restores from that backup.
+// pointer moves. `dev-paths.json` is redirected to an empty directory, *every*
+// setting is cleared, and both are written to a backup file first. `off`
+// restores from that backup.
+//
+// The whole settings blob is snapshotted rather than a named list of keys. The
+// list version silently rotted: it still named `dictVersions` and
+// `dictPreferredEdition` months after both were deleted, and it never learned
+// about `dictCheckedAt`, so a "fresh" install would have started out already
+// throttled against checking for updates. A snapshot cannot go stale, and
+// clearing everything is also what "new install" actually means — the API key,
+// the font stack and the toggles are all part of the experience being tested.
 //
 // A download started while this is on is real, and lands in the sandbox
 // directory rather than next to the real dictionaries. That is the point: it
@@ -23,11 +31,14 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from "node
 
 const PLUGIN = "C:/betterncm/plugins_dev/Kashiyomi";
 const PATHS = `${PLUGIN}/dev-paths.json`;
-const BACKUP = `${PLUGIN}/_fresh-sim-backup.json`;
+// **Outside the plugin directory, deliberately.** `npm run dev-install` starts
+// with `rm(target, { recursive: true })`, so a backup kept beside the plugin is
+// destroyed by the next install — which happened, taking the only copy of the
+// real settings with it. Nothing in `C:/betterncm` itself is touched by an
+// install.
+const BACKUP = "C:/betterncm/kashiyomi-fresh-sim-backup.json";
 const SANDBOX = "C:/betterncm/kashiyomi-fresh-sim";
 const SETTINGS_KEY = "kashiyomi:settings";
-/** Cleared by `on`, restored by `off`: everything recording what has been done. */
-const CLEARED = ["dictSetupSeen", "dictVersions", "dictPreferredEdition"];
 const PORT = process.env.NCM_DEBUG_PORT ?? "9223";
 
 async function cdp() {
@@ -77,7 +88,21 @@ const mode = process.argv[2] ?? "status";
 if (mode === "status") {
   const on = existsSync(BACKUP);
   console.log(on ? "ON  (pretending nothing is installed)" : "off (normal)");
-  if (on) console.log(`  backup: ${BACKUP}\n  run: node tools/fresh-install-sim.mjs off`);
+  if (on) {
+    console.log(`  backup: ${BACKUP}`);
+    // A dev-install rewrites dev-paths.json unconditionally, which points the
+    // plugin back at the real dictionary while this still claims to be on. That
+    // is a silent un-sim, so say it rather than let a first-run test quietly
+    // run against a machine that has a dictionary after all.
+    const redirected = existsSync(PATHS)
+      ? JSON.parse(readFileSync(PATHS, "utf8")).dictDir === SANDBOX
+      : false;
+    if (!redirected) {
+      console.log("  WARNING: dev-paths.json no longer points at the sandbox.");
+      console.log("  A dev-install reset it. Run `off` then `on` again.");
+    }
+    console.log("  run: node tools/fresh-install-sim.mjs off");
+  }
   process.exit(0);
 }
 
@@ -93,22 +118,21 @@ if (mode === "on") {
   const { ws, evaluate, reload } = await cdp();
   const settings = await readSettings(evaluate);
 
-  writeFileSync(
-    BACKUP,
-    JSON.stringify({ devPaths: paths, settings: Object.fromEntries(CLEARED.map((k) => [k, settings[k]])) }, null, 2),
-  );
+  writeFileSync(BACKUP, JSON.stringify({ devPaths: paths, settings }, null, 2));
   mkdirSync(SANDBOX, { recursive: true });
   writeFileSync(PATHS, JSON.stringify({ ...paths, dictDir: SANDBOX }, null, 2));
 
-  const fresh = { ...settings };
-  for (const key of CLEARED) delete fresh[key];
-  await writeSettings(evaluate, fresh);
+  // Removed outright rather than written as `{}`: the plugin has to take the
+  // branch a real new install takes, which is "no stored settings at all".
+  await evaluate(`localStorage.removeItem(${JSON.stringify(SETTINGS_KEY)})`);
   await reload();
   ws.close();
 
-  console.log("ON. NCM now behaves as a machine with no dictionary.");
+  const kept = Object.keys(settings).length;
+  console.log("ON. NCM now behaves as a brand new install.");
   console.log(`  real dictionaries: untouched, still at ${paths.dictDir}`);
   console.log(`  downloads land in: ${SANDBOX}`);
+  console.log(`  settings: all ${kept} key(s) cleared, saved in ${BACKUP}`);
   console.log("  back to normal:    node tools/fresh-install-sim.mjs off");
   process.exit(0);
 }
@@ -122,12 +146,9 @@ if (mode === "off") {
   const { ws, evaluate, reload } = await cdp();
 
   writeFileSync(PATHS, JSON.stringify(backup.devPaths, null, 2));
-  const settings = await readSettings(evaluate);
-  for (const [key, value] of Object.entries(backup.settings)) {
-    if (value === undefined) delete settings[key];
-    else settings[key] = value;
-  }
-  await writeSettings(evaluate, settings);
+  // The snapshot replaces whatever the pretend run left behind, rather than
+  // merging into it: anything set while the sim was on belongs to the sim.
+  await writeSettings(evaluate, backup.settings);
   await reload();
   ws.close();
 
