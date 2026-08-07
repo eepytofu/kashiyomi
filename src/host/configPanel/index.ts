@@ -63,34 +63,38 @@ function render(root: HTMLElement): void {
   const needsDictionary = document.createElement("div");
   needsDictionary.className = "kc-needs-dict";
   needsDictionary.textContent = t("dictNeededForThese");
-  // Above the notice because it does not need a dictionary: repair is a
-  // character-by-character glyph map from `opencc-js`, bundled in main.js, and
-  // it now renders on lyrics with nothing installed. It sat inside the gated
-  // block until 2026-08-08, where being greyed out said the opposite.
-  jp.appendChild(toggleRow("hanRepair", t("repair"), t("repairDesc"), refreshPreview));
-  // Exactly the settings that do nothing without a dictionary, which is not the
-  // whole card. Font routing happens during classification (`applyScriptFont`),
-  // before anything is analyzed, so the two font rows work with no dictionary at
-  // all and greying them would misdescribe them. Reading hints stay gated: the
-  // parsing is pure, but consuming a hint means moving it into a ruby, and with
-  // no analyzer there is no ruby to move it into.
-  const gated = [
-    toggleRow("furigana", t("furigana"), t("furiganaDesc"), refreshPreview),
-    toggleRow("romaji", t("romaji"), t("romajiDesc"), refreshPreview),
-    toggleRow("readingHints", t("hints"), t("hintsDesc"), refreshPreview),
-    sizeRow(refreshPreview),
-  ];
-  for (const rowEl of gated) jp.appendChild(rowEl);
-  jp.appendChild(toggleRow("useJpFont", t("jpFont"), t("jpFontDesc"), refreshPreview, false));
-  jp.appendChild(fontStackRow("jpFontStack", DEFAULT_JP_FONT_STACK, "fontStack", "fontStackDesc", refreshPreview));
-  // Last in the Japanese card: it is the escape hatch for when everything
-  // above got a reading wrong, so it reads in the order someone reaches for it.
+
+  // Rows in reading order, not gating order. The notice says "greyed settings",
+  // so it names its subjects instead of meaning "the rows after me", and that
+  // is what lets kanji repair sit among them: it needs no dictionary, so it is
+  // never greyed, and the notice never claims it.
+  const furiganaRow = toggleRow("furigana", t("furigana"), t("furiganaDesc"), refreshPreview);
+  const furiganaSize = sizeRow(refreshPreview);
+  const romajiRow = toggleRow("romaji", t("romaji"), t("romajiDesc"), refreshPreview);
+  const hintsRow = toggleRow("readingHints", t("hints"), t("hintsDesc"), refreshPreview);
+  // The escape hatch for when everything above got a reading wrong, so it comes
+  // last: it reads in the order someone reaches for it.
   const overrides = readingOverridesRow();
-  jp.appendChild(overrides);
-  gated.push(overrides);
-  // Inserted before the first gated row when it is needed, so the card has no
-  // stray element between rows when it is not.
-  gateOnDictionary(gated, needsDictionary, jp, gated[0]!);
+  for (const rowEl of [
+    furiganaRow,
+    furiganaSize,
+    romajiRow,
+    hintsRow,
+    toggleRow("hanRepair", t("repair"), t("repairDesc"), refreshPreview),
+    overrides,
+  ]) {
+    jp.appendChild(rowEl);
+  }
+
+  // Exactly the settings that do nothing without a dictionary. Kanji repair is
+  // absent because `opencc-js` is bundled and it renders with nothing
+  // installed. Reading hints are present because although the parsing is pure,
+  // consuming a hint means moving it into a ruby, and with no analyzer there is
+  // no ruby to move it into.
+  const gated = [furiganaRow, furiganaSize, romajiRow, hintsRow, overrides];
+  // Directly under the dictionary row, which is the thing it is about, and a
+  // fixed position now that it no longer has to sit above its subjects.
+  gateOnDictionary(gated, needsDictionary, jp, furiganaRow);
   left.appendChild(jp);
 
   left.appendChild(sectionTitle(t("sectionChinese")));
@@ -98,8 +102,6 @@ function render(root: HTMLElement): void {
   zh.appendChild(toggleRow("pinyin", t("pinyin"), t("pinyinDesc"), refreshPreview));
   zh.appendChild(toggleRow("pinyinTones", t("tones"), t("tonesDesc"), refreshPreview));
   zh.appendChild(toggleRow("pinyinJoinWords", t("groupWords"), t("groupWordsDesc"), refreshPreview));
-  zh.appendChild(toggleRow("useZhFont", t("zhFont"), t("zhFontDesc"), refreshPreview, false));
-  zh.appendChild(fontStackRow("zhFontStack", DEFAULT_ZH_FONT_STACK, "zhFontStack", "fontStackDesc", refreshPreview));
   left.appendChild(zh);
 
   left.appendChild(sectionTitle(t("sectionAi")));
@@ -122,12 +124,27 @@ function render(root: HTMLElement): void {
   ai.appendChild(clearCacheRow());
   left.appendChild(ai);
 
+  // Typography in one place. Six rows used to sit across three sections, and the
+  // reading-row font had to live in Advanced with a comment explaining it
+  // belonged to neither language — the per-feature grouping failing out loud.
+  // The same split appears in the author's spicy-lyrics fork, which keeps
+  // readings under Languages and font stacks under Appearance, and in browsers,
+  // where per-script font choices are one panel rather than one page each.
+  //
+  // After AI, because the reading-row font covers Japanese, Chinese and
+  // translation rows alike, so it follows everything it applies to.
+  left.appendChild(sectionTitle(t("sectionFonts")));
+  const fonts = card();
+  fonts.appendChild(toggleRow("useJpFont", t("jpFont"), t("jpFontDesc"), refreshPreview, false));
+  fonts.appendChild(fontStackRow("jpFontStack", DEFAULT_JP_FONT_STACK, "fontStack", "fontStackDesc", refreshPreview));
+  fonts.appendChild(toggleRow("useZhFont", t("zhFont"), t("zhFontDesc"), refreshPreview, false));
+  fonts.appendChild(fontStackRow("zhFontStack", DEFAULT_ZH_FONT_STACK, "zhFontStack", "fontStackDesc", refreshPreview));
+  fonts.appendChild(toggleRow("useRowFont", t("rowFont"), t("rowFontDesc"), refreshPreview, false));
+  fonts.appendChild(fontStackRow("rowFontStack", DEFAULT_JP_FONT_STACK, "rowFontStack", "fontStackDesc", refreshPreview));
+  left.appendChild(fonts);
+
   left.appendChild(sectionTitle(t("sectionAdvanced")));
   const adv = card();
-  // Not under Japanese or Chinese: it governs the rows under both, and putting
-  // it in either section would imply it only applies there.
-  adv.appendChild(toggleRow("useRowFont", t("rowFont"), t("rowFontDesc"), refreshPreview, false));
-  adv.appendChild(fontStackRow("rowFontStack", DEFAULT_JP_FONT_STACK, "rowFontStack", "fontStackDesc", refreshPreview));
   adv.appendChild(toggleRow("annotateCredits", t("credits"), t("creditsDesc")));
   adv.appendChild(toggleRow("debug", t("debug"), t("debugDesc"), () => {}));
   // Only while there is no dictionary. Once one is installed the notice cannot

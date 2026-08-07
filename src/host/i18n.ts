@@ -14,6 +14,7 @@ const STRINGS = {
     reannotate: "Re-annotate",
     sectionJapanese: "Japanese",
     sectionChinese: "Chinese",
+    sectionFonts: "Fonts",
     sectionAdvanced: "Advanced",
     credits: "Annotate credit lines",
     creditsDesc: "Lines like 作词: or 编曲：. Translation always skips them",
@@ -45,7 +46,7 @@ const STRINGS = {
     // Shown over the settings that do nothing until a dictionary is installed.
     // Not all of the Japanese card: fonts route during classification, so they
     // work with no dictionary at all, and greying them would be a lie.
-    dictNeededForThese: "These need the Japanese dictionary.",
+    dictNeededForThese: "Greyed settings need the Japanese dictionary.",
     // The two things a new install needs a decision about, and nothing else.
     // Everything else is on by default and works with no setup at all, so
     // listing it would be telling someone about work they do not have to do.
@@ -153,6 +154,7 @@ const STRINGS = {
     reannotate: "重新标注",
     sectionJapanese: "日语",
     sectionChinese: "中文",
+    sectionFonts: "字体",
     sectionAdvanced: "高级",
     credits: "为制作信息注音",
     creditsDesc: "作词:、编曲： 这类行。翻译始终会跳过它们",
@@ -179,7 +181,7 @@ const STRINGS = {
     groupWordsDesc: "",
     dictionary: "日语词典",
     dictNotInstalled: "未安装",
-    dictNeededForThese: "以下设置需要日语词典。",
+    dictNeededForThese: "灰色的设置需要日语词典。",
     setupNeedsDictionary:
       "日语读音需要词典。\nAI 翻译需要自备 API key，在本插件的设置中填写。",
     setupSpace: "需要 {needed} 可用空间，当前可用 {free}",
