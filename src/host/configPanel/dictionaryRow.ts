@@ -12,27 +12,20 @@
 
 import { t } from "../i18n.ts";
 import { dictionaryInventory, dictionaryJob, onDictionaryChange } from "../dictionary.ts";
-import { dictionaryRowState, type RowDot } from "../../engine/dictionaryRowState.ts";
+import { dictionaryRowState } from "../../engine/dictionaryRowState.ts";
 import { describe } from "../dictionaryText.ts";
 import { openDictionarySetup } from "../setup/dialog.ts";
 import { getSettings } from "../settings.ts";
 import { onPanelTeardown } from "./lifecycle.ts";
 import { row, rowText } from "./rows.ts";
 
-const DOT_CLASS: Record<RowDot, string> = {
-  ready: "kc-ready",
-  loading: "kc-loading",
-  bad: "kc-bad",
-  neutral: "",
-};
-
 export function dictionaryRow(): HTMLElement {
   const el = row();
   const text = rowText(t("dictionary"), t("dictNotInstalled"));
   const description = text.querySelector(".kc-desc") ?? text.lastElementChild;
-  const dot = document.createElement("span");
-  dot.className = "kc-dot";
-  text.querySelector(".kc-label")?.prepend(dot);
+  // No status dot. The analyzer bar directly above already carries one, and a
+  // second dot on a downloadable asset says nothing a reader can act on: the
+  // description underneath already reads "installed" or "not installed".
   el.appendChild(text);
 
   const manage = document.createElement("button");
@@ -49,9 +42,11 @@ export function dictionaryRow(): HTMLElement {
       // The space check belongs to the surface that offers the download. This
       // row only reports, so it never needs to say an edition will not fit.
       freeBytes: undefined,
+      // A download running anywhere still shows here; its *outcome* does not.
+      // The row reports what is installed, and "already the newest release" on
+      // a row nobody pressed is a claim about a check it did not make.
+      ownsJob: false,
     });
-    el.classList.remove("kc-ready", "kc-loading", "kc-bad");
-    if (DOT_CLASS[view.dot]) el.classList.add(DOT_CLASS[view.dot]);
     if (description) description.textContent = describe(view.message);
     // `Set up` while there is nothing, `Manage` once there is: the same button,
     // named for what pressing it is for at that moment.

@@ -51,6 +51,15 @@ export type RowMessage =
       /** False when the installed edition is not the one selected, which is the only time it is named. */
       readonly isSelection: boolean;
       readonly upToDate: boolean;
+      /**
+       * A check has seen a release newer than the one on disk.
+       *
+       * Derived from the inventory, not from a job, so it stays true until
+       * something is done about it rather than fading with a cooldown. Both
+       * versions must be known: an edition placed on disk from outside the
+       * plugin has no recorded version, and "unknown" is not "behind".
+       */
+      readonly updateAvailable: boolean;
     }
   | { readonly kind: "checking" }
   | { readonly kind: "downloading"; readonly received: number; readonly total: number }
@@ -92,6 +101,24 @@ export type RowView = {
   readonly settling: boolean;
 };
 
+/**
+ * What one edition is, from the reader's point of view.
+ *
+ * On the option itself rather than in a sentence underneath the list. The
+ * status line used to carry this, which produced "full installed" while `core`
+ * was the selection: true, and about a different edition than the one being
+ * pointed at. A list of choices should say which is which on the choices.
+ */
+export type EditionStatus = "in-use" | "installed" | "absent";
+
+export function editionStatus(
+  edition: DictionaryEdition,
+  inventory: DictionaryInventory,
+): EditionStatus {
+  if (inventory.loaded === edition) return "in-use";
+  return inventory.installed.includes(edition) ? "installed" : "absent";
+}
+
 export type RowInput = {
   readonly preferred: DictionaryEdition;
   readonly inventory: DictionaryInventory;
@@ -99,7 +126,34 @@ export type RowInput = {
   readonly now: number;
   /** Bytes free where the dictionary lives, or undefined when the disk could not be asked. */
   readonly freeBytes: number | undefined;
+  /**
+   * Whether this surface is the one whose button was pressed.
+   *
+   * A **running** job is a fact about the dictionary and every surface should
+   * show it: a download started in the dialog belongs on the settings row too.
+   * An **outcome** is a report of an action, and belongs only where the action
+   * was taken. Without the distinction, opening settings displayed "already the
+   * newest release" from a check the row had never performed, which asserts a
+   * result rather than describing a state.
+   *
+   * Defaults to true, so a surface that only ever reflects state has to say so
+   * deliberately.
+   */
+  readonly ownsJob?: boolean;
 };
+
+/**
+ * Whether a check has seen something newer than what is installed.
+ *
+ * Both sides must be known. A dictionary put on disk from outside the plugin
+ * has no recorded version, and treating unknown as behind would offer an
+ * update nobody can say is needed.
+ */
+function hasUpdate(edition: DictionaryEdition, inventory: DictionaryInventory): boolean {
+  const onDisk = inventory.versions[edition];
+  const newest = inventory.latest[edition];
+  return onDisk !== undefined && newest !== undefined && onDisk !== newest;
+}
 
 export function dictionaryRowState(input: RowInput): RowView {
   const running = runningView(input);
@@ -178,6 +232,7 @@ function working(
  */
 function recentOutcomeView(input: RowInput): RowView | undefined {
   const { job, now } = input;
+  if (input.ownsJob === false) return undefined;
   if (job.kind !== "failed" && job.kind !== "upToDate") return undefined;
   const cooling = now - job.at < DICTIONARY_COOLDOWN_MS;
 
@@ -251,6 +306,7 @@ function settledView(input: RowInput): RowView {
         version: inventory.versions[installed],
         isSelection,
         upToDate: false,
+        updateAvailable: hasUpdate(installed, inventory),
       },
       primary: { action: { kind: isSelection ? "update" : "switch" }, disabled: false },
       cancel: { shown: false, disabled: true },
@@ -273,6 +329,7 @@ function settledView(input: RowInput): RowView {
         version: inventory.versions[installed],
         isSelection: false,
         upToDate: false,
+        updateAvailable: hasUpdate(installed, inventory),
       },
       primary: { action: { kind: "switch" }, disabled: false },
       cancel: { shown: false, disabled: true },

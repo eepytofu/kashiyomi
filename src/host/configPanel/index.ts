@@ -63,7 +63,6 @@ function render(root: HTMLElement): void {
   const needsDictionary = document.createElement("div");
   needsDictionary.className = "kc-needs-dict";
   needsDictionary.textContent = t("dictNeededForThese");
-  jp.appendChild(needsDictionary);
   // Exactly the settings that do nothing without a dictionary, which is not the
   // whole card. Font routing happens during classification (`applyScriptFont`),
   // before anything is analyzed, so the two font rows work with no dictionary at
@@ -83,7 +82,9 @@ function render(root: HTMLElement): void {
   const overrides = readingOverridesRow();
   jp.appendChild(overrides);
   gated.push(overrides);
-  gateOnDictionary(gated, needsDictionary);
+  // Inserted before the first gated row when it is needed, so the card has no
+  // stray element between rows when it is not.
+  gateOnDictionary(gated, needsDictionary, jp, gated[0]!);
   left.appendChild(jp);
 
   left.appendChild(sectionTitle(t("sectionChinese")));
@@ -145,10 +146,20 @@ function render(root: HTMLElement): void {
  * Follows the inventory rather than being decided once: the dialog this panel
  * opens can install a dictionary without the panel being rebuilt.
  */
-function gateOnDictionary(rows: readonly HTMLElement[], notice: HTMLElement): void {
+function gateOnDictionary(
+  rows: readonly HTMLElement[],
+  notice: HTMLElement,
+  card: HTMLElement,
+  before: HTMLElement,
+): void {
   const paint = (): void => {
     const absent = dictionaryInventory().installed.length === 0;
-    notice.style.display = absent ? "" : "none";
+    // Inserted and removed, never hidden. `.kc-row + .kc-row` draws the divider
+    // between settings, and a `display:none` element still sits between two
+    // rows as far as the sibling combinator is concerned, so hiding it silently
+    // deleted the line under the dictionary row.
+    if (absent && !notice.isConnected) card.insertBefore(notice, before);
+    else if (!absent && notice.isConnected) notice.remove();
     for (const rowEl of rows) {
       rowEl.classList.toggle("kc-inert", absent);
       for (const control of rowEl.querySelectorAll("input, select, textarea, button")) {

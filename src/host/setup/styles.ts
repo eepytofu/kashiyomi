@@ -38,7 +38,11 @@ export const SETUP_CSS = `
   content: ""; position: absolute; top: 3px; left: 3px;
   width: 6px; height: 6px; border-radius: 50%; background: #ec4141;
 }
-.kashiyomi-setup .ks-option-body { min-width: 0; }
+.kashiyomi-setup .ks-option-body { min-width: 0; flex: 1; }
+/* Which edition is installed, and which one the analyzer actually has open,
+   on the option rather than in a sentence under the list. */
+.kashiyomi-setup .ks-option-state { flex: none; font-size: 11.5px; opacity: 0.55; white-space: nowrap; }
+.kashiyomi-setup .ks-in-use { color: #8fd97a; opacity: 0.9; }
 .kashiyomi-setup .ks-space { font-size: 12px; opacity: 0.68; margin-top: 12px; min-height: 17px; }
 /* Reserves its line whether or not there is anything to say, so starting a
    download does not shift every control below it. */

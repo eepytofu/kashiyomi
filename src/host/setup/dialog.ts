@@ -27,16 +27,27 @@
 import { t } from "../i18n.ts";
 import {
   cancelDictionaryDownload,
+  checkForNewerRelease,
+  clearFinishedJob,
   dictionaryInventory,
   dictionaryJob,
   onDictionaryChange,
 } from "../dictionary.ts";
 import { startDictionaryInstall } from "../dictionaryInstall.ts";
-import { dictionaryRowState } from "../../engine/dictionaryRowState.ts";
+import { dictionaryRowState, editionStatus } from "../../engine/dictionaryRowState.ts";
 import { pinnedRelease } from "../../engine/dictionaryPins.ts";
 import type { DictionaryEdition } from "../../engine/dictionarySource.ts";
 import { requiredFreeBytes } from "../../engine/dictionarySource.ts";
-import { actionEdition, actionLabel, describe, editionNote, mb, size } from "../dictionaryText.ts";
+import {
+  actionEdition,
+  actionLabel,
+  describe,
+  editionHeading,
+  editionNote,
+  editionStatusLabel,
+  mb,
+  size,
+} from "../dictionaryText.ts";
 import { currentAssetPaths } from "../annotator.ts";
 import { nativeFreeSpace } from "../native.ts";
 import { getSettings, updateSettings } from "../settings.ts";
@@ -91,14 +102,16 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
   title.textContent = "Kashiyomi（歌詞読み）";
   dialog.appendChild(title);
 
-  // No pitch. Whoever opened this either installed the plugin from a listing
-  // that already described it, or pressed a button in its own settings. What
-  // belongs here is only what they have to *act* on, which is two things: the
-  // dictionary below, and an API key they can only set in the settings panel.
-  const need = document.createElement("div");
-  need.className = "ks-need";
-  need.textContent = t("setupNeedsDictionary");
-  dialog.appendChild(need);
+  // No pitch, and **first run only**. Opened from Manage this is a dictionary
+  // manager, where a line about API keys is advice nobody asked for; opened on
+  // a fresh install it is the one place the two things needing setup can be
+  // named at all.
+  if (firstRun) {
+    const need = document.createElement("div");
+    need.className = "ks-need";
+    need.textContent = t("setupNeedsDictionary");
+    dialog.appendChild(need);
+  }
 
   // The same card-of-rows the settings panel is built from, rather than a
   // second list idiom that happens to look similar.
@@ -107,6 +120,7 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
   dialog.appendChild(list);
 
   const radios = new Map<DictionaryEdition, HTMLInputElement>();
+  const states = new Map<DictionaryEdition, HTMLElement>();
   for (const edition of OFFERED) {
     const label = document.createElement("label");
     label.className = "kc-row ks-option";
@@ -117,6 +131,10 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
     radio.value = edition;
     radio.onchange = () => {
       updateSettings({ dictPreferredEdition: edition });
+      // A finished job describes the edition it ran for, so choosing another
+      // makes it stale. Left in place its cooldown also disabled the button,
+      // which read as the dialog lagging behind the click.
+      clearFinishedJob();
       paint();
     };
     radios.set(edition, radio);
@@ -126,13 +144,22 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
     body.className = "ks-option-body";
     const head = document.createElement("div");
     head.className = "kc-label";
-    head.textContent = `${edition} · ${mb(pinnedRelease(edition).size)}`;
+    head.textContent = editionHeading(edition);
     body.appendChild(head);
     const note = document.createElement("div");
     note.className = "kc-desc";
     note.textContent = editionNote(edition);
     body.appendChild(note);
     label.appendChild(body);
+
+    // Which edition is installed, and which one the analyzer actually has open,
+    // shown on the options rather than asserted underneath them. The status
+    // line used to carry it and produced "full installed" while core was
+    // selected: true, and about a different edition than the one pointed at.
+    const state = document.createElement("span");
+    state.className = "ks-option-state";
+    states.set(edition, state);
+    label.appendChild(state);
 
     list.appendChild(label);
   }
@@ -200,14 +227,23 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
       freeBytes,
     });
 
+    const inventory = dictionaryInventory();
     for (const [edition, radio] of radios) {
       radio.checked = edition === preferred;
       radio.disabled = !view.pickerEnabled;
       radio.parentElement?.classList.toggle("kc-inert", !view.pickerEnabled);
+      const state = states.get(edition);
+      if (state) {
+        const status = editionStatus(edition, inventory);
+        state.textContent = editionStatusLabel(status);
+        state.classList.toggle("ks-in-use", status === "in-use");
+      }
     }
 
+    // Hidden once something is running: it answers "will this fit", which is a
+    // question about a download that has already started.
     space.textContent =
-      freeBytes === undefined
+      freeBytes === undefined || view.settling
         ? ""
         : t("setupSpace")
             .replace("{needed}", mb(requiredFreeBytes(pinnedRelease(preferred).size)))
@@ -283,4 +319,16 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
   document.body.appendChild(dialog);
   paint();
   dialog.showModal();
+
+  // Check for a newer release as the dialog appears, rather than waiting for a
+  // press. Without it the row could only ever repeat whatever the last manual
+  // check found, which is how "already the newest release" came to be shown on
+  // opening settings by something that had checked nothing.
+  //
+  // Silent on failure: opening a dialog must not produce an error nobody asked
+  // for, and `resolveRelease` already falls back to the pinned release and
+  // reports `checked: false`, which the row reads as "do not claim to know".
+  if (dictionaryInventory().installed.length > 0) {
+    void checkForNewerRelease(getSettings().dictPreferredEdition);
+  }
 }

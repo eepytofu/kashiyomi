@@ -49,20 +49,19 @@ const STRINGS = {
     // Measured on all three: core is right on 赤巻紙, full on 千本桜 and
     // 六兆年と一夜物語. Neither wins overall.
     dictEdSmall: "Includes only the vocabulary of UniDic.",
-    dictEdCore: "Includes basic vocabulary. Default.",
+    dictEdCore: "Includes basic vocabulary.",
     dictEdFull: "Includes miscellaneous proper nouns.",
     // Where each edition comes from, said for **all three** rather than only the
     // one that is different. A provenance line on `full` alone reads as a
     // warning flag; next to two ordinary ones it reads as what it is, and the
     // reason it differs (size, not trust) answers the obvious question before
     // it is asked.
-    dictEdFrom: "Downloads from PyPI.",
-    dictEdFromFull:
-      "Too large for PyPI. Downloads from GitHub, or a third-party relay if that fails.",
+    dictEdFromFull: "Not on PyPI, so it can fall back to a third-party relay.",
     // Shown over the settings that do nothing until a dictionary is installed.
     // Not all of the Japanese card: fonts route during classification, so they
     // work with no dictionary at all, and greying them would be a lie.
     dictNeededForThese: "These need the Japanese dictionary.",
+    dictInUse: "in use",
     dictManage: "Manage",
     dictSetUp: "Set up",
     // The two things a new install needs a decision about, and nothing else.
@@ -93,6 +92,7 @@ const STRINGS = {
     dictActivating: "activating",
     dictUpdate: "Update",
     dictUpToDate: "already the newest release",
+    dictUpdateAvailable: "update available",
     dictInstalledState: "installed",
     dictChecking: "checking for the latest release",
     dictUpdateCheckFailed: "could not check for updates",
@@ -201,11 +201,11 @@ const STRINGS = {
     dictionary: "日语词典",
     dictNotInstalled: "未安装",
     dictEdSmall: "仅收录 UniDic 的词汇。",
-    dictEdCore: "收录基本词汇。默认。",
+    dictEdCore: "收录基本词汇。",
     dictEdFull: "另收录各类专有名词。",
-    dictEdFrom: "从 PyPI 下载。",
-    dictEdFromFull: "体积超出 PyPI 限制。从 GitHub 下载，失败时改用第三方中转。",
+    dictEdFromFull: "PyPI 不提供，因此可能改用第三方中转。",
     dictNeededForThese: "以下设置需要日语词典。",
+    dictInUse: "使用中",
     dictManage: "管理",
     dictSetUp: "设置",
     setupNeedsDictionary:
@@ -222,6 +222,7 @@ const STRINGS = {
     dictActivating: "正在启用",
     dictUpdate: "更新",
     dictUpToDate: "已是最新版本",
+    dictUpdateAvailable: "有可用更新",
     dictInstalledState: "已安装",
     dictChecking: "正在检查最新版本",
     dictUpdateCheckFailed: "无法检查更新",

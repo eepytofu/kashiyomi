@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   DICTIONARY_COOLDOWN_MS,
   dictionaryRowState,
+  editionStatus,
   type RowInput,
   type RowView,
 } from "../src/engine/dictionaryRowState.ts";
@@ -16,7 +17,7 @@ const ROOMY = requiredFreeBytes(pinnedRelease("full").size) * 2;
 function view(over: Partial<RowInput> = {}): RowView {
   return dictionaryRowState({
     preferred: "core",
-    inventory: { installed: [], versions: {}, loaded: undefined },
+    inventory: { installed: [], versions: {}, loaded: undefined, latest: {} },
     job: { kind: "idle" },
     now: NOW,
     freeBytes: ROOMY,
@@ -27,7 +28,7 @@ function view(over: Partial<RowInput> = {}): RowView {
 const installed = (
   editions: readonly DictionaryEdition[],
   versions: DictionaryVersions = {},
-): RowInput["inventory"] => ({ installed: editions, versions, loaded: editions[0] });
+): RowInput["inventory"] => ({ installed: editions, versions, loaded: editions[0], latest: {} });
 
 const job = (over: DictionaryJob): DictionaryJob => over;
 
@@ -88,6 +89,7 @@ test("the selection installed offers an update and does not name the edition twi
     version: "20260723",
     isSelection: true,
     upToDate: false,
+    updateAvailable: false,
   });
   assert.deepEqual(v.primary, { action: { kind: "update" }, disabled: false });
   assert.equal(v.dot, "ready");
@@ -292,7 +294,7 @@ test("a failed load still reports the dictionary as present underneath", () => {
 test("an installed edition that is not the loaded one offers a switch", () => {
   const v = view({
     preferred: "core",
-    inventory: { installed: ["full", "core"], versions: { full: "20260723" }, loaded: "full" },
+    inventory: { installed: ["full", "core"], versions: { full: "20260723" }, loaded: "full", latest: {} },
   });
   assert.deepEqual(v.primary, { action: { kind: "switch" }, disabled: false });
   assert.equal(v.message.kind, "installed");
@@ -304,7 +306,58 @@ test("an installed edition that is not the loaded one offers a switch", () => {
 test("the loaded edition being the selection is still an update", () => {
   const v = view({
     preferred: "core",
-    inventory: { installed: ["full", "core"], versions: { core: "20260723" }, loaded: "core" },
+    inventory: { installed: ["full", "core"], versions: { core: "20260723" }, loaded: "core", latest: {} },
   });
   assert.deepEqual(v.primary, { action: { kind: "update" }, disabled: false });
+});
+
+// Shown on the option itself. The status line used to carry this and produced
+// "full installed" while core was the selection: true, and about a different
+// edition than the one being pointed at.
+test("each edition says whether it is in use, merely installed, or absent", () => {
+  const inv = { installed: ["full", "core"] as const, versions: {}, loaded: "full" as const, latest: {} };
+  assert.equal(editionStatus("full", inv), "in-use");
+  assert.equal(editionStatus("core", inv), "installed");
+  assert.equal(editionStatus("small", inv), "absent");
+});
+
+// An available update is a standing fact about the disk, so it must not fade
+// with the cooldown that "already the newest release" fades with.
+test("an update is offered only when both versions are known and differ", () => {
+  const withVersions = (versions: object, latest: object) =>
+    view({
+      preferred: "core",
+      inventory: { installed: ["core"], versions, loaded: "core", latest },
+    }).message;
+
+  const behind = withVersions({ core: "20260428" }, { core: "20260723" });
+  assert.equal(behind.kind === "installed" && behind.updateAvailable, true);
+
+  const current = withVersions({ core: "20260723" }, { core: "20260723" });
+  assert.equal(current.kind === "installed" && current.updateAvailable, false);
+
+  // Never asked. Silence is not "up to date".
+  const unchecked = withVersions({ core: "20260428" }, {});
+  assert.equal(unchecked.kind === "installed" && unchecked.updateAvailable, false);
+
+  // Placed on disk from outside the plugin: unknown is not behind.
+  const unknown = withVersions({}, { core: "20260723" });
+  assert.equal(unknown.kind === "installed" && unknown.updateAvailable, false);
+});
+
+// The settings row reflects a running job but must not report an outcome it did
+// not cause: "already the newest release" on opening settings asserted a check
+// the row had never performed.
+test("a surface that does not own the job ignores finished outcomes", () => {
+  const job = { kind: "upToDate", edition: "core", at: NOW } as const;
+  const inventory = { installed: ["core"] as const, versions: { core: "20260723" }, loaded: "core" as const, latest: {} };
+  const owner = view({ inventory, job });
+  assert.equal(owner.message.kind === "installed" && owner.message.upToDate, true);
+
+  const bystander = view({ inventory, job, ownsJob: false });
+  assert.equal(bystander.message.kind === "installed" && bystander.message.upToDate, false);
+
+  // A running job is a fact about the dictionary and still shows everywhere.
+  const running = view({ inventory, job: { kind: "downloading", edition: "core", received: 1, total: 2 }, ownsJob: false });
+  assert.equal(running.message.kind, "downloading");
 });

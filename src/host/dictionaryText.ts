@@ -6,8 +6,9 @@
 // what DOM it ends up in.
 
 import { panelLang, t, tDownloadEdition, tNoSpace, tSpaceForOther } from "./i18n.ts";
-import type { RowAction, RowMessage } from "../engine/dictionaryRowState.ts";
+import type { EditionStatus, RowAction, RowMessage } from "../engine/dictionaryRowState.ts";
 import { needsRelay, type DictionaryEdition } from "../engine/dictionarySource.ts";
+import { pinnedRelease } from "../engine/dictionaryPins.ts";
 
 const MEGABYTE = 1024 * 1024;
 const GIGABYTE = 1024 * MEGABYTE;
@@ -59,7 +60,10 @@ export function describe(message: RowMessage): string {
         ? t("dictInstalledState")
         : `${message.edition} ${t("dictInstalledState")}`;
       if (message.version !== undefined) line += ` · ${releaseDate(message.version)}`;
-      if (message.upToDate) line += ` · ${t("dictUpToDate")}`;
+      // A standing fact about the disk, so it outlives the cooldown that
+      // "already the newest release" fades with.
+      if (message.updateAvailable) line += ` · ${t("dictUpdateAvailable")}`;
+      else if (message.upToDate) line += ` · ${t("dictUpToDate")}`;
       return line;
     }
     case "checking":
@@ -133,9 +137,29 @@ function joinSentences(first: string, second: string): string {
   return /[。！？；：]$/u.test(first) ? `${first}${second}` : `${first} ${second}`;
 }
 
-/** What an edition contains, in the publisher's own words, and where it comes from. */
+/**
+ * The option's first line: what it is, how big, and where it comes from.
+ *
+ * Source is a word here rather than a sentence underneath, because as a
+ * sentence it had to be repeated on two of the three rows and read as noise
+ * ("both downloads from PyPI itu aneh"). As a suffix the three line up, and
+ * `full` being different is visible by contrast instead of by paragraph.
+ */
+export function editionHeading(edition: DictionaryEdition): string {
+  const source = needsRelay(edition) ? "GitHub" : "PyPI";
+  return `${edition} · ${mb(pinnedRelease(edition).size)} · ${source}`;
+}
+
+/** What an edition contains, in the publisher's own words. */
 export function editionNote(edition: DictionaryEdition): string {
   const key = ({ small: "dictEdSmall", core: "dictEdCore", full: "dictEdFull" } as const)[edition];
-  // Every edition says where it comes from, not just the odd one out.
-  return joinSentences(t(key), t(needsRelay(edition) ? "dictEdFromFull" : "dictEdFrom"));
+  // Only the edition that is not on PyPI says anything further, and it says the
+  // part a user can act on: someone other than the publisher may serve it.
+  return needsRelay(edition) ? joinSentences(t(key), t("dictEdFromFull")) : t(key);
+}
+
+/** `installed` or `in use`, shown on the option itself. */
+export function editionStatusLabel(status: EditionStatus): string {
+  if (status === "in-use") return t("dictInUse");
+  return status === "installed" ? t("dictInstalledState") : "";
 }

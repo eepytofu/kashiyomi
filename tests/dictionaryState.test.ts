@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   migrateDictionarySettings,
   pruneVersions,
+  supersededEdition,
   switchPending,
   withVersion,
   type DictionaryInventory,
@@ -11,7 +12,7 @@ import {
 const inventory = (
   installed: readonly ("full" | "core" | "small")[],
   loaded?: "full" | "core" | "small",
-): DictionaryInventory => ({ installed, versions: {}, loaded });
+): DictionaryInventory => ({ installed, versions: {}, loaded, latest: {} });
 
 test("a fresh install gets the defaults", () => {
   const settings = migrateDictionarySettings({});
@@ -122,4 +123,23 @@ test("nothing installed is not a pending switch", () => {
 
 test("the preference being present is enough, whatever else is", () => {
   assert.equal(switchPending("core", inventory(["core", "small"], "core")), false);
+});
+
+// This rule deleted a dictionary. It read "any other edition on disk" instead
+// of "the one being replaced", so updating `full` on a machine that also held
+// `core` removed `core`, which that update had superseded nothing of. It lived
+// in host code, which imports betterncm and cannot be unit tested, so nothing
+// could have caught it there.
+test("an update replaces nothing, so nothing may be deleted", () => {
+  assert.equal(supersededEdition("full", "full"), undefined);
+  assert.equal(supersededEdition("core", "core"), undefined);
+});
+
+test("a switch replaces the edition that was open, and only that one", () => {
+  assert.equal(supersededEdition("core", "full"), "core");
+  assert.equal(supersededEdition("full", "small"), "full");
+});
+
+test("a first install has nothing open, so it replaces nothing", () => {
+  assert.equal(supersededEdition(undefined, "core"), undefined);
 });

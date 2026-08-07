@@ -42,6 +42,18 @@ export type DictionaryInventory = {
   readonly installed: readonly DictionaryEdition[];
   readonly versions: DictionaryVersions;
   readonly loaded: DictionaryEdition | undefined;
+  /**
+   * The newest release a check has actually seen, per edition.
+   *
+   * Separate from `versions`, which is what is *on disk*. Comparing the two is
+   * the only way to say "an update exists" as a fact rather than as the residue
+   * of a button somebody pressed: the row used to show "already the newest
+   * release" on opening settings, having checked nothing itself.
+   *
+   * Empty until a check succeeds, and an edition missing from it means "not
+   * asked", never "up to date".
+   */
+  readonly latest: DictionaryVersions;
 };
 
 /**
@@ -169,6 +181,26 @@ export function withVersion(
   }
   out[edition] = version;
   return out;
+}
+
+/**
+ * Which edition an install replaces, and therefore which file may be deleted.
+ *
+ * **Pure, and here, because getting it wrong destroys data.** It lived in the
+ * host as `installed.filter(e => e !== target)[0]`, which is "any other edition
+ * on disk" rather than "the one being replaced", and it deleted a `core` that
+ * an update of `full` had superseded nothing of. Host code imports `betterncm`
+ * and cannot be unit tested, so nothing could have caught it there.
+ *
+ * The edition being replaced is the one the analyzer currently has open, and
+ * only when the install targets a different one. An update writes the same
+ * filename, so it replaces nothing.
+ */
+export function supersededEdition(
+  loaded: DictionaryEdition | undefined,
+  target: DictionaryEdition,
+): DictionaryEdition | undefined {
+  return loaded !== undefined && loaded !== target ? loaded : undefined;
 }
 
 /**

@@ -1097,5 +1097,33 @@
     "what": "an installed edition that is not the loaded one offers Update, so pressing it reports no change and never switches",
     "find": "      primary: { action: { kind: isSelection ? \"update\" : \"switch\" }, disabled: false },",
     "replace": "      primary: { action: { kind: \"update\" }, disabled: false },"
+  },
+  {
+    "id": "rowstate/unknown-version-reads-as-outdated",
+    "file": "src/engine/dictionaryRowState.ts",
+    "what": "a dictionary with no recorded version is reported as having an update, offering a download nobody can say is needed",
+    "find": "  return onDisk !== undefined && newest !== undefined && onDisk !== newest;",
+    "replace": "  return onDisk !== newest;"
+  },
+  {
+    "id": "rowstate/bystander-reports-outcomes",
+    "file": "src/engine/dictionaryRowState.ts",
+    "what": "a surface that did not press anything still reports the outcome, so the settings row claims a check it never made",
+    "find": "  if (input.ownsJob === false) return undefined;",
+    "replace": "  if (false) return undefined;"
+  },
+  {
+    "id": "rowstate/in-use-not-distinguished",
+    "file": "src/engine/dictionaryRowState.ts",
+    "what": "the loaded edition is not distinguished from a merely installed one, so the list cannot say which is actually reading the lyrics",
+    "find": "  if (inventory.loaded === edition) return \"in-use\";",
+    "replace": "  if (false) return \"in-use\";"
+  },
+  {
+    "id": "dictstate/supersedes-more-than-it-replaces",
+    "file": "src/engine/dictionaryState.ts",
+    "what": "an install deletes the loaded edition even when it is the one being updated, destroying the dictionary it just replaced in place",
+    "find": "  return loaded !== undefined && loaded !== target ? loaded : undefined;",
+    "replace": "  return loaded;"
   }
 ]

@@ -32,6 +32,7 @@ import {
 } from "../engine/dictionaryLayout.ts";
 import {
   pruneVersions,
+  supersededEdition,
   withVersion,
   type DictionaryInventory,
   type DictionaryJob,
@@ -48,7 +49,12 @@ import {
   nativeSweepPartials,
 } from "./native.ts";
 
-let inventory: DictionaryInventory = { installed: [], versions: {}, loaded: undefined };
+let inventory: DictionaryInventory = {
+  installed: [],
+  versions: {},
+  loaded: undefined,
+  latest: {},
+};
 let job: DictionaryJob = { kind: "idle" };
 let inFlight = false;
 let abort: AbortController | undefined;
@@ -146,8 +152,35 @@ export function reportInventory(
 ): void {
   const versions = pruneVersions(getSettings().dictVersions, installed);
   updateSettings({ dictVersions: versions });
-  inventory = { installed, versions, loaded };
+  // `latest` survives a disk re-read: it records what a *check* found, which a
+  // directory listing knows nothing about.
+  inventory = { installed, versions, loaded, latest: inventory.latest };
   announce();
+}
+
+/**
+ * Check for a newer release without anyone pressing anything.
+ *
+ * Runs as the dialog opens. Refuses while anything else is happening, so it can
+ * never interrupt an install or steal its abort signal, and it clears its own
+ * resolving state afterwards so a background check does not leave the button
+ * reading "Checking…" forever.
+ *
+ * A failure records nothing. An edition missing from `latest` means "not
+ * asked", which is exactly why it can never be mistaken for "up to date": the
+ * row asserting a check it had never made is what this exists to end.
+ */
+export async function checkForNewerRelease(edition: DictionaryEdition): Promise<void> {
+  if (inFlight || job.kind !== "idle") return;
+  const { release, checked } = await resolveRelease(edition);
+  if (checked) {
+    inventory = {
+      ...inventory,
+      latest: withVersion(inventory.latest, edition, release.version),
+    };
+  }
+  if (dictionaryJob().kind === "resolving") setJob({ kind: "idle" });
+  else announce();
 }
 
 /**
@@ -345,6 +378,18 @@ export function reportUpToDate(edition: DictionaryEdition): void {
  * reachable, which meant the row could never say the difference between
  * "nothing newer exists" and "nobody answered".
  */
+/**
+ * Forget a finished job, leaving a running one alone.
+ *
+ * Called when the selection changes: `upToDate` and `failed` describe the
+ * edition they ran for, so pointing at a different one makes them stale, and
+ * their cooldown was still disabling the button, which read as the dialog
+ * lagging a beat behind the click.
+ */
+export function clearFinishedJob(): void {
+  if (job.kind === "upToDate" || job.kind === "failed") setJob({ kind: "idle" });
+}
+
 export function reportNoSource(edition: DictionaryEdition): void {
   setJob({ kind: "failed", edition, reason: "no-source", at: Date.now() });
 }
@@ -361,10 +406,13 @@ export type DownloadPlan = {
   /**
    * A dictionary this install replaces, deleted once the new one loads.
    *
-   * Only ever set when switching to a *different* edition — an update writes
-   * the same filename, so there is nothing left over. Without this, switching
-   * core to small left 207 MB of a dictionary nothing would open again, on a
-   * disk the user had just been asked to make room on.
+   * Only ever set when switching to a *different* edition: an update writes the
+   * same filename, so there is nothing left over. Without it, switching core to
+   * small left 207 MB of a dictionary nothing would open again, on a disk the
+   * user had just been asked to make room on.
+   *
+   * Setting it from anything wider than "the edition being replaced" deletes
+   * files this install had no claim on, which is exactly what happened.
    */
   readonly superseded?: string;
 };
@@ -372,9 +420,18 @@ export type DownloadPlan = {
 export function planDownload(
   release: DictionaryRelease,
   dictionaryDir: string,
-  installed: readonly DictionaryEdition[] = [],
+  loaded: DictionaryEdition | undefined = undefined,
 ): DownloadPlan {
-  const replaced = installed.filter((edition) => edition !== release.edition);
+  // **Only what this install actually replaces.** This used to be "any other
+  // edition on disk", which is not the same thing and destroyed data: updating
+  // `full` on a machine that also held `core` deleted `core`, which no part of
+  // that update had superseded. The doc comment below already said the right
+  // rule; the code did not implement it.
+  //
+  // The edition being replaced is the one the analyzer has open, and only when
+  // the install targets a different one. An update writes the same filename, so
+  // it supersedes nothing.
+  const replaced = supersededEdition(loaded, release.edition);
   return {
     release,
     archivePath: archivePath(dictionaryDir, release.edition, release.version),
@@ -383,7 +440,7 @@ export function planDownload(
     // is a lookup rather than a constant.
     member: dictionaryMember(release.edition),
     directory: dictionaryDir,
-    superseded: replaced[0] ? dictionaryPath(dictionaryDir, replaced[0]) : undefined,
+    superseded: replaced ? dictionaryPath(dictionaryDir, replaced) : undefined,
   };
 }
 

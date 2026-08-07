@@ -14,7 +14,6 @@ import { rescan } from "./annotator.ts";
 import {
   dictionaryInventory,
   downloadDictionary,
-  installedEditions,
   planDownload,
   reportNoSource,
   reportUpToDate,
@@ -78,9 +77,10 @@ export async function startDictionaryInstall(edition: DictionaryEdition): Promis
     return;
   }
 
-  // Ask the disk what is there, so switching edition can hand the backend the
-  // file it supersedes and reclaim its 207 MB once the new one loads.
-  const plan: DownloadPlan = planDownload(release, dir, await installedEditions(dir));
+  // The loaded edition is what a switch replaces, and what an update does not.
+  // Passing the whole installed list here is what deleted a dictionary this
+  // install had nothing to do with.
+  const plan: DownloadPlan = planDownload(release, dir, dictionaryInventory().loaded);
   const result = await downloadDictionary(plan, paths.resourceDir);
 
   // A new dictionary changes every reading in the song. The annotation cache is
