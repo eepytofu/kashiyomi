@@ -30,16 +30,21 @@ import type { DictionaryInventory, DictionaryJob, InstallPhase } from "./diction
 export const DICTIONARY_COOLDOWN_MS = 4000;
 
 /**
- * How long a check that found nothing keeps the button down.
+ * How long a check that found nothing suppresses the **automatic** check.
  *
- * SudachiDict ships roughly quarterly, so a check seconds after the last one
- * cannot return anything the last one did not. The old 4s cooldown was sized as
- * a double-click guard and gated re-checking only by accident.
+ * Half an hour. SudachiDict ships roughly quarterly, so re-asking on every
+ * panel open cannot return anything the last check did not. The old 4s cooldown was sized as a
+ * double-click guard and gated re-checking only by accident.
  *
- * Gates **checking, never installing**: once a check has found a newer release
- * the button stays live, because that press downloads rather than asks.
+ * It does **not** disable the button. The throttle is about what the plugin
+ * does unprompted; a press is the user asking, and there is no reason to refuse
+ * it. It also read as broken, because a disabled control with no visible end
+ * time is indistinguishable from one that does not work.
+ *
+ * Read here for the message and in `checkedRecently` for the request, so the
+ * rule the row states and the rule the network obeys are one number.
  */
-export const CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
+export const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
 export type RowDot = "ready" | "loading" | "bad" | "neutral";
 
@@ -274,6 +279,12 @@ function settledView(input: RowInput): RowView {
       inventory.checkedAt !== undefined &&
       now - inventory.checkedAt < CHECK_INTERVAL_MS;
 
+    // The ordinary double-click guard, read off the same timestamp rather than
+    // out of a job: a press that found nothing sets `checkedAt`, so the seconds
+    // after it are exactly the window worth holding the button for.
+    const justChecked =
+      inventory.checkedAt !== undefined && now - inventory.checkedAt < DICTIONARY_COOLDOWN_MS;
+
     return {
       dot: "ready",
       message: {
@@ -282,10 +293,16 @@ function settledView(input: RowInput): RowView {
         upToDate: fresh,
         updateAvailable,
       },
-      primary: { action: { kind: "update" }, disabled: fresh },
-      // Never `true` here. `settling` starts a repaint timer and this window is
-      // twelve hours, so the panel would poll for as long as it stayed open.
-      settling: false,
+      // **Live once the guard passes.** The interval exists to stop the plugin
+      // re-asking on every panel open, not to stop the user asking: a press is
+      // an explicit request and it runs a real check. Held down for the whole
+      // interval it also had no visible end time, so a control that was merely
+      // idle looked broken.
+      primary: { action: { kind: "update" }, disabled: justChecked },
+      // True only for those few seconds, never for the interval: `settling`
+      // starts a repaint timer, and one running for half an hour would poll for
+      // as long as the panel stayed open.
+      settling: justChecked,
     };
   }
 

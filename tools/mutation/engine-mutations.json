@@ -1010,9 +1010,9 @@
   {
     "id": "rowstate/check-interval-ignored",
     "file": "src/engine/dictionaryRowState.ts",
-    "what": "a check that found nothing stops holding the button, so update re-asks immediately",
-    "find": "      primary: { action: { kind: \"update\" }, disabled: fresh },",
-    "replace": "      primary: { action: { kind: \"update\" }, disabled: false },"
+    "what": "a check that found nothing stops being reported, so the row never says it is current",
+    "find": "        upToDate: fresh,",
+    "replace": "        upToDate: false,"
   },
   {
     "id": "rowstate/interval-blocks-a-real-update",

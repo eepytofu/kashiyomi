@@ -200,20 +200,41 @@ test("the button never keeps its idle label while working", () => {
   }
 });
 
-// SudachiDict ships roughly quarterly, so a second check moments after the
-// first cannot return anything the first did not. The old 4s cooldown gated
-// this only by accident.
-test("a check that found nothing holds the button for the whole interval", () => {
-  const v = view({ inventory: installed("20260723", "20260723", NOW - 1000) });
+// SudachiDict ships roughly quarterly, so re-asking moments later cannot return
+// anything the last check did not. What the interval suppresses is the
+// *automatic* check; the row only says so.
+test("a recent check is stated in the row", () => {
+  const v = view({
+    inventory: installed("20260723", "20260723", NOW - DICTIONARY_COOLDOWN_MS - 1),
+  });
   assert.equal(v.message.kind, "installed");
   if (v.message.kind === "installed") assert.equal(v.message.upToDate, true);
-  assert.equal(v.primary.disabled, true);
   // Twelve hours must never start a repaint timer, or an open panel polls for
   // as long as it stays open.
   assert.equal(v.settling, false, "a 12h window is not something to poll on");
 });
 
-test("the button comes back once the interval has elapsed", () => {
+// The throttle governs what the plugin does unprompted. A press is the user
+// asking, and a disabled control with no visible end time reads as broken.
+test("the button stays pressable inside the interval", () => {
+  const v = view({
+    inventory: installed("20260723", "20260723", NOW - DICTIONARY_COOLDOWN_MS - 1),
+  });
+  assert.equal(v.primary.disabled, false, "an explicit press is never refused");
+  assert.equal(v.primary.action.kind, "update");
+  assert.equal(v.settling, false, "nothing left to wait for");
+});
+
+// A press still gets the ordinary guard, so a double click cannot start two
+// checks. Seconds, not the interval.
+test("the seconds right after a check hold the button", () => {
+  const v = view({ inventory: installed("20260723", "20260723", NOW - 1000) });
+  assert.equal(v.primary.disabled, true, "double-click guard");
+  assert.equal(v.settling, true, "must re-enable itself without another event");
+  assert.ok(DICTIONARY_COOLDOWN_MS < CHECK_INTERVAL_MS, "the guard is far shorter than the interval");
+});
+
+test("the up-to-date claim expires with the interval", () => {
   const v = view({
     inventory: installed("20260723", "20260723", NOW - CHECK_INTERVAL_MS - 1),
   });
@@ -224,8 +245,10 @@ test("the button comes back once the interval has elapsed", () => {
 // The interval gates *checking*. Once something newer has been seen the press
 // installs rather than asks, and refusing it would strand the user in front of
 // an update they can see and cannot take.
-test("an update found inside the interval keeps the button live", () => {
-  const v = view({ inventory: installed("20260428", "20260723", NOW - 1000) });
+test("an update found inside the interval is offered, not hidden by the throttle", () => {
+  const v = view({
+    inventory: installed("20260428", "20260723", NOW - DICTIONARY_COOLDOWN_MS - 1),
+  });
   assert.equal(v.primary.disabled, false, "this press downloads, it does not ask");
   assert.equal(v.primary.action.kind, "update");
   if (v.message.kind === "installed") {
@@ -385,12 +408,14 @@ test("a surface that does not own the job ignores failures", () => {
 // recorded timestamp now, so it is true wherever it is shown, and `ownsJob` has
 // no business suppressing it.
 test("a recorded check is reported by every surface, owner or not", () => {
-  const inventory = installed("20260723", "20260723", NOW - 1000);
+  const inventory = installed("20260723", "20260723", NOW - DICTIONARY_COOLDOWN_MS - 1);
   for (const ownsJob of [true, false]) {
     const v = view({ inventory, ownsJob });
     assert.equal(v.message.kind, "installed", String(ownsJob));
+    // The claim itself is what must not depend on which surface is asking. The
+    // button is live either way, because the throttle never disabled it.
     if (v.message.kind === "installed") assert.equal(v.message.upToDate, true, String(ownsJob));
-    assert.equal(v.primary.disabled, true, String(ownsJob));
+    assert.equal(v.primary.action.kind, "update", String(ownsJob));
   }
 });
 
