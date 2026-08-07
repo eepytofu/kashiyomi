@@ -82,8 +82,7 @@ function render(root: HTMLElement): void {
 
   const refreshPreview = buildPreviewCard(right);
 
-  if (activeTab === "japanese") {
-  left.appendChild(sectionTitle(t("sectionJapanese")));
+  left.appendChild(tabAnchor("japanese", t("sectionJapanese")));
   const jp = card();
   jp.appendChild(dictionaryRow());
   const needsDictionary = document.createElement("div");
@@ -131,16 +130,13 @@ function render(root: HTMLElement): void {
   // fixed position now that it no longer has to sit above its subjects.
   gateOnDictionary(gated, needsDictionary, jp, furiganaRow);
   left.appendChild(jp);
-  }
 
-  if (activeTab === "chinese") {
-  left.appendChild(sectionTitle(t("sectionChinese")));
+  left.appendChild(tabAnchor("chinese", t("sectionChinese")));
   const zh = card();
   zh.appendChild(toggleRow("pinyin", t("pinyin"), t("pinyinDesc"), refreshPreview));
   zh.appendChild(toggleRow("pinyinTones", t("tones"), t("tonesDesc"), refreshPreview));
   zh.appendChild(toggleRow("pinyinJoinWords", t("groupWords"), t("groupWordsDesc"), refreshPreview));
   left.appendChild(zh);
-  }
 
   // Typography in one place. Six rows used to sit across three sections, and the
   // reading-row font had to live in Advanced with a comment explaining it
@@ -153,8 +149,7 @@ function render(root: HTMLElement): void {
   // a lyric renders; translation is a separate capability and Advanced is the
   // leftovers. The reading-row font does also style translation rows, but
   // grouping by what the reader is looking at beats grouping by coverage.
-  if (activeTab === "fonts") {
-  left.appendChild(sectionTitle(t("sectionFonts")));
+  left.appendChild(tabAnchor("fonts", t("sectionFonts")));
   const fonts = card();
   // `triggersRescan: false` throughout: a font change is styling, and restyling
   // does not need every line analyzed again.
@@ -168,10 +163,8 @@ function render(root: HTMLElement): void {
     fontStackRow("rowFontStack", DEFAULT_JP_FONT_STACK, "rowFontStack", "fontStackDesc", refreshPreview),
   ], { onChange: refreshPreview, triggersRescan: false });
   left.appendChild(fonts);
-  }
 
-  if (activeTab === "translation") {
-  left.appendChild(sectionTitle(t("sectionAi")));
+  left.appendChild(tabAnchor("translation", t("sectionAi")));
   const ai = card();
   ai.appendChild(toggleRow("aiAutoTranslate", t("aiAuto"), t("aiAutoDesc"), resetTranslation));
   ai.appendChild(providerRow(() => render(root)));
@@ -190,10 +183,8 @@ function render(root: HTMLElement): void {
   ai.appendChild(textRow("aiCustomPrompt", "aiCustomPrompt", "aiCustomPromptDesc", {}));
   ai.appendChild(clearCacheRow());
   left.appendChild(ai);
-  }
 
-  if (activeTab === "advanced") {
-  left.appendChild(sectionTitle(t("sectionAdvanced")));
+  left.appendChild(tabAnchor("advanced", t("sectionAdvanced")));
   const adv = card();
   adv.appendChild(toggleRow("annotateCredits", t("credits"), t("creditsDesc")));
   adv.appendChild(toggleRow("debug", t("debug"), t("debugDesc"), () => {}));
@@ -205,12 +196,12 @@ function render(root: HTMLElement): void {
     adv,
   );
   left.appendChild(adv);
-  }
 
   buildAboutCard(right);
 
   root.appendChild(left);
   root.appendChild(right);
+  linkTabsToScroll(root);
 }
 
 /**
@@ -354,9 +345,79 @@ function followMissingDictionary(row: HTMLElement, card: HTMLElement): void {
  * section once and landed 1500px down a page that someone who cannot read the
  * panel has to traverse to reach the control that fixes it.
  */
+/**
+ * A section heading the tab strip can scroll to and highlight.
+ *
+ * NCM's own settings work this way and its class names say so:
+ * `cmd-anchor-link-wrapper` over `cmd-anchor-link-title`. Every section is on
+ * one scrolling page and the strip is an index into it, not a filter — measured
+ * on the running app, where the ten tabs all sit at `top: 140` while the section
+ * headings are spread from -1891 to +2310.
+ */
+function tabAnchor(key: TabKey, label: string): HTMLElement {
+  const el = sectionTitle(label);
+  el.setAttribute("data-kc-tab", key);
+  return el;
+}
+
+/**
+ * Keep the strip in step with the scroll, and scroll on click.
+ *
+ * `IntersectionObserver` rather than a scroll listener, because the panel does
+ * not own its scroll container: two ancestors above `.kashiyomi-config` are the
+ * ones with `overflow-y: scroll`, and they belong to BetterNCM. An observer
+ * needs no reference to them.
+ *
+ * The band is the top of the viewport: a heading counts as current once it
+ * reaches the strip and stops counting when it leaves the upper fifth, which is
+ * what makes the highlight change as a section passes under the strip rather
+ * than when it happens to be centred.
+ */
+function linkTabsToScroll(root: HTMLElement): void {
+  const tabs = [...root.querySelectorAll<HTMLElement>(".kc-tab")];
+  const anchors = [...root.querySelectorAll<HTMLElement>("[data-kc-tab]")];
+  if (tabs.length === 0 || anchors.length === 0) return;
+
+  const light = (key: string): void => {
+    for (const tab of tabs) {
+      tab.classList.toggle("kc-tab-on", tab.getAttribute("data-kc-tab") === key);
+    }
+  };
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const key = entry.target.getAttribute("data-kc-tab");
+        if (key) {
+          activeTab = key as TabKey;
+          light(key);
+        }
+      }
+    },
+    { rootMargin: "0px 0px -80% 0px", threshold: 0 },
+  );
+  for (const anchor of anchors) observer.observe(anchor);
+  onPanelTeardown(() => observer.disconnect());
+
+  for (const tab of tabs) {
+    tab.onclick = () => {
+      const key = tab.getAttribute("data-kc-tab");
+      const target = anchors.find((a) => a.getAttribute("data-kc-tab") === key);
+      // Scrolls rather than re-renders: the sections are all present, so there
+      // is nothing to rebuild and rebuilding would lose the scroll position.
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (key) light(key);
+    };
+  }
+}
+
 function buildTabStrip(root: HTMLElement): HTMLElement {
   const bar = document.createElement("div");
-  bar.className = "kc-tabs";
+  // kc-full spans both grid columns. Without it the strip takes the first
+  // cell and pushes the settings and side columns into the wrong ones, which
+  // put every card in the right-hand column.
+  bar.className = "kc-tabs kc-full";
 
   const list = document.createElement("div");
   list.className = "kc-tablist";
@@ -364,11 +425,7 @@ function buildTabStrip(root: HTMLElement): HTMLElement {
     const button = document.createElement("button");
     button.className = tab.key === activeTab ? "kc-tab kc-tab-on" : "kc-tab";
     button.textContent = t(tab.title);
-    button.onclick = () => {
-      if (activeTab === tab.key) return;
-      activeTab = tab.key;
-      render(root);
-    };
+    button.setAttribute("data-kc-tab", tab.key);
     list.appendChild(button);
   }
   bar.appendChild(list);

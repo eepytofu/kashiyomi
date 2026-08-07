@@ -41,12 +41,16 @@ export const SHARED_CSS = `
    into a state that silently has no effect. */
 .kashiyomi-ui .kc-inert { opacity: 0.45; cursor: default; }
 .kashiyomi-ui .kc-inert:hover { background: transparent; }
+/* Outlined pill, measured off NCM's own cmd-button-outlineSec (更改目录):
+   transparent fill, 1px hairline at 0.3 alpha, 14px radius on a 28px box.
+   NCM fills almost nothing in settings — the red is kept for state and the play
+   button — so a filled button here reads louder than anything the host does. */
 .kashiyomi-ui .kc-button {
-  padding: 6px 14px; border: none; border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1); color: inherit;
-  font-size: 12.5px; font-family: inherit; cursor: pointer;
+  padding: 0 12px; height: 28px; border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 14px; background: transparent; color: inherit;
+  font-size: 13px; font-family: inherit; cursor: pointer;
 }
-.kashiyomi-ui .kc-button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+.kashiyomi-ui .kc-button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.45); }
 .kashiyomi-ui .kc-button:disabled { opacity: 0.5; cursor: default; }
 .kashiyomi-ui .kc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: #999; }
 .kashiyomi-ui .kc-ready .kc-dot { background: #52c41a; }

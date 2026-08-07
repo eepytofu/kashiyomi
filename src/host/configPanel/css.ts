@@ -22,21 +22,41 @@ export const PANEL_CSS = `
    rather than as a control this plugin invented. */
 .kashiyomi-config .kc-tabs {
   display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
-  margin-bottom: 2px;
+  margin-bottom: 6px;
+  /* Sticky, because NCM's own strip cannot be copied literally: theirs is
+     position:static inside a header that does not scroll, and the panel does
+     not own its scroll container — the two ancestors above .kashiyomi-config
+     are BetterNCM's and they are the ones that scroll. Sticky is the same
+     result without owning the layout.
+
+     It needs its own background for the same reason: every ancestor is
+     transparent, so content would scroll through the strip. Blur rather than a
+     flat colour, since the exact page colour is not ours to assume;
+     backdrop-filter was verified present on CEF 91. */
+  position: sticky; top: 0; z-index: 2;
+  background: rgba(19, 19, 26, 0.86);
+  backdrop-filter: blur(10px);
 }
 .kashiyomi-config .kc-tablist { display: flex; align-items: flex-end; gap: 22px; min-width: 0; flex-wrap: wrap; }
+/* Measured off cmd-anchor-link-title: 16px, weight 600 in BOTH states, and only
+   the colour changes. A weight change would reflow the strip on every scroll,
+   which is the whole reason NCM does not do it. */
 .kashiyomi-config .kc-tab {
   appearance: none; -webkit-appearance: none; background: none; border: none;
-  padding: 8px 0 9px; margin: 0; cursor: pointer;
-  color: inherit; opacity: 0.62; font-size: 14px; font-weight: 500;
-  /* The 2px is transparent rather than absent, so switching tabs moves no text:
-     a label that gains a border on activation would shift by its width. */
-  border-bottom: 2px solid transparent;
-  transition: opacity 0.12s ease;
+  position: relative; padding: 6px 0 10px; margin: 0; cursor: pointer;
+  color: rgba(255, 255, 255, 0.6); font-family: inherit;
+  font-size: 15px; font-weight: 600;
+  transition: color 0.12s ease;
 }
-.kashiyomi-config .kc-tab:hover { opacity: 0.85; }
-.kashiyomi-config .kc-tab-on { opacity: 1; font-weight: 600; border-bottom-color: #ec4141; }
+.kashiyomi-config .kc-tab:hover { color: rgba(255, 255, 255, 0.85); }
+.kashiyomi-config .kc-tab-on { color: #fff; }
+/* A rounded 3px bar, not a square border-bottom, in NCM's actual red
+   rgb(255,58,58) — the #ec4141 used before was this plugin's own colour and is
+   visibly off beside a real NCM control. */
+.kashiyomi-config .kc-tab-on::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 2px;
+  height: 3px; border-radius: 20px; background: rgb(255, 58, 58);
+}
 .kashiyomi-config .kc-tab:focus-visible { outline: 2px solid rgba(236, 65, 65, 0.75); outline-offset: 2px; }
 .kashiyomi-config .kc-status-right { display: flex; align-items: center; gap: 14px; padding-bottom: 6px; }
 .kashiyomi-config .kc-section-title { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.68; margin: 2px 2px -6px; }
