@@ -5,7 +5,7 @@
 // is a third thing again, in host/styles.ts.
 
 export const PANEL_CSS = `
-.kashiyomi-config { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(250px, 0.75fr); gap: 14px; align-items: start; padding: 4px 2px 16px; max-width: 980px; }
+.kashiyomi-config { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(250px, 0.75fr); gap: 14px; align-items: start; padding: 0 2px 16px; max-width: 980px; }
 .kashiyomi-config .kc-full { grid-column: 1 / -1; }
 .kashiyomi-config .kc-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 /* The preview follows the settings down instead of scrolling away after the
@@ -34,6 +34,7 @@ export const PANEL_CSS = `
      flat colour, since the exact page colour is not ours to assume;
      backdrop-filter was verified present on CEF 91. */
   position: sticky; top: 0; z-index: 2;
+  margin-left: -2px; margin-right: -2px; padding-left: 2px; padding-right: 2px;
   background: rgba(19, 19, 26, 0.86);
   backdrop-filter: blur(10px);
 }
@@ -51,7 +52,7 @@ export const PANEL_CSS = `
 .kashiyomi-config .kc-tab:hover { color: rgba(255, 255, 255, 0.85); }
 .kashiyomi-config .kc-tab-on { color: #fff; }
 /* A rounded 3px bar, not a square border-bottom, in NCM's actual red
-   rgb(255,58,58) — the #ec4141 used before was this plugin's own colour and is
+   rgb(255,58,58) — the rgb(255, 58, 58) used before was this plugin's own colour and is
    visibly off beside a real NCM control. */
 .kashiyomi-config .kc-tab-on::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: 2px;
@@ -84,7 +85,7 @@ export const PANEL_CSS = `
    can. 40x24 and the 16px knob are also whole device pixels at 125% (50x30,
    20), so no edge is left straddling one. */
 .kashiyomi-config .kc-track::after { content: ""; position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.15s ease; }
-.kashiyomi-config .kc-switch input:checked + .kc-track { background: #ec4141; box-shadow: none; }
+.kashiyomi-config .kc-switch input:checked + .kc-track { background: rgb(255, 58, 58); box-shadow: none; }
 /* The real checkbox is opacity:0, so without this a keyboard user tabbing
    through twelve switches gets no indication of where they are. The unchecked
    rule keeps the outline, which is the same shadow property. */
@@ -135,7 +136,7 @@ export const PANEL_CSS = `
 .kashiyomi-config input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none;
   width: 14px; height: 14px; border-radius: 50%; border: none;
-  background: #ec4141; cursor: pointer;
+  background: rgb(255, 58, 58); cursor: pointer;
 }
 .kashiyomi-config input[type="range"]:focus-visible { box-shadow: 0 0 0 2px rgba(236, 65, 65, 0.45); }
 /* Ringed as one segmented control with transparent segments, rather than two
@@ -147,7 +148,7 @@ export const PANEL_CSS = `
 .kashiyomi-config .kc-lang { display: flex; border-radius: 8px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
 .kashiyomi-config .kc-lang button { padding: 6px 10px; border: none; background: transparent; color: inherit; font-size: 12px; cursor: pointer; }
 .kashiyomi-config .kc-lang button:hover:not(.kc-active) { background: rgba(255, 255, 255, 0.08); }
-.kashiyomi-config .kc-lang button.kc-active { background: #ec4141; }
+.kashiyomi-config .kc-lang button.kc-active { background: rgb(255, 58, 58); }
 /* The switches got a focus ring earlier; these are the remaining tab stops. */
 .kashiyomi-config .kc-button:focus-visible,
 .kashiyomi-config .kc-lang button:focus-visible { outline: 2px solid rgba(236, 65, 65, 0.75); outline-offset: 2px; }

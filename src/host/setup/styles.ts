@@ -33,10 +33,10 @@ export const SETUP_CSS = `
   border: 1.5px solid rgba(255, 255, 255, 0.45); background: transparent;
   cursor: pointer; transition: border-color 0.12s ease;
 }
-.kashiyomi-setup .ks-option input:checked { border-color: #ec4141; }
+.kashiyomi-setup .ks-option input:checked { border-color: rgb(255, 58, 58); }
 .kashiyomi-setup .ks-option input:checked::after {
   content: ""; position: absolute; top: 3px; left: 3px;
-  width: 6px; height: 6px; border-radius: 50%; background: #ec4141;
+  width: 6px; height: 6px; border-radius: 50%; background: rgb(255, 58, 58);
 }
 .kashiyomi-setup .ks-option-body { min-width: 0; flex: 1; }
 /* Which edition is installed, and which one the analyzer actually has open,
@@ -56,8 +56,8 @@ export const SETUP_CSS = `
 .kashiyomi-setup .ks-ready { color: #8fd97a; }
 .kashiyomi-setup .ks-actions { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
 .kashiyomi-setup .ks-spacer { flex: 1; }
-.kashiyomi-setup .ks-primary { background: #ec4141; }
-.kashiyomi-setup .ks-primary:hover:not(:disabled) { background: #f25555; }
+.kashiyomi-setup .ks-primary { background: rgb(255, 58, 58); }
+.kashiyomi-setup .ks-primary:hover:not(:disabled) { background: rgb(255, 90, 90); }
 /* CEF 91 has :focus-visible but not :has() or inert, so the ring is the whole
    keyboard affordance here. Buttons get theirs from the shared sheet. */
 .kashiyomi-setup input:focus-visible { outline: 2px solid rgba(236, 65, 65, 0.75); outline-offset: 2px; }
