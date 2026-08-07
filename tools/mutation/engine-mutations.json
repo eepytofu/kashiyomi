@@ -1090,5 +1090,12 @@
     "what": "an untrusted source confirms the pin on a matching version alone, so a swapped digest passes",
     "find": "  return release.version === pinned.version && release.sha256 === pinned.sha256;",
     "replace": "  return release.version === pinned.version;"
+  },
+  {
+    "id": "rowstate/switch-labelled-as-update",
+    "file": "src/engine/dictionaryRowState.ts",
+    "what": "an installed edition that is not the loaded one offers Update, so pressing it reports no change and never switches",
+    "find": "      primary: { action: { kind: isSelection ? \"update\" : \"switch\" }, disabled: false },",
+    "replace": "      primary: { action: { kind: \"update\" }, disabled: false },"
   }
 ]

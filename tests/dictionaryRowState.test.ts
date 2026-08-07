@@ -283,3 +283,28 @@ test("a failed load still reports the dictionary as present underneath", () => {
   assert.deepEqual(v.message, { kind: "failed", reason: "load" });
   assert.equal(v.primary.action.kind, "retry");
 });
+
+// Both editions on disk, one of them open. Nothing needs downloading, but
+// pressing the button still changes which dictionary reads the lyrics, so the
+// label follows the outcome rather than the absence of a transfer. It used to
+// say Update, and pressing it reported "already the newest release" while the
+// analyzer went on serving the other one until the next launch.
+test("an installed edition that is not the loaded one offers a switch", () => {
+  const v = view({
+    preferred: "core",
+    inventory: { installed: ["full", "core"], versions: { full: "20260723" }, loaded: "full" },
+  });
+  assert.deepEqual(v.primary, { action: { kind: "switch" }, disabled: false });
+  assert.equal(v.message.kind, "installed");
+  if (v.message.kind !== "installed") return;
+  assert.equal(v.message.edition, "full", "the description names what is open, not what is wanted");
+  assert.equal(v.message.isSelection, false);
+});
+
+test("the loaded edition being the selection is still an update", () => {
+  const v = view({
+    preferred: "core",
+    inventory: { installed: ["full", "core"], versions: { core: "20260723" }, loaded: "core" },
+  });
+  assert.deepEqual(v.primary, { action: { kind: "update" }, disabled: false });
+});

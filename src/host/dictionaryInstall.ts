@@ -19,6 +19,7 @@ import {
   reportNoSource,
   reportUpToDate,
   resolveRelease,
+  switchToInstalled,
   type DownloadPlan,
 } from "./dictionary.ts";
 import { updateSettings } from "./settings.ts";
@@ -36,6 +37,25 @@ export async function startDictionaryInstall(edition: DictionaryEdition): Promis
   const paths = currentAssetPaths();
   if (!paths) return;
   updateSettings({ dictPreferredEdition: edition });
+  const dir = paths.dictDir;
+
+  // **Switching to something already on disk needs no network at all**, and
+  // that is checked before anything else because it used to be checked after
+  // the version comparison and therefore almost never reached. The recorded
+  // version is only known for editions this plugin installed: a dictionary put
+  // there by `npm run fetch-dict`, or carried over from an older build, has no
+  // entry, so "is it on disk at the version I would download" answered no and
+  // 69 MB was fetched to replace a file that was already sitting there.
+  //
+  // Whether the file is current is a separate question from whether it is
+  // there, and it is the question `Update` asks. `Switch` only has to open it.
+  const inventoryBefore = dictionaryInventory();
+  if (inventoryBefore.installed.includes(edition) && inventoryBefore.loaded !== edition) {
+    await switchToInstalled(edition, dir, paths.resourceDir);
+    resetAnalysisCache();
+    void rescan();
+    return;
+  }
 
   // Resolve live so an update gets the newest release; fall back to the pinned
   // one, which is always installable even with every source blocked.
@@ -60,7 +80,6 @@ export async function startDictionaryInstall(edition: DictionaryEdition): Promis
 
   // Ask the disk what is there, so switching edition can hand the backend the
   // file it supersedes and reclaim its 207 MB once the new one loads.
-  const dir = paths.dictDir;
   const plan: DownloadPlan = planDownload(release, dir, await installedEditions(dir));
   const result = await downloadDictionary(plan, paths.resourceDir);
 

@@ -238,16 +238,21 @@ function settledView(input: RowInput): RowView {
   const installed = inventory.loaded ?? inventory.installed[0];
 
   if (installed !== undefined && inventory.installed.includes(preferred)) {
+    // On disk but not the one the analyzer opened is a **switch**, even though
+    // nothing needs downloading. Calling it Update was the label following the
+    // download rather than the outcome: pressing it changes which dictionary
+    // reads the lyrics, which is exactly what Switch means everywhere else here.
+    const isSelection = installed === preferred;
     return {
       dot: "ready",
       message: {
         kind: "installed",
         edition: installed,
         version: inventory.versions[installed],
-        isSelection: installed === preferred,
+        isSelection,
         upToDate: false,
       },
-      primary: { action: { kind: "update" }, disabled: false },
+      primary: { action: { kind: isSelection ? "update" : "switch" }, disabled: false },
       cancel: { shown: false, disabled: true },
       pickerEnabled: true,
       settling: false,

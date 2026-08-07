@@ -41,6 +41,7 @@ import { log } from "./log.ts";
 import { getSettings, updateSettings } from "./settings.ts";
 import {
   nativeFreeSpace,
+  nativeReload,
   nativeCancelInstall,
   nativeDictStatus,
   nativeStartInstall,
@@ -288,6 +289,41 @@ export async function resolveRelease(edition: DictionaryEdition): Promise<Resolv
   // newest" off the back of a question nothing answered.
   setJob({ kind: "idle" });
   return { release: pinnedRelease(edition), checked: false };
+}
+
+/**
+ * Load an edition that is already on disk, downloading nothing.
+ *
+ * Switching between two installed editions used to be indistinguishable from
+ * "you are already up to date": both reach the same branch, because both mean
+ * the wanted release is on disk. So the picker changed, the row said nothing
+ * was needed, and the analyzer went on serving the edition it already had until
+ * the next launch, where `chooseBootEdition` quietly sorted it out.
+ *
+ * This is the one caller of `nativeReload`, which was left unreferenced when
+ * installing became a single native call. It is not dead code, it is the switch
+ * that had no button.
+ */
+export async function switchToInstalled(
+  edition: DictionaryEdition,
+  dictDir: string,
+  resourceDir: string,
+): Promise<DictionaryJob> {
+  if (inFlight) return job;
+  inFlight = true;
+  try {
+    // `loading` rather than a phase of its own: from the outside this is the
+    // tail of an install with the fetching and unpacking already done.
+    setJob({ kind: "installing", edition, phase: "loading", done: 0, total: 0 });
+    if (!nativeReload(dictionaryPath(dictDir, edition), resourceDir)) {
+      // False means a load was already running, not that the file is bad.
+      return fail(edition, "load");
+    }
+    await refreshInventory(dictDir, edition);
+    return setJob({ kind: "idle" });
+  } finally {
+    inFlight = false;
+  }
 }
 
 /**
