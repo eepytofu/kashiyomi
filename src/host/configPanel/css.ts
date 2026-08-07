@@ -15,7 +15,10 @@ export const PANEL_CSS = `
    "group pinyin by word" are hard to picture but obvious once the sample line
    changes. Sticky on the grid item itself: the grid area spans the full row
    height, so with align-self:start the item has 1481px to travel through. */
-.kashiyomi-config .kc-col-side { position: sticky; top: 8px; align-self: start; }
+/* Parked below the tab strip, not behind it. Both are sticky and the strip
+   spans both columns, so at top: 8px this column's first heading slid under the
+   strip and was covered. 44px clears the strip (about 36px) plus the gap. */
+.kashiyomi-config .kc-col-side { position: sticky; top: 44px; align-self: start; }
 /* NCM's own settings strip: tabs left, underline on the active one, in its red.
    Not a card and not a pill row — flat, with a hairline under the whole strip,
    which is what the host does and what makes this read as part of the app
