@@ -45,11 +45,7 @@ async function start(): Promise<void> {
   const status = nativeState();
   log.info(`dictionary on disk: ${installed}`);
   log.info("native state:", status.state, status.error ?? "");
-  // Ask the analyzer whether it has the file open rather than passing a
-  // constant. Reported as always-false, the debug handle said `loaded: false`
-  // over a dictionary the analyzer had ready, which is the one thing that
-  // handle exists to answer.
-  reportInventory(installed, status.state === "ready");
+  reportInventory(installed);
   if (installed && (status.state === "uninitialized" || status.state === "failed")) {
     nativeInit(dictionaryPath(paths.dictDir), paths.resourceDir);
   }

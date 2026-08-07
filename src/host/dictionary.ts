@@ -38,7 +38,6 @@ import {
 
 let inventory: DictionaryInventory = {
   installed: false,
-  loaded: false,
   version: undefined,
   latest: undefined,
   checkedAt: undefined,
@@ -134,7 +133,7 @@ function setProgress(next: DictionaryJob): void {
  * recorded version is dropped when the file is not there: a version describes a
  * file, and outliving it would let the control date something nothing can open.
  */
-export function reportInventory(installed: boolean, loaded: boolean): void {
+export function reportInventory(installed: boolean): void {
   if (!installed && getSettings().dictVersion !== undefined) {
     updateSettings({ dictVersion: undefined });
   }
@@ -142,7 +141,6 @@ export function reportInventory(installed: boolean, loaded: boolean): void {
   // directory listing knows nothing about.
   inventory = {
     installed,
-    loaded,
     version: installed ? getSettings().dictVersion : undefined,
     latest: inventory.latest,
     // Read from settings rather than carried, so a boot picks up a check made
@@ -164,8 +162,8 @@ export async function dictionaryOnDisk(dictDir: string): Promise<boolean> {
 }
 
 /** Re-read the directory and publish what is actually there. */
-async function refreshInventory(dictDir: string, loaded: boolean): Promise<void> {
-  reportInventory(await dictionaryOnDisk(dictDir), loaded);
+async function refreshInventory(dictDir: string): Promise<void> {
+  reportInventory(await dictionaryOnDisk(dictDir));
 }
 
 /**
@@ -428,7 +426,10 @@ export async function downloadDictionary(
     // momentarily busy used to cost another 69 MB to learn a date string
     // already on the disk.
     updateSettings({ dictVersion: plan.release.version });
-    await refreshInventory(plan.directory, installed.started);
+    await refreshInventory(plan.directory);
+    // `started` is the analyzer's answer about this install, and it is still
+    // acted on — it just is not stored, because a boolean captured once goes
+    // stale the moment the background load finishes.
     if (!installed.started) return fail("load");
     return setJob({ kind: "idle" });
   } finally {

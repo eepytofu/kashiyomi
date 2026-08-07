@@ -4,8 +4,14 @@
 // Authority per fact, and none of the three can answer for another:
 //
 //   whether it is installed  -> the disk (a directory listing)
-//   whether it is loaded     -> the analyzer
 //   which release it is      -> recorded when the plugin installed it
+//
+// Whether the analyzer has it *open* is deliberately not here. It was, as a
+// boolean captured at boot, and the dictionary loads on a background thread, so
+// it was captured as false and never corrected: the debug handle reported
+// `loaded: false` over an analyzer that had been ready for minutes. Nothing
+// read it. `nativeState()` is the live authority and the panel's status bar
+// already shows it.
 //
 // The last one is knowable only for a dictionary this plugin put there. A file
 // dropped in by `npm run fetch-dict` has no version, and the `.dic` carries
@@ -22,8 +28,6 @@ import type { DictionaryFailure } from "./dictionarySource.ts";
 export type DictionaryInventory = {
   /** On disk, per the directory listing. */
   readonly installed: boolean;
-  /** Open in the analyzer. False while it is still loading, or failed to. */
-  readonly loaded: boolean;
   /** The release on disk, when the plugin was the one that put it there. */
   readonly version: string | undefined;
   /**
