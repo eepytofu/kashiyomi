@@ -68,8 +68,13 @@ export function dictionaryJob(): DictionaryJob {
  *
  * On the debug handle rather than in a test, because the failure it catches is
  * a leak across panel rebuilds and the only place that actually happens is a
- * running NCM. Anything other than one open panel meaning one listener is a
- * teardown that did not run.
+ * running NCM.
+ *
+ * **The number is not one.** An open settings panel is two: the dictionary row
+ * repaints itself, and the Japanese card's gate greys the settings that need a
+ * dictionary. The setup dialog adds a third while it is open. What matters is
+ * that the count returns to its baseline after a rebuild or a close, not that
+ * it equals any particular figure, so read it twice rather than once.
  */
 export function dictionaryListenerCount(): number {
   return listeners.size;
