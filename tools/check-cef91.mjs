@@ -33,8 +33,12 @@ const BANNED = [
   { pattern: /accent-color\s*:/g, name: "accent-color", since: "Chromium 93" },
   { pattern: /:has\(/g, name: ":has()", since: "Chromium 105" },
   { pattern: /:modal\b/g, name: ":modal", since: "Chromium 105" },
-  { pattern: /\binert\s*=/g, name: "the inert attribute", since: "Chromium 102" },
+  // Anchored to the two ways the feature is actually used. A bare `inert\s*=`
+  // also matched `const inert = [...]`, an ordinary variable, which is the kind
+  // of false positive that teaches people to ignore the whole check.
+  { pattern: /\binert\s*=\s*["'{]/g, name: "the inert attribute", since: "Chromium 102" },
   { pattern: /\.inert\s*=/g, name: "the inert property", since: "Chromium 102" },
+  { pattern: /setAttribute\(\s*["']inert["']/g, name: "the inert attribute", since: "Chromium 102" },
   { pattern: /@container\b/g, name: "@container", since: "Chromium 105" },
   { pattern: /@layer\b/g, name: "@layer", since: "Chromium 99" },
   { pattern: /color-mix\(/g, name: "color-mix()", since: "Chromium 111" },
