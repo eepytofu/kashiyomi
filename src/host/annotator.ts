@@ -242,8 +242,49 @@ function annotateJapanese(
   }
   if (pendingAnalysis.length === 0) return;
 
+  // Say it before asking the analyzer, because the analyzer cannot say it. The
+  // engine ships inside backend.dll, so it is always present; what is missing
+  // is the dictionary it maps. With none installed `nativeInit` is never
+  // called, the backend sits at `uninitialized`, and `nativeAnalyze` reports
+  // that as `pending` — indistinguishable from a dictionary that is genuinely
+  // still loading. The retry below then fired every 1.5s forever and the notice
+  // was never reached, on the only machines it exists for.
+  //
+  // The disk is the authority on whether a dictionary exists, so this asks the
+  // inventory rather than trying to read intent out of a backend state.
+  if (!dictionaryInventory().installed) {
+    const first = pendingAnalysis[0];
+    if (first) renderNoticeRow(first.line.el, t("dictNoticeMissing"));
+    for (const { line } of pendingAnalysis) {
+      // Kanji repair still applies. It is a character-by-character glyph map
+      // that ships in the bundle and needs no dictionary, so leaving 梦见ては on
+      // screen until a 207 MB download arrives was withholding a fix already in
+      // hand.
+      //
+      // Reading hints are **not** consumed here, which is why this re-prepares
+      // instead of reusing `entry.displayText`. Consuming a hint means moving
+      // 天（そら） into furigana, and with no analyzer there is no ruby to move
+      // it to: the brackets would simply be deleted and the author's reading
+      // lost. Repaired, brackets intact, is the honest rendering.
+      const repaired = prepareJapaneseLine(line.original, {
+        hanRepair: settings.hanRepair,
+        readingHints: false,
+      }).displayText;
+      renderJapaneseLine(
+        line.el,
+        repaired,
+        { furigana: [], romaji: "", romajiSegments: [] },
+        { furigana: false, romaji: false },
+      );
+      markAnnotated(line.el, line.original, repaired);
+    }
+    return;
+  }
+
   const result = nativeAnalyze(pendingAnalysis.map((entry) => entry.analysisText));
   if (result.kind === "pending") {
+    // A dictionary that is installed and still mapping does finish, so this
+    // retry is now only ever waiting for something real.
     log.debug("analyzer still loading; retrying soon");
     if (pendingRetry === undefined) {
       pendingRetry = window.setTimeout(() => {
@@ -255,17 +296,10 @@ function annotateJapanese(
   }
   if (result.kind === "unavailable") {
     log.warn("native analyzer unavailable", result.error ?? "");
-    // Explain it on the first line rather than leaving the page silent. A user
-    // who installed a furigana plugin and sees no furigana has no other way to
-    // find out that a dictionary is missing.
-    // Asked of the inventory, never of a job. The old single status turned
-    // `absent` into `failed` the moment a download failed and left it there,
-    // so the machines with no dictionary *and* a failed attempt were the only
-    // ones told nothing at all.
-    const first = pendingAnalysis[0];
-    if (first && !dictionaryInventory().installed) {
-      renderNoticeRow(first.line.el, t("dictNoticeMissing"));
-    }
+    // A dictionary is on disk and the backend still could not serve it: a
+    // failed load, or no backend at all. The line above already covered the
+    // missing-dictionary case, so this one stays silent on the page rather
+    // than blaming a dictionary that is sitting right there.
     for (const { line } of pendingAnalysis) {
       markAnnotated(line.el, line.original);
     }

@@ -27,8 +27,23 @@
 // directory rather than next to the real dictionaries. That is the point: it
 // exercises fetch, verify, extract, swap and load end to end without putting a
 // development checkout's own dictionary at risk.
+//
+// **NCM is fully restarted, not reloaded.** backend.dll lives in the NCM
+// process rather than the page, so a `Page.reload` leaves the dictionary still
+// memory-mapped from before: the JS correctly reports nothing installed while
+// the analyzer goes on annotating from the copy it already has. Every lyric-side
+// behaviour of a machine with no dictionary was therefore untestable, including
+// the missing-dictionary notice row. Only quitting the process unloads it.
+//
+// **Restart first, write settings second.** Chromium persists localStorage to
+// leveldb asynchronously, so a write followed by `taskkill /F` is simply lost:
+// clearing the settings and then killing NCM left the *old* values on disk, and
+// the "fresh" install came back still holding the answer the user had given the
+// dialog before. Ordering fixes it for good, where a sleep long enough to
+// out-wait a flush would only fail intermittently.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
 
 const PLUGIN = "C:/betterncm/plugins_dev/Kashiyomi";
 const PATHS = `${PLUGIN}/dev-paths.json`;
@@ -40,6 +55,10 @@ const PATHS = `${PLUGIN}/dev-paths.json`;
 const BACKUP = "C:/betterncm/kashiyomi-fresh-sim-backup.json";
 const SANDBOX = "C:/betterncm/kashiyomi-fresh-sim";
 const SETTINGS_KEY = "kashiyomi:settings";
+// Every key the plugin owns, not just the settings. The translation cache
+// outlived a reset and replayed AI translations onto a supposedly new install,
+// which is the same class of leak as the dictionary staying memory-mapped.
+const OWNED_KEYS = [SETTINGS_KEY, "kashiyomi:txcache"];
 const PORT = process.env.NCM_DEBUG_PORT ?? "9223";
 
 async function cdp() {
@@ -69,7 +88,7 @@ async function cdp() {
   const evaluate = (expression) => send("Runtime.evaluate", { expression, returnByValue: true });
   const reload = async () => {
     await send("Page.reload", { ignoreCache: true });
-    await new Promise((r) => setTimeout(r, 11000));
+    await new Promise((r) => setTimeout(r, 13000));
   };
   return { ws, evaluate, reload };
 }
@@ -83,6 +102,47 @@ const writeSettings = (evaluate, settings) =>
   evaluate(
     `localStorage.setItem(${JSON.stringify(SETTINGS_KEY)}, ${JSON.stringify(JSON.stringify(settings))})`,
   );
+
+const NCM = "C:/Program Files/NetEase/CloudMusic/cloudmusic.exe";
+
+/**
+ * Quit NCM and start it again with the debug port.
+ *
+ * BetterNCM refuses to inject when another cloudmusic process is still alive,
+ * so this waits for the process list to empty before launching rather than
+ * assuming the kill was instant.
+ */
+async function restartNcm() {
+  try {
+    execFileSync("taskkill", ["/IM", "cloudmusic.exe", "/F"], { stdio: "ignore" });
+  } catch {
+    // Already gone, which is a fine state to launch from.
+  }
+  for (let i = 0; i < 50; i++) {
+    const running = execFileSync("tasklist", ["/FI", "IMAGENAME eq cloudmusic.exe"], {
+      encoding: "utf8",
+    }).includes("cloudmusic.exe");
+    if (!running) break;
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  spawn(NCM, [`--remote-debugging-port=${PORT}`], { detached: true, stdio: "ignore" }).unref();
+  // Wait for the port, then for the plugin: the page answers well before
+  // onLoad has resolved asset paths, and a probe run in that gap reads a
+  // half-started plugin.
+  for (let i = 0; i < 60; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    try {
+      const res = await fetch(`http://127.0.0.1:${PORT}/json/version`);
+      if (res.ok) {
+        await new Promise((r) => setTimeout(r, 12000));
+        return;
+      }
+    } catch {
+      // Not up yet.
+    }
+  }
+  console.error("NCM did not come back on the debug port; start it by hand.");
+}
 
 const mode = process.argv[2] ?? "status";
 
@@ -116,7 +176,7 @@ if (mode === "on") {
     process.exit(1);
   }
   const paths = JSON.parse(readFileSync(PATHS, "utf8"));
-  const { ws, evaluate, reload } = await cdp();
+  const { ws, evaluate } = await cdp();
   const settings = await readSettings(evaluate);
 
   writeFileSync(BACKUP, JSON.stringify({ devPaths: paths, settings }, null, 2));
@@ -125,9 +185,14 @@ if (mode === "on") {
 
   // Removed outright rather than written as `{}`: the plugin has to take the
   // branch a real new install takes, which is "no stored settings at all".
-  await evaluate(`localStorage.removeItem(${JSON.stringify(SETTINGS_KEY)})`);
-  await reload();
   ws.close();
+  await restartNcm();
+  // Only now is it safe to write: nothing is going to kill the process holding
+  // the pending flush before it lands.
+  const after = await cdp();
+  await after.evaluate(`for (const k of ${JSON.stringify(OWNED_KEYS)}) localStorage.removeItem(k);`);
+  await after.reload();
+  after.ws.close();
 
   const kept = Object.keys(settings).length;
   console.log("ON. NCM now behaves as a brand new install.");
@@ -147,15 +212,16 @@ if (mode === "again") {
     console.error("Not on. Run `on` first, or this would clear the real settings.");
     process.exit(1);
   }
-  const { ws, evaluate, reload } = await cdp();
   // Only ever the sandbox. The real dictionary directory is never a target
   // here, whatever dev-paths.json currently says.
   rmSync(SANDBOX, { recursive: true, force: true });
   mkdirSync(SANDBOX, { recursive: true });
-  await evaluate(`localStorage.removeItem(${JSON.stringify(SETTINGS_KEY)})`);
+  await restartNcm();
+  const { ws, evaluate, reload } = await cdp();
+  await evaluate(`for (const k of ${JSON.stringify(OWNED_KEYS)}) localStorage.removeItem(k);`);
   await reload();
   ws.close();
-  console.log("Back to a first launch: sandbox emptied, settings cleared, NCM reloaded.");
+  console.log("Back to a first launch: sandbox emptied, settings cleared, NCM restarted.");
   process.exit(0);
 }
 
@@ -165,11 +231,14 @@ if (mode === "off") {
     process.exit(1);
   }
   const backup = JSON.parse(readFileSync(BACKUP, "utf8"));
-  const { ws, evaluate, reload } = await cdp();
 
   writeFileSync(PATHS, JSON.stringify(backup.devPaths, null, 2));
+  await restartNcm();
+  const { ws, evaluate, reload } = await cdp();
   // The snapshot replaces whatever the pretend run left behind, rather than
   // merging into it: anything set while the sim was on belongs to the sim.
+  // Written after the restart so the restore cannot be lost to the same flush
+  // race that used to eat the clear.
   await writeSettings(evaluate, backup.settings);
   await reload();
   ws.close();
