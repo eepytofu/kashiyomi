@@ -23,6 +23,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # tsc covers the JS half of the CEF 91 constraint. The CSS half has no
+      # type system: an unsupported property is dropped silently, so the only
+      # thing standing between a stray accent-color and a wrong-looking
+      # control is this. Same mistake shipped twice before it existed.
       - run: npm run typecheck
       - run: npm run build
       # A stale mutation pattern exits non-zero here rather than being noticed

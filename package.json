@@ -13,7 +13,7 @@
     "build": "node tools/build.mjs",
     "watch": "node tools/build.mjs --watch",
     "test": "node --test tests/*.test.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && node tools/check-cef91.mjs",
     "mutate": "node tools/mutation/run.mjs tools/mutation/cjk-mutations.json && node tools/mutation/run.mjs tools/mutation/engine-mutations.json",
     "capture": "node tools/capture/lyrics.mjs",
     "bench": "node tools/bench.mjs",
@@ -21,7 +21,8 @@
     "fetch-dict": "node tools/fetch-dictionaries.mjs",
     "export-pinyin": "node tools/export-pinyin-dict.mjs",
     "dev-install": "node tools/dev-install.mjs",
-    "export-jmdict": "node tools/export-jmdict-readings.mjs"
+    "export-jmdict": "node tools/export-jmdict-readings.mjs",
+    "check-cef91": "node tools/check-cef91.mjs"
   },
   "dependencies": {
     "@pinyin-pro/data": "1.3.1",
