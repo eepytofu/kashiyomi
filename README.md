@@ -8,7 +8,8 @@ A [BetterNCM](https://github.com/std-microblock/BetterNCM) plugin that adds furi
 
 ## Features
 
-- Furigana above kanji and romaji below Japanese lyrics, generated locally with [sudachi.rs](https://github.com/WorksApplications/sudachi.rs) and SudachiDict-full. Unknown readings are left unchanged.
+- The Japanese dictionary (about 207 MB) is downloaded from inside the plugin on first run, and lives outside the plugin folder so a reinstall does not fetch it again.
+- Furigana above kanji and romaji below Japanese lyrics, generated locally with [sudachi.rs](https://github.com/WorksApplications/sudachi.rs) and SudachiDict. Unknown readings are left unchanged.
 - Lyric-provided readings can override the dictionary. For example, `天(そら)` is displayed as `天` with `そら` as its furigana and romaji reading. Authored readings use a different color from inferred readings.
 - Pinyin below Chinese lyrics, generated with [Pinyin Pro](https://github.com/zh-lx/pinyin-pro) and its complete dictionary. Tone marks and word grouping can be toggled separately.
 - Optional AI translation below the original lyrics. It supports Gemini and OpenAI-compatible `chat/completions` endpoints, with configurable models, target languages, base URLs, and extra instructions. Results are cached locally, and multiple API keys can be used for automatic fallback.
@@ -53,7 +54,7 @@ cd ..
 npm run dev-install
 ```
 
-`npm run fetch-dict` downloads SudachiDict-core, about 207 MB. Pass `full` for the larger edition. `npm run export-pinyin` prepares Pinyin Pro's complete dictionary, and `npm run export-jmdict` builds the JMdict reading table (3 MB) used to fill readings the analyzer cannot supply.
+`npm run fetch-dict` downloads SudachiDict-core, about 207 MB, so a development build has one without going through the first-run download. Pass `full` for the larger edition, which the analyze CLI can be pointed at with `KASHIYOMI_DICT` for comparisons; the plugin itself only uses core. `npm run export-pinyin` prepares Pinyin Pro's complete dictionary, and `npm run export-jmdict` builds the JMdict reading table (3 MB) used to fill readings the analyzer cannot supply.
 
 By default, `npm run dev-install` installs Kashiyomi to `C:\betterncm\plugins_dev\Kashiyomi`. To use another directory:
 

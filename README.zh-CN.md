@@ -8,7 +8,8 @@
 
 ## 功能
 
-- 在日语歌词的汉字上方显示振假名，并在下方显示罗马音。读音由本地的 [sudachi.rs](https://github.com/WorksApplications/sudachi.rs) 和 SudachiDict-full 生成，无法识别的部分会保留原样。
+- 日语词典（约 207 MB）在首次运行时于插件内下载，并存放在插件目录之外，重装插件不会重新下载。
+- 在日语歌词的汉字上方显示振假名，并在下方显示罗马音。读音由本地的 [sudachi.rs](https://github.com/WorksApplications/sudachi.rs) 和 SudachiDict 生成，无法识别的部分会保留原样。
 - 支持歌词自带的读音提示。例如 `天(そら)` 会显示为 `天`，并使用 `そら` 作为振假名和罗马音。歌词原有读音会用不同颜色标出。
 - 在中文歌词下方显示由 [Pinyin Pro](https://github.com/zh-lx/pinyin-pro) 完整词典生成的拼音。声调符号和按词连写可以分别开关。
 - 在原文下方显示可选的 AI 翻译。支持 Gemini 和 OpenAI 兼容的 `chat/completions` 接口，可设置模型、目标语言、Base URL 和额外指令。翻译结果会缓存在本地，也可以填写多个 API key 以自动切换。
@@ -53,7 +54,7 @@ cd ..
 npm run dev-install
 ```
 
-`npm run fetch-dict` 会下载约 207 MB 的 SudachiDict-core；如需更大的词典，可传入 `full`。`npm run export-pinyin` 会生成 Pinyin Pro 的完整词典文件，`npm run export-jmdict` 会生成用于补全分析器无法给出的读音的 JMdict 读音表（约 3 MB）。
+`npm run fetch-dict` 会下载约 207 MB 的 SudachiDict-core，让开发版本无需经过首次运行下载即可使用。如需更大的词典，可传入 `full`，并通过 `KASHIYOMI_DICT` 指向 analyze 命令行工具用于对比；插件本身只使用 core。`npm run export-pinyin` 会生成 Pinyin Pro 的完整词典文件，`npm run export-jmdict` 会生成用于补全分析器无法给出的读音的 JMdict 读音表（约 3 MB）。
 
 `npm run dev-install` 默认将 Kashiyomi 安装到 `C:\betterncm\plugins_dev\Kashiyomi`。如需使用其他目录：
 
