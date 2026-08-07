@@ -37,7 +37,7 @@ import { startDictionaryInstall } from "../dictionaryInstall.ts";
 import { dictionaryRowState } from "../../engine/dictionaryRowState.ts";
 import { pinnedRelease } from "../../engine/dictionaryPins.ts";
 import { requiredFreeBytes } from "../../engine/dictionarySource.ts";
-import { actionLabel, describe, mb, size } from "../dictionaryText.ts";
+import { describe, mb, size } from "../dictionaryText.ts";
 import { currentAssetPaths } from "../annotator.ts";
 import { nativeFreeSpace } from "../native.ts";
 import { getSettings, updateSettings } from "../settings.ts";
@@ -79,6 +79,11 @@ export function openDictionarySetup(): void {
   title.textContent = "Kashiyomi（歌詞読み）";
   dialog.appendChild(title);
 
+  const what = document.createElement("div");
+  what.className = "ks-need";
+  what.textContent = t("setupWhatItIs");
+  dialog.appendChild(what);
+
   const need = document.createElement("div");
   need.className = "ks-need";
   need.textContent = t("setupNeedsDictionary");
@@ -117,38 +122,79 @@ export function openDictionarySetup(): void {
 
   let freeBytes = readFreeSpace();
 
-  const view = (): ReturnType<typeof dictionaryRowState> =>
-    dictionaryRowState({
-      inventory: dictionaryInventory(),
-      job: dictionaryJob(),
-      now: Date.now(),
-      freeBytes,
-      ownsJob: true,
-    });
+  /**
+   * Which of the wizard's three states applies.
+   *
+   * **Not `dictionaryRowState`.** That is the settings row's model and it
+   * answers "what can be done to this dictionary right now" — install, update,
+   * cancel, retry — which is right for a control that lives forever. A wizard is
+   * a task with an end, and its only question is whether a dictionary exists
+   * yet. Borrowing the row's model is what put an Update button and a freshness
+   * claim in front of someone who had finished downloading ten seconds earlier.
+   */
+  const state = (): "needed" | "working" | "done" => {
+    const job = dictionaryJob();
+    if (job.kind === "resolving" || job.kind === "downloading" || job.kind === "installing") {
+      return "working";
+    }
+    return dictionaryInventory().installed ? "done" : "needed";
+  };
+
+  /** Whether the running job is at a point that can still be abandoned. */
+  const cancellable = (): boolean => {
+    const job = dictionaryJob();
+    if (job.kind === "downloading") return true;
+    return job.kind === "installing" && (job.phase === "verifying" || job.phase === "extracting");
+  };
 
   const paint = (): void => {
     if (freeBytes === undefined) freeBytes = readFreeSpace();
-    const current = view();
+    const now = state();
 
-    // Hidden once something is running: it answers "will this fit", which is a
-    // question about a download that has already started.
+    // Only while nothing has started: it answers "will this fit", which stops
+    // being a question the moment a download begins and never becomes one
+    // again. The row keeps its height in every state, so the dialog does not
+    // resize as it moves between them.
     space.textContent =
-      freeBytes === undefined || current.settling
-        ? ""
-        : t("setupSpace")
+      now === "needed" && freeBytes !== undefined
+        ? t("setupSpace")
             .replace("{needed}", mb(requiredFreeBytes(pinnedRelease().size)))
-            .replace("{free}", size(freeBytes));
+            .replace("{free}", size(freeBytes))
+        : "";
 
-    status.textContent = describe(current.message);
-    status.className = `ks-status ks-${current.dot}`;
+    if (now === "working") {
+      status.textContent = describe(
+        dictionaryRowState({
+          inventory: dictionaryInventory(),
+          job: dictionaryJob(),
+          now: Date.now(),
+          freeBytes,
+          ownsJob: true,
+        }).message,
+      );
+      status.className = "ks-status ks-loading";
+      primary.textContent = cancellable() ? t("dictCancel") : t("dictWorkInstalling");
+      primary.disabled = !cancellable();
+      startPolling();
+      return;
+    }
 
-    primary.textContent = actionLabel(current.primary.action);
-    primary.disabled = current.primary.disabled;
+    if (now === "done") {
+      status.textContent = t("setupInstalled");
+      status.className = "ks-status ks-ready";
+      // The task is finished, so the button finishes it. No update step: this
+      // flow does not have one, and the settings row is where updating lives.
+      primary.textContent = t("setupDone");
+      primary.disabled = false;
+      close.style.display = "none";
+      return;
+    }
 
-    // Once a dictionary is in place the dialog has done its job, so the way out
-    // stops being a deferral and becomes an ordinary close.
-    if (dictionaryInventory().installed) close.textContent = t("setupClose");
-    if (current.settling) startPolling();
+    status.textContent = describe({ kind: "absent", version: pinnedRelease().version });
+    status.className = "ks-status ks-bad";
+    primary.textContent = t("dictInstall");
+    primary.disabled = false;
+    close.style.display = "";
   };
 
   let poll: number | undefined;
@@ -160,17 +206,22 @@ export function openDictionarySetup(): void {
   const startPolling = (): void => {
     if (poll !== undefined) return;
     poll = window.setInterval(() => {
-      const settling = view().settling;
+      const working = state() === "working";
       paint();
-      if (!settling) stopPolling();
+      if (!working) stopPolling();
     }, 300);
   };
 
   primary.onclick = () => {
-    // Same single button as the settings row: it is the download while one can
-    // be started, and the way out while one can still be abandoned.
-    if (view().primary.action.kind === "cancel") {
-      cancelDictionaryDownload();
+    // Three states, three meanings: stop the transfer, finish the wizard, or
+    // start the download.
+    if (state() === "working") {
+      if (cancellable()) cancelDictionaryDownload();
+      return;
+    }
+    if (state() === "done") {
+      updateSettings({ dictSetupAnswered: true });
+      dialog.close();
       return;
     }
     startPolling();

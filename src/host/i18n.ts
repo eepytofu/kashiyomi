@@ -56,8 +56,16 @@ const STRINGS = {
     // `translator.ts` needs a key and a model before it runs, so a reader who
     // believed that line and switched translation on got nothing, and no
     // explanation. That is the silent failure this dialog exists to prevent.
+    // Paragraph one is what the plugin *is*, for someone arriving from the
+    // plugin market where "Kashiyomi" says nothing the way "Furigana" would.
+    // Paragraph two is the only thing this dialog sets up; everything else is
+    // pointed at rather than duplicated here.
+    setupWhatItIs:
+      "Annotates the lyrics NetEase already shows: furigana and romaji on Japanese lines, pinyin on Mandarin, Chinese glyph forms repaired back to Japanese ones, and optional AI translation.",
     setupNeedsDictionary:
-      "Japanese readings need a dictionary.\nAI translation needs your own API key, set in this plugin's settings.",
+      "Only the Japanese dictionary is set up here. AI translation needs your own API key, in this plugin's settings.",
+    setupInstalled: "Dictionary installed. Japanese lyrics will show readings from now on.",
+    setupDone: "Done",
     setupSpace: "needs {needed} free, you have {free}",
     // Not "Later": everything except Japanese readings already works, so
     // deferring the dictionary is continuing rather than postponing the plugin.
@@ -182,8 +190,12 @@ const STRINGS = {
     dictionary: "日语词典",
     dictNotInstalled: "未安装",
     dictNeededForThese: "灰色的设置需要日语词典。",
+    setupWhatItIs:
+      "在网易云自带的歌词上标注：日语行显示振假名和罗马字，中文行显示拼音，并将中文字形修正为日语字形，另可选用 AI 翻译。",
     setupNeedsDictionary:
-      "日语读音需要词典。\nAI 翻译需要自备 API key，在本插件的设置中填写。",
+      "此处仅设置日语词典。AI 翻译需自备 API key，在本插件的设置中填写。",
+    setupInstalled: "词典已安装，之后日语歌词将显示读音。",
+    setupDone: "完成",
     setupSpace: "需要 {needed} 可用空间，当前可用 {free}",
     setupLater: "暂时跳过",
     setupClose: "关闭",
