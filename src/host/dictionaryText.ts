@@ -95,6 +95,28 @@ export function describe(message: RowMessage): string {
   }
 }
 
+/**
+ * The same states, for a surface whose list already shows what is installed.
+ *
+ * The dialog's options say `installed` and `in use` on themselves, so a status
+ * line underneath reading "core installed" is the same fact a second time, and
+ * about whichever edition happens to be loaded rather than the one being
+ * pointed at. What is left worth saying is the part the list cannot carry: the
+ * release on disk, and whether something newer exists.
+ *
+ * Everything that is not a settled state falls through to `describe`, because
+ * progress and failures read identically wherever they appear.
+ */
+export function describeDetail(message: RowMessage): string {
+  if (message.kind === "absent") return releaseDate(message.version);
+  if (message.kind !== "installed") return describe(message);
+  const parts: string[] = [];
+  if (message.version !== undefined) parts.push(releaseDate(message.version));
+  if (message.updateAvailable) parts.push(t("dictUpdateAvailable"));
+  else if (message.upToDate) parts.push(t("dictUpToDate"));
+  return parts.join(" · ");
+}
+
 export function actionLabel(action: RowAction): string {
   switch (action.kind) {
     case "install":

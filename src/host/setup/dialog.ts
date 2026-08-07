@@ -41,7 +41,7 @@ import { requiredFreeBytes } from "../../engine/dictionarySource.ts";
 import {
   actionEdition,
   actionLabel,
-  describe,
+  describeDetail,
   editionHeading,
   editionNote,
   editionStatusLabel,
@@ -97,9 +97,12 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
   dialog.className = `kashiyomi-setup ${UI_ROOT_CLASS}`;
   open = dialog;
 
+  // The plugin's name introduces it to someone who has just installed it. From
+  // Manage it says nothing: they opened this from inside Kashiyomi's own
+  // settings, so the only useful title is what the dialog is *for*.
   const title = document.createElement("div");
   title.className = "ks-title";
-  title.textContent = "Kashiyomi（歌詞読み）";
+  title.textContent = firstRun ? "Kashiyomi（歌詞読み）" : t("dictionary");
   dialog.appendChild(title);
 
   // No pitch, and **first run only**. Opened from Manage this is a dictionary
@@ -249,7 +252,7 @@ export function openDictionarySetup(options: { firstRun?: boolean } = {}): void 
             .replace("{needed}", mb(requiredFreeBytes(pinnedRelease(preferred).size)))
             .replace("{free}", size(freeBytes));
 
-    status.textContent = describe(view.message);
+    status.textContent = describeDetail(view.message);
     status.className = `ks-status ks-${view.dot}`;
 
     primary.textContent = actionLabel(view.primary.action);
