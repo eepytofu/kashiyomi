@@ -54,7 +54,12 @@ const STRINGS = {
     // The only part of full's supply chain a user can act on. Where it is
     // hosted, that nobody publishes a checksum for it, and that the hash is
     // pinned at build time are all real, and all the plugin's problem.
-    dictEdFullWarning: "May not download in mainland China.",
+    // What is different about choosing full, in terms of what the user is
+    // agreeing to. It is the one edition PyPI cannot host (126 MB against a
+    // 100 MiB cap), so it is the one whose download may not come from the
+    // publisher or an official mirror. Said plainly rather than explained: the
+    // supply chain belongs in the code and the docs, the choice belongs here.
+    dictEdFullWarning: "Downloads from GitHub, or a community relay if that fails.",
     dictManage: "Manage",
     dictSetUp: "Set up",
     // Shown once, on the first launch with no dictionary. Says what works now,
@@ -187,7 +192,7 @@ const STRINGS = {
     dictEdSmall: "仅收录 UniDic 的词汇。",
     dictEdCore: "收录基本词汇。默认。",
     dictEdFull: "另收录各类专有名词。",
-    dictEdFullWarning: "在中国大陆可能无法下载。",
+    dictEdFullWarning: "从 GitHub 下载，失败时改用社区中转。",
     dictManage: "管理",
     dictSetUp: "设置",
     setupIntro: "直接在网易云自带的歌词页面上标注：日语的振假名与罗马音、普通话的拼音，以及可选的 AI 翻译。",

@@ -658,27 +658,6 @@
     "replace": "  return true;"
   },
   {
-    "id": "dictionary/full-extracted-as-a-wheel",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "full is read with the wheel's internal layout, so extraction fails after a verified 121 MB download",
-    "find": "      member: `sudachi-dictionary-${version}/system_full.dic`,",
-    "replace": "      member: `sudachidict_full/resources/system.dic`,"
-  },
-  {
-    "id": "dictionary/unverified-full-is-downloaded",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "a full release newer than the pinned digest is installed anyway, so 121 MB arrives with nothing able to vouch for it",
-    "find": "  return { kind: \"newer\", version };",
-    "replace": "  return { kind: \"pinned\", release: pinned };"
-  },
-  {
-    "id": "dictionary/vendor-download-over-plaintext",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "the vendor archive is fetched over http, so the one download with no publisher checksum also loses transport integrity",
-    "find": "export const VENDOR_BASE = \"https://d2ej7fkh96fzlu.cloudfront.net/sudachidict\";",
-    "replace": "export const VENDOR_BASE = \"http://d2ej7fkh96fzlu.cloudfront.net/sudachidict\";"
-  },
-  {
     "id": "dictionary/filename-drops-the-edition",
     "file": "src/engine/dictionaryLayout.ts",
     "what": "every edition installs to one filename again, so boot opens core's path over small's bytes",
@@ -1064,24 +1043,38 @@
     "replace": "      return working({ kind: \"checking\" }, \"checking\", false);"
   },
   {
-    "id": "dictionary/cloudfront-tried-first",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "the China-blocked vendor host is tried ahead of PyPI and the mirror",
-    "find": "  const urls = [release.url];",
-    "replace": "  const urls = [vendorArchiveUrl(release.edition, release.version), release.url];"
-  },
-  {
-    "id": "dictionary/unverifiable-vendor-offered",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "the vendor archive is offered above the pinned version, where no digest can check it",
-    "find": "  if (release.version === pinnedVersion && !urls.includes(vendor)) urls.push(vendor);",
-    "replace": "  if (!urls.includes(vendor)) urls.push(vendor);"
-  },
-  {
     "id": "dictionary/mirror-swap-unguarded",
     "file": "src/engine/dictionarySource.ts",
     "what": "any url is rewritten onto the mirror host, including the vendor archive it does not carry",
     "find": "  return url.startsWith(`${PYTHONHOSTED}/`)",
     "replace": "  return true"
+  },
+  {
+    "id": "dictionary/relay-tried-first",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "the third-party relay is tried before the publisher and its mirrors",
+    "find": "  const urls = [release.url];",
+    "replace": "  const urls = [`${RELAY}${github}`, release.url];"
+  },
+  {
+    "id": "dictionary/github-asset-unverified",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "a github asset with a non-sha256 digest is accepted, so unverifiable bytes install",
+    "find": "    if (!digest.startsWith(\"sha256:\")) return undefined;",
+    "replace": "    if (false) return undefined;"
+  },
+  {
+    "id": "dictionary/github-tag-keeps-its-v",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "the release tag keeps its leading v, so every derived filename and version is wrong",
+    "find": "  const version = tag.replace(/^v/u, \"\");",
+    "replace": "  const version = tag;"
+  },
+  {
+    "id": "dictionary/github-ignores-the-edition",
+    "file": "src/engine/dictionarySource.ts",
+    "what": "any asset in the release is accepted, so asking for small can install full",
+    "find": "    if (asset.name !== wanted) continue;",
+    "replace": "    if (false) continue;"
   }
 ]

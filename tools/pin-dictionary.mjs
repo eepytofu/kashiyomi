@@ -3,88 +3,86 @@
 //
 //   npm run pin-dict
 //
-// Writes src/engine/dictionaryPins.ts, which is committed and reviewable — the
+// Writes src/engine/dictionaryPins.ts, which is committed and reviewable: the
 // point is that a change of dictionary version shows up in a diff rather than
 // happening silently at build time.
 //
-// The pinned SHA-256 is what makes a mirror safe to download from. Fetching it
-// at runtime instead would drop the check exactly where it matters most: a user
-// whose upstream is blocked cannot reach the metadata API to get the hash.
+// The pinned SHA-256 is what makes a mirror, or a third-party relay, safe to
+// download from. Fetching it at runtime instead would drop the check exactly
+// where it matters most, since a user whose upstream is blocked cannot reach
+// the metadata API to get the hash either.
 
-import { createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
-import { vendorArchiveUrl } from "../src/engine/dictionarySource.ts";
 
 const OUT = path.resolve(import.meta.dirname, "..", "src", "engine", "dictionaryPins.ts");
+const RELEASES = "https://api.github.com/repos/WorksApplications/SudachiDict/releases/latest";
+const EDITIONS = ["small", "core", "full"];
 
 /**
- * small and core publish a wheel, and PyPI publishes its SHA-256 — so the pin
- * records a digest the *publisher* asserted.
- */
-async function pinFromWheel(edition) {
-  const json = await (await fetch(`https://pypi.org/pypi/SudachiDict-${edition}/json`)).json();
-  const wheel = json.urls?.find((u) => u.packagetype === "bdist_wheel");
-  if (!wheel) throw new Error(`${edition}: no wheel published — cannot pin it`);
-  // The URL is pinned, not derived. pythonhosted addresses files by their
-  // **blake2b** digest, which the pin has no other reason to carry, so a URL
-  // computed from the sha256 would be wrong in a way nothing here could catch.
-  return {
-    version: json.info.version,
-    url: wheel.url,
-    sha256: wheel.digests.sha256,
-    size: wheel.size,
-  };
-}
-
-/**
- * full has no wheel — at 121 MB it exceeds PyPI's 100 MiB per-file limit — so
- * its bytes live only at the vendor's host, which publishes no digest at all.
+ * One request, all three editions, every digest asserted by the publisher.
  *
- * The only honest option is to stream it once here and record what arrived.
- * That is strictly weaker than a publisher-asserted hash: it pins the bytes
- * this machine received, not the bytes upstream intended. It still buys the
- * thing that matters at install time — that the 121 MB a user downloads is
- * byte-identical to what was reviewed in the diff that added this pin.
- *
- * Costs a 121 MB download when pinning. Nothing is written to disk; the stream
- * is hashed as it arrives.
+ * This replaced two mechanisms. `small` and `core` were pinned from PyPI, which
+ * was fine; `full` was pinned by **streaming 121 MB and hashing it here**,
+ * because its only host published no digest at all. That produced a hash
+ * vouching for the bytes this machine received rather than the bytes upstream
+ * intended, and the pin file said so. GitHub publishes `sha256:...` per asset,
+ * so the weaker of the two is gone, along with the download.
  */
-async function pinByHashingTheVendorArchive(edition) {
-  const version = (await (await fetch(`https://pypi.org/pypi/SudachiDict-${edition}/json`)).json())
-    .info.version;
-  const url = vendorArchiveUrl(edition, version);
-  process.stdout.write(`${edition.padEnd(6)} ${version}  hashing ${url} ... `);
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${edition}: ${url} returned HTTP ${response.status}`);
-  const hash = createHash("sha256");
-  let size = 0;
-  for await (const chunk of response.body) {
-    hash.update(chunk);
-    size += chunk.length;
+const response = await fetch(RELEASES, {
+  headers: {
+    accept: "application/vnd.github+json",
+    "user-agent": "kashiyomi-pin-dictionary",
+    // Optional, and worth setting: unauthenticated callers get 60 requests an
+    // hour per IP, which one pin run never approaches on its own but which is
+    // easy to exhaust alongside any other GitHub work from the same address.
+    ...(process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}),
+  },
+});
+if (!response.ok) {
+  const remaining = response.headers.get("x-ratelimit-remaining");
+  if (response.status === 403 && remaining === "0") {
+    const reset = Number(response.headers.get("x-ratelimit-reset") ?? 0) * 1000;
+    const minutes = Math.max(0, Math.round((reset - Date.now()) / 60000));
+    throw new Error(
+      `GitHub API rate limit reached (60/hour, unauthenticated). Resets in ~${minutes} min, ` +
+        `or set GITHUB_TOKEN to raise it.`,
+    );
   }
-  process.stdout.write("done\n");
-  return { version, url, sha256: hash.digest("hex"), size };
+  throw new Error(`GitHub releases returned HTTP ${response.status}`);
 }
+const release = await response.json();
+const version = String(release.tag_name).replace(/^v/, "");
 
 const pins = {};
-for (const edition of ["small", "core"]) {
-  pins[edition] = await pinFromWheel(edition);
-  const { version, size, sha256 } = pins[edition];
-  console.log(`${edition.padEnd(6)} ${version}  ${(size / 1048576).toFixed(1)} MB  ${sha256.slice(0, 16)}…`);
+for (const edition of EDITIONS) {
+  const name = `sudachidict_${edition}-${version}-py3-none-any.whl`;
+  const asset = release.assets?.find((a) => a.name === name);
+  if (!asset) throw new Error(`${edition}: ${name} is not in release ${release.tag_name}`);
+  const digest = String(asset.digest ?? "");
+  if (!digest.startsWith("sha256:")) {
+    throw new Error(`${edition}: GitHub published no sha256 for ${name} (got "${digest}")`);
+  }
+  pins[edition] = {
+    version,
+    url: asset.browser_download_url,
+    sha256: digest.slice("sha256:".length),
+    size: asset.size,
+  };
+  console.log(
+    `${edition.padEnd(6)} ${version}  ${(asset.size / 1048576).toFixed(1).padStart(6)} MB  ${pins[edition].sha256.slice(0, 16)}...`,
+  );
 }
-pins.full = await pinByHashingTheVendorArchive("full");
-console.log(`${"full".padEnd(6)} ${pins.full.version}  ${(pins.full.size / 1048576).toFixed(1)} MB  ${pins.full.sha256.slice(0, 16)}… (self-computed)`);
 
-const body = `// GENERATED by tools/pin-dictionary.mjs — run \`npm run pin-dict\` to refresh.
+const body = `// GENERATED by tools/pin-dictionary.mjs, run \`npm run pin-dict\` to refresh.
 //
 // The dictionary release each build expects, so building needs no network and a
 // version change appears in a diff instead of happening silently.
 //
-// The hash is the load-bearing part: it is what lets the download come from a
-// mirror and still be trusted. Resolving it at runtime would remove the check
-// for precisely the users who need a mirror, since a blocked upstream also
-// blocks the API that serves the hash.
+// Every digest here is one the publisher asserted, taken from the GitHub release
+// that carries the artifact. That is what lets a download come from a mirror, or
+// from a third-party relay, and still be trusted: the bytes are checked against
+// this, never against whoever served them.
 //
 // Pinned ${new Date().toISOString().slice(0, 10)}.
 

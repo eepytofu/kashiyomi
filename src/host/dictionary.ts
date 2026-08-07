@@ -1,25 +1,25 @@
-// Downloading, verifying and switching the Sudachi dictionary.
+﻿// Downloading, verifying and switching the Sudachi dictionary.
 //
 // Splits the work where each side is strong: `fetch` here, because it is
 // already HTTPS, already streams, and already honours whatever proxy the user
-// has configured — a Rust client would need all three written by hand, and the
+// has configured â€” a Rust client would need all three written by hand, and the
 // users who most need a proxy are exactly the ones this feature exists for.
 // Verification and extraction happen natively, because the extracted
 // dictionary is 207 MB and has no business in this heap.
 //
-// Policy — which source to try, what each failure means, whether an edition
-// fits the disk — lives in `engine/dictionarySource.ts` so it can be tested
+// Policy â€” which source to try, what each failure means, whether an edition
+// fits the disk â€” lives in `engine/dictionarySource.ts` so it can be tested
 // without a network.
 
 import {
   SIMPLE_INDEX_ACCEPT,
-  dictionarySupply,
   downloadUrls,
   metadataSources,
+  dictionaryMember,
+  parseGithubRelease,
   parsePypiRelease,
   parseSimpleIndexRelease,
   requiredFreeBytes,
-  resolveFullFromPypi,
   type DictionaryEdition,
   type DictionaryFailure,
   type DictionaryRelease,
@@ -78,8 +78,8 @@ export function dictionaryListenerCount(): number {
  * Notify a listener whenever either changes, whoever changed it.
  *
  * The settings row used to repaint only in response to its own button, so a
- * download started anywhere else — the debug handle, and in future an automatic
- * first fetch — left it reading "not installed" over a dictionary that was
+ * download started anywhere else â€” the debug handle, and in future an automatic
+ * first fetch â€” left it reading "not installed" over a dictionary that was
  * installed and working. A control whose whole job is reporting state has to
  * follow the state rather than its own last click.
  */
@@ -147,7 +147,7 @@ export function reportInventory(
  * Which editions are on disk, asked of the disk.
  *
  * This used to take the *preferred* edition's path and, on finding any file
- * there, report whatever edition settings claimed — so a machine holding
+ * there, report whatever edition settings claimed â€” so a machine holding
  * `system_small.dic` while settings said `core` was described as having core
  * installed, and the analyzer was then pointed at a file that did not exist.
  * Settings record what the user wants; only the directory knows what arrived.
@@ -199,7 +199,7 @@ export function cancelDictionaryDownload(): void {
 
 /**
  * Force the next attempt to fail a given way, for checking the messages read
- * sensibly. Wired to `kashiyomi.simulateDictFailure` — unit tests can prove the
+ * sensibly. Wired to `kashiyomi.simulateDictFailure` â€” unit tests can prove the
  * state machine but cannot judge wording, and wording is what a user meets.
  */
 let simulated: DictionaryFailure | undefined;
@@ -233,23 +233,29 @@ export async function resolveRelease(edition: DictionaryEdition): Promise<Resolv
   // for Cancel, and there was nothing to press it against.
   abort = new AbortController();
   setJob({ kind: "resolving", edition });
-  if (edition === "full") {
-    const full = await resolveFull();
-    return { release: full.release, checked: full.checked };
-  }
-  const sources = metadataSources(edition);
-  for (const [index, url] of sources.entries()) {
-    const isSimpleIndex = index > 0;
+
+  // One loop for every edition. `full` used to branch out to its own resolver
+  // because PyPI could describe it but never serve it; now that GitHub carries
+  // the wheel and its digest, it is just an edition with a shorter source list.
+  for (const source of metadataSources(edition)) {
     try {
-      const response = await fetch(url, {
-        headers: isSimpleIndex ? { accept: SIMPLE_INDEX_ACCEPT } : {},
+      const response = await fetch(source.url, {
+        headers:
+          source.kind === "simple"
+            ? { accept: SIMPLE_INDEX_ACCEPT }
+            : source.kind === "github"
+              ? { accept: "application/vnd.github+json" }
+              : {},
         signal: abort.signal,
       });
       if (!response.ok) continue;
       const body: unknown = await response.json();
-      const release = isSimpleIndex
-        ? parseSimpleIndexRelease(edition, body)
-        : parsePypiRelease(edition, body);
+      const release =
+        source.kind === "simple"
+          ? parseSimpleIndexRelease(edition, body)
+          : source.kind === "github"
+            ? parseGithubRelease(edition, body)
+            : parsePypiRelease(edition, body);
       if (release) return { release, checked: true };
     } catch (err) {
       // A cancel must end the whole attempt, not advance to the next source.
@@ -258,13 +264,13 @@ export async function resolveRelease(edition: DictionaryEdition): Promise<Resolv
         fail(edition, "cancelled");
         return { release: pinnedRelease(edition), checked: false };
       }
-      log.debug(`dictionary metadata source failed: ${url}`, err);
+      log.debug(`dictionary metadata source failed: ${source.url}`, err);
     }
   }
   // Every source refused. The pinned release is still installable, because the
-  // pin now carries its own URL, so a blocked upstream no longer means no
-  // dictionary at all.  is what stops the caller reporting
-  // "already the newest" off the back of a question nothing answered.
+  // pin carries its own URL, so a blocked upstream no longer means no dictionary
+  // at all. `checked: false` is what stops the caller reporting "already the
+  // newest" off the back of a question nothing answered.
   setJob({ kind: "idle" });
   return { release: pinnedRelease(edition), checked: false };
 }
@@ -292,36 +298,6 @@ export function reportNoSource(edition: DictionaryEdition): void {
   setJob({ kind: "failed", edition, reason: "no-source", at: Date.now() });
 }
 
-/**
- * Resolve `full`, which is always installable at the pinned version and never
- * installable above it.
- *
- * Reports `newerVersion` when upstream has moved on, so the row can say a newer
- * release exists and needs a plugin update — rather than either lying that it
- * is current or fetching 121 MB nothing can verify. A metadata failure is not
- * an error here: the pinned release is still the right thing to install.
- */
-export async function resolveFull(): Promise<{
-  release: DictionaryRelease;
-  checked: boolean;
-  newerVersion?: string;
-}> {
-  const pinned = pinnedRelease("full");
-  try {
-    const response = await fetch("https://pypi.org/pypi/SudachiDict-full/json");
-    if (response.ok) {
-      const outcome = resolveFullFromPypi(await response.json(), pinned);
-      if (outcome.kind === "newer") {
-        return { release: pinned, checked: true, newerVersion: outcome.version };
-      }
-      return { release: outcome.release, checked: true };
-    }
-  } catch (err) {
-    log.debug("could not check for a newer full release", err);
-  }
-  return { release: pinned, checked: false };
-}
-
 export type DownloadPlan = {
   readonly release: DictionaryRelease;
   /** Where the archive is staged; beside the target so the rename is atomic. */
@@ -334,7 +310,7 @@ export type DownloadPlan = {
   /**
    * A dictionary this install replaces, deleted once the new one loads.
    *
-   * Only ever set when switching to a *different* edition — an update writes
+   * Only ever set when switching to a *different* edition â€” an update writes
    * the same filename, so there is nothing left over. Without this, switching
    * core to small left 207 MB of a dictionary nothing would open again, on a
    * disk the user had just been asked to make room on.
@@ -354,14 +330,14 @@ export function planDownload(
     targetPath: dictionaryPath(dictionaryDir, release.edition),
     // The wheel and the vendor zip lay the dictionary out differently, so this
     // is a lookup rather than a constant.
-    member: dictionarySupply(release.edition, release.version).member,
+    member: dictionaryMember(release.edition),
     directory: dictionaryDir,
     superseded: replaced[0] ? dictionaryPath(dictionaryDir, replaced[0]) : undefined,
   };
 }
 
 /**
- * Fetch, verify, install, and load — in that order, and never any other.
+ * Fetch, verify, install, and load â€” in that order, and never any other.
  *
  * The old dictionary is only replaced by a rename of a file that has already
  * been hash-checked and extracted, so a failure at any step leaves the working
@@ -397,7 +373,7 @@ export async function downloadDictionary(
     }
 
     // The data directory does not exist on a fresh install, and writeFile does
-    // not create it — the first real run failed here with "cannot find the path
+    // not create it â€” the first real run failed here with "cannot find the path
     // specified" after downloading the whole archive.
     try {
       await betterncm.fs.mkdir(dir);
@@ -507,7 +483,7 @@ async function awaitInstall(edition: DictionaryEdition): Promise<InstallOutcome>
  * Stream the archive to disk, updating progress as it goes.
  *
  * Read through a `ReadableStream` rather than awaiting `.blob()` so the status
- * can move while a 69 MB transfer is in flight — a progress bar that only moves
+ * can move while a 69 MB transfer is in flight â€” a progress bar that only moves
  * at the end is worse than none.
  */
 async function fetchArchive(
@@ -516,7 +492,7 @@ async function fetchArchive(
   // The metadata has fallen back across sources since the beginning; the bytes
   // never did. Reaching PyPI's API and then failing at its CDN was a dead
   // download with a working mirror sitting one host swap away.
-  const urls = downloadUrls(plan.release, pinnedRelease(plan.release.edition).version);
+  const urls = downloadUrls(plan.release);
   let last: { ok: false; reason: DictionaryFailure } = { ok: false, reason: "offline" };
   for (const url of urls) {
     const attempt = await fetchArchiveFrom(plan, url);

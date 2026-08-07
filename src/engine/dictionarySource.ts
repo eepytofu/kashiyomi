@@ -21,46 +21,58 @@ export type DictionaryEdition = "small" | "core" | "full";
 export const DICTIONARY_EDITIONS = ["full", "core", "small"] as const;
 
 /**
- * Where an edition's bytes come from.
+ * Where the dictionary sits inside the archive.
  *
- * `full` is not a variation on the other two, it is a different supply chain:
- * PyPI carries no wheel for it, so the archive is the vendor's own zip, laid
- * out differently inside, and checked against a digest computed at pin time
- * rather than one the publisher asserted. Modelling that as data keeps the
- * difference in one place instead of as branches through the download path.
+ * The same shape for every edition, which it was not until 2026-08-07: `full`
+ * had a whole separate supply chain, because PyPI cannot host its 126 MB wheel
+ * (100 MiB per-file cap) and the only other source was the vendor zip, laid out
+ * differently inside and carrying no publisher digest.
+ *
+ * GitHub Releases carries the wheel for all three, verified by reading the zip
+ * central directory over a range request: `sudachidict_full/resources/system.dic`,
+ * identical to core and small. So the special case is gone, and with it
+ * `selfPinned`, the vendor host, and a 121 MB self-hash at pin time.
  */
-export type DictionarySupply = {
-  /** How the archive is named inside, which differs between wheel and zip. */
-  readonly member: string;
-  /** True when only a hash generated at pin time can vouch for the bytes. */
-  readonly selfPinned: boolean;
-};
-
-export function dictionarySupply(
-  edition: DictionaryEdition,
-  version: string,
-): DictionarySupply {
-  if (edition === "full") {
-    return {
-      member: `sudachi-dictionary-${version}/system_full.dic`,
-      selfPinned: true,
-    };
-  }
-  return { member: `sudachidict_${edition}/resources/system.dic`, selfPinned: false };
+export function dictionaryMember(edition: DictionaryEdition): string {
+  return `sudachidict_${edition}/resources/system.dic`;
 }
 
 /**
- * The vendor's own distribution host, named by SudachiDict's published sdist.
+ * GitHub Releases: the only host carrying every edition, digests included.
  *
- * Only `full` needs it, and it is the leg that fails from mainland China
- * (measured: 5/5 vantage points, against pypi.org reachable and google.com
- * blocked as controls), so it must never be tried ahead of PyPI or the mirror.
+ * Replaced a CloudFront host that was measurably blocked in mainland China
+ * (5/5 vantage points, with pypi.org reachable and google.com blocked as
+ * controls) and that published no digest at all.
  */
-export const VENDOR_BASE = "https://d2ej7fkh96fzlu.cloudfront.net/sudachidict";
+const GITHUB_RELEASES = "https://github.com/WorksApplications/SudachiDict/releases/download";
 
-export function vendorArchiveUrl(edition: DictionaryEdition, version: string): string {
-  return `${VENDOR_BASE}/sudachi-dictionary-${version}-${edition}.zip`;
+export function githubAssetUrl(edition: DictionaryEdition, version: string): string {
+  return `${GITHUB_RELEASES}/v${version}/${wheelName(edition, version)}`;
 }
+
+export function wheelName(edition: DictionaryEdition, version: string): string {
+  return `sudachidict_${edition}-${version}-py3-none-any.whl`;
+}
+
+/**
+ * A third-party relay for GitHub, and the only route by which `full` reaches
+ * mainland China at all: it is absent from PyPI and therefore from the Tsinghua
+ * mirror too.
+ *
+ * **Trusted for availability, never for content.** Every download is checked
+ * against a digest pinned at build time from what the publisher asserted, so a
+ * relay serving anything else fails the check and installs nothing. Verified
+ * 2026-08-07 by streaming the whole 126,614,513-byte `full` wheel through it:
+ * sha256 matched GitHub's published digest exactly.
+ *
+ * One endpoint, not the five the operator advertises. They are one operator
+ * behind different CDNs, so more of them buys no independence, a dead sub-node
+ * redirects to this one within about fifteen minutes on the operator's own
+ * account, and the two language versions of their site do not even agree on
+ * which sub-nodes exist. Last in every list, so it is reached only when the
+ * official hosts have already refused.
+ */
+const RELAY = "https://gh-proxy.org/";
 
 /** Where PyPI serves the bytes, as opposed to the metadata. */
 const PYTHONHOSTED = "https://files.pythonhosted.org";
@@ -93,22 +105,36 @@ export function mirrorUrl(url: string): string | undefined {
  * user who reached PyPI's API and then could not reach its CDN had a download
  * that simply failed with a mirror sitting right there.
  *
- * CloudFront is last wherever it appears, because it is measurably blocked in
- * mainland China (5/5 vantage points, with pypi.org reachable and google.com
- * blocked as controls). It is included **only when the resolved version equals
- * the pinned one**: above that there is no digest to check it against, and an
- * unverifiable 121 MB is not a fallback, it is a liability.
+ * Order is official hosts first, then the third-party relay. Every leg is
+ * checked against the same digest, so this is a ranking by who should be
+ * bothered and who should be trusted to stay up, never by who can be trusted
+ * with the bytes: nobody is.
  */
-export function downloadUrls(
-  release: DictionaryRelease,
-  pinnedVersion: string,
-): readonly string[] {
+export function downloadUrls(release: DictionaryRelease): readonly string[] {
+  const github = githubAssetUrl(release.edition, release.version);
   const urls = [release.url];
+  // core and small come from PyPI, so they also exist on the Tsinghua mirror,
+  // which is the leg that works from inside mainland China. `full` is on
+  // neither: PyPI cannot host a 126 MB file, so nothing mirrors it.
   const mirror = mirrorUrl(release.url);
   if (mirror) urls.push(mirror);
-  const vendor = vendorArchiveUrl(release.edition, release.version);
-  if (release.version === pinnedVersion && !urls.includes(vendor)) urls.push(vendor);
+  if (!urls.includes(github)) urls.push(github);
+  // Last, always. It is a third party, and it is reached only once every
+  // official host has refused.
+  urls.push(`${RELAY}${github}`);
   return urls;
+}
+
+/**
+ * Whether an edition can only be had from GitHub and the relay.
+ *
+ * True for `full` alone, and the reason is upstream's, not a choice here: PyPI's
+ * 100 MiB per-file cap excludes a 126 MB wheel, and every PyPI mirror inherits
+ * that absence. Worth saying out loud in the picker, because it is the one
+ * edition whose download may involve someone other than the publisher.
+ */
+export function needsRelay(edition: DictionaryEdition): boolean {
+  return edition === "full";
 }
 
 export type DictionaryRelease = {
@@ -126,6 +152,11 @@ const MIRROR = "https://pypi.tuna.tsinghua.edu.cn/simple";
 
 const packageName = (edition: DictionaryEdition): string => `SudachiDict-${edition}`;
 
+/** How a metadata response has to be read. */
+export type MetadataKind = "pypi" | "simple" | "github";
+
+export type MetadataSource = { readonly url: string; readonly kind: MetadataKind };
+
 /**
  * Metadata endpoints in the order they should be tried.
  *
@@ -133,14 +164,24 @@ const packageName = (edition: DictionaryEdition): string => `SudachiDict-${editi
  * than on a guess about where the user is means never mis-detecting a VPN
  * user, an expat or a corporate proxy: the mainland reaches the mirror
  * naturally and everyone else never learns it exists.
+ *
+ * `full` has only one source, and it is not a shortcut: PyPI publishes its
+ * *version* but no installable wheel, so a PyPI answer could never carry the
+ * digest an install needs. GitHub is where the artifact and its digest both
+ * live.
  */
-export function metadataSources(edition: DictionaryEdition): readonly string[] {
+export function metadataSources(edition: DictionaryEdition): readonly MetadataSource[] {
+  const github = {
+    url: `https://api.github.com/repos/WorksApplications/SudachiDict/releases/latest`,
+    kind: "github" as const,
+  };
+  if (edition === "full") return [github];
   return [
-    `${PYPI}/${packageName(edition)}/json`,
-    `${MIRROR}/${packageName(edition).toLowerCase()}/`,
+    { url: `${PYPI}/${packageName(edition)}/json`, kind: "pypi" },
+    { url: `${MIRROR}/${packageName(edition).toLowerCase()}/`, kind: "simple" },
+    github,
   ];
 }
-
 /** PEP 691 requires this to get JSON rather than HTML from a simple index. */
 export const SIMPLE_INDEX_ACCEPT = "application/vnd.pypi.simple.v1+json";
 
@@ -152,8 +193,8 @@ const WHEEL = /^sudachidict_(small|core)-(\d{8})-/;
  * Only a wheel is acceptable. An sdist is a ~9 KB stub that fetches the real
  * archive at install time, so it carries no dictionary and its digest vouches
  * for nothing. A release offering only an sdist is treated as absent rather
- * than as something to fall back to. `full` is exactly that case, which is why
- * it resolves through `resolveFullFromPypi` instead.
+ * than as something to fall back to. `full` is exactly that case: PyPI carries
+ * only its sdist stub, so it resolves through GitHub instead.
  */
 export function parsePypiRelease(
   edition: DictionaryEdition,
@@ -206,30 +247,47 @@ export function parseSimpleIndexRelease(
   return best;
 }
 
-export type FullResolution =
-  /** The upstream release is the pinned one, so a digest exists and it installs. */
-  | { readonly kind: "pinned"; readonly release: DictionaryRelease }
-  /** A newer release exists that no pinned digest can vouch for. */
-  | { readonly kind: "newer"; readonly version: string };
-
 /**
- * Resolve `full`, whose metadata and bytes come from different places.
+ * Read a GitHub release, which is the only source carrying every edition.
  *
- * PyPI publishes the version but not the archive; the vendor publishes the
- * archive but no digest. So a release is installable exactly when upstream is
- * still on the version this build pinned a self-computed hash for. Anything
- * newer is reported rather than fetched — downloading 121 MB that nothing can
- * verify is the one thing this whole module exists to refuse.
+ * The digest matters more than the convenience: GitHub publishes `sha256:…` per
+ * asset, so `full` now installs against a hash **the publisher asserted**. Until
+ * this existed it was checked against one computed here at pin time, which the
+ * pin file admitted only vouched for "the bytes this machine received, not the
+ * bytes upstream intended".
+ *
+ * The tag is `v20260723` and the version inside is `20260723`, so the leading
+ * `v` is stripped rather than assumed away.
  */
-export function resolveFullFromPypi(
+export function parseGithubRelease(
+  edition: DictionaryEdition,
   body: unknown,
-  pinned: DictionaryRelease,
-): FullResolution {
-  const version = (body as { info?: { version?: unknown } })?.info?.version;
-  if (typeof version !== "string" || version === "" || version === pinned.version) {
-    return { kind: "pinned", release: pinned };
+): DictionaryRelease | undefined {
+  const root = body as { tag_name?: unknown; assets?: readonly unknown[] };
+  const tag = typeof root?.tag_name === "string" ? root.tag_name : undefined;
+  if (tag === undefined || !Array.isArray(root.assets)) return undefined;
+  const version = tag.replace(/^v/u, "");
+  const wanted = wheelName(edition, version);
+  for (const entry of root.assets) {
+    const asset = entry as {
+      name?: unknown;
+      size?: unknown;
+      digest?: unknown;
+      browser_download_url?: unknown;
+    };
+    if (asset.name !== wanted) continue;
+    // `sha256:<hex>`; anything else is a digest algorithm this cannot check.
+    const digest = typeof asset.digest === "string" ? asset.digest : "";
+    if (!digest.startsWith("sha256:")) return undefined;
+    return buildRelease(
+      edition,
+      version,
+      asset.browser_download_url,
+      asset.size,
+      digest.slice("sha256:".length),
+    );
   }
-  return { kind: "newer", version };
+  return undefined;
 }
 
 function buildRelease(

@@ -1,4 +1,4 @@
-import { strict as assert } from "node:assert";
+﻿import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
   isRetryable,
@@ -8,11 +8,11 @@ import {
   parsePypiRelease,
   parseSimpleIndexRelease,
   requiredFreeBytes,
-  dictionarySupply,
+  dictionaryMember,
   downloadUrls,
   mirrorUrl,
-  resolveFullFromPypi,
-  vendorArchiveUrl,
+  parseGithubRelease,
+  githubAssetUrl,
   type DictionaryRelease,
 } from "../src/engine/dictionarySource.ts";
 
@@ -97,11 +97,18 @@ test("garbage responses do not throw", () => {
 
 test("sources are ordered by preference, with the mirror second", () => {
   const sources = metadataSources("core");
-  assert.equal(sources.length, 2);
-  assert.match(sources[0]!, /^https:\/\/pypi\.org\//u);
-  assert.match(sources[1]!, /tsinghua/u);
+  assert.deepEqual(sources.map((s) => s.kind), ["pypi", "simple", "github"]);
+  assert.match(sources[0]!.url, /^https:\/\/pypi\.org\//u);
+  assert.match(sources[1]!.url, /tsinghua/u);
   // Lowercased for the simple index, which is case-normalised per PEP 503.
-  assert.match(sources[1]!, /sudachidict-core/u);
+  assert.match(sources[1]!.url, /sudachidict-core/u);
+});
+
+// PyPI knows full's version but can never serve it, so an answer from there
+// could not carry the digest an install needs. GitHub is the only source.
+test("full resolves from github alone", () => {
+  const sources = metadataSources("full");
+  assert.deepEqual(sources.map((s) => s.kind), ["github"]);
 });
 
 test("free space is checked for archive plus extraction, not just the download", () => {
@@ -150,71 +157,85 @@ test("only a dead end is unretryable", () => {
   }
 });
 
-// --- full: a different supply chain, not a bigger download -------------------
+// --- one supply chain for every edition -------------------------------------
 
-test("the zip member differs between a wheel and the vendor archive", () => {
-  assert.equal(
-    dictionarySupply("core", "20260723").member,
-    "sudachidict_core/resources/system.dic",
-  );
-  assert.equal(
-    dictionarySupply("full", "20260723").member,
-    "sudachi-dictionary-20260723/system_full.dic",
-  );
+// Until 2026-08-07 `full` was extracted from a differently shaped vendor zip.
+// GitHub Releases carries the wheel for every edition, verified by reading the
+// zip central directory over a range request, so there is one shape now.
+test("every edition holds its dictionary at the same path inside the wheel", () => {
+  assert.equal(dictionaryMember("core"), "sudachidict_core/resources/system.dic");
+  assert.equal(dictionaryMember("small"), "sudachidict_small/resources/system.dic");
+  assert.equal(dictionaryMember("full"), "sudachidict_full/resources/system.dic");
 });
 
-// full's member embeds the version; extracting it with core's layout, or with a
-// stale version, fails with "the archive does not contain ...".
-test("the vendor member tracks the version", () => {
+test("the github asset url is the published wheel name under a v-prefixed tag", () => {
   assert.equal(
-    dictionarySupply("full", "20260428").member,
-    "sudachi-dictionary-20260428/system_full.dic",
+    githubAssetUrl("full", "20260723"),
+    "https://github.com/WorksApplications/SudachiDict/releases/download/v20260723/sudachidict_full-20260723-py3-none-any.whl",
   );
 });
 
-test("only full is vouched for by a hash we generated ourselves", () => {
-  assert.equal(dictionarySupply("full", "20260723").selfPinned, true);
-  assert.equal(dictionarySupply("core", "20260723").selfPinned, false);
-  assert.equal(dictionarySupply("small", "20260723").selfPinned, false);
+const GITHUB_BODY = {
+  tag_name: "v20260723",
+  assets: [
+    {
+      name: "sudachidict_core-20260723-py3-none-any.whl",
+      size: 72275897,
+      digest: "sha256:" + "b".repeat(64),
+      browser_download_url: "https://github.com/x/core.whl",
+    },
+    {
+      name: "sudachidict_full-20260723-py3-none-any.whl",
+      size: 126614513,
+      digest: "sha256:" + "c".repeat(64),
+      browser_download_url: "https://github.com/x/full.whl",
+    },
+  ],
+};
+
+// The point of the GitHub source: `full` finally has a digest the *publisher*
+// asserted, where before it was checked against one computed locally at pin
+// time, vouching only for the bytes that machine happened to receive.
+test("a github release yields a full release with a publisher digest", () => {
+  const release = parseGithubRelease("full", GITHUB_BODY);
+  assert.ok(release);
+  assert.equal(release.version, "20260723", "the leading v is stripped from the tag");
+  assert.equal(release.sha256, "c".repeat(64));
+  assert.equal(release.size, 126614513);
 });
 
-test("full downloads from the vendor, over https", () => {
-  const url = vendorArchiveUrl("full", "20260723");
-  assert.equal(
-    url,
-    "https://d2ej7fkh96fzlu.cloudfront.net/sudachidict/sudachi-dictionary-20260723-full.zip",
-  );
-  assert.ok(url.startsWith("https://"), "never plaintext");
+test("a github release picks the asset for the edition asked for", () => {
+  assert.equal(parseGithubRelease("core", GITHUB_BODY)?.sha256, "b".repeat(64));
+  assert.equal(parseGithubRelease("small", GITHUB_BODY), undefined);
 });
 
-const PINNED_FULL = {
-  edition: "full",
-  version: "20260723",
-  url: "https://d2ej7fkh96fzlu.cloudfront.net/sudachidict/sudachi-dictionary-20260723-full.zip",
-  sha256: "f".repeat(64),
-  size: 126615116,
-} as const;
+// Same standard as every other source: unverifiable bytes are not installed.
+// The fixture matters more than it looks. A missing digest, `md5:abc` and a
+// sha512 are all rejected by the 64-hex check further down whether or not the
+// algorithm is ever inspected, so they pass with the guard deleted and prove
+// nothing. Only a digest that is **well formed but not sha256** reaches the
+// guard: a seven-character prefix followed by 64 valid hex, which is what a
+// future algorithm change would look like, and which would otherwise be handed
+// to the verifier as though it were a sha256.
+test("a github asset whose digest is not sha256 is refused", () => {
+  const wrongAlgorithm = {
+    tag_name: "v20260723",
+    assets: [{ ...GITHUB_BODY.assets[1], digest: "blake3:" + "a".repeat(64) }],
+  };
+  assert.equal(parseGithubRelease("full", wrongAlgorithm), undefined);
 
-test("full installs when upstream is still on the pinned version", () => {
-  const outcome = resolveFullFromPypi({ info: { version: "20260723" } }, PINNED_FULL);
-  assert.equal(outcome.kind, "pinned");
-  if (outcome.kind !== "pinned") return;
-  assert.equal(outcome.release.sha256, PINNED_FULL.sha256);
-  assert.ok(outcome.release.url.includes("20260723"));
+  for (const digest of [undefined, "", "md5:abc", "sha512:" + "a".repeat(128), "sha256:nope"]) {
+    const body = {
+      tag_name: "v20260723",
+      assets: [{ ...GITHUB_BODY.assets[1], digest }],
+    };
+    assert.equal(parseGithubRelease("full", body), undefined, String(digest));
+  }
 });
 
-// The point of the whole self-pinning arrangement: a newer release has no
-// digest anyone can vouch for, so it is reported rather than fetched.
-test("a newer full release is reported, never downloaded unverified", () => {
-  const outcome = resolveFullFromPypi({ info: { version: "20261115" } }, PINNED_FULL);
-  assert.equal(outcome.kind, "newer");
-  if (outcome.kind !== "newer") return;
-  assert.equal(outcome.version, "20261115");
-});
-
-test("unusable metadata falls back to the pinned release rather than failing", () => {
-  for (const body of [{}, { info: {} }, { info: { version: "" } }, null, "nonsense"]) {
-    assert.equal(resolveFullFromPypi(body, PINNED_FULL).kind, "pinned", JSON.stringify(body));
+test("junk from github resolves to nothing rather than throwing", () => {
+  for (const body of [null, {}, { tag_name: "v1" }, { assets: [] }, { tag_name: 5, assets: [] }]) {
+    assert.equal(parseGithubRelease("full", body), undefined, JSON.stringify(body));
   }
 });
 
@@ -243,41 +264,49 @@ const WHEEL_RELEASE = {
   size: 72275897,
 } as const;
 
-test("a wheel download tries pythonhosted, then the mirror, then the vendor", () => {
-  assert.deepEqual(downloadUrls(WHEEL_RELEASE, "20260723"), [
+const FULL_RELEASE = {
+  edition: "full",
+  version: "20260723",
+  url: "https://github.com/WorksApplications/SudachiDict/releases/download/v20260723/sudachidict_full-20260723-py3-none-any.whl",
+  sha256: "c".repeat(64),
+  size: 126614513,
+} as const;
+test("a wheel download tries pythonhosted, the mirror, github, then the relay", () => {
+  assert.deepEqual(downloadUrls(WHEEL_RELEASE), [
     WHEEL_RELEASE.url,
     "https://pypi.tuna.tsinghua.edu.cn/packages/46/fe/68a1/sudachidict_core-20260723-py3-none-any.whl",
-    "https://d2ej7fkh96fzlu.cloudfront.net/sudachidict/sudachi-dictionary-20260723-core.zip",
+    "https://github.com/WorksApplications/SudachiDict/releases/download/v20260723/sudachidict_core-20260723-py3-none-any.whl",
+    "https://gh-proxy.org/https://github.com/WorksApplications/SudachiDict/releases/download/v20260723/sudachidict_core-20260723-py3-none-any.whl",
   ]);
 });
 
-// CloudFront is measurably blocked in mainland China (5/5 vantage points), so
-// its position is not a preference. It must never be tried before the others.
-test("cloudfront is last in every list it appears in", () => {
-  for (const pinnedVersion of ["20260723", "20260101"]) {
-    const urls = downloadUrls(WHEEL_RELEASE, pinnedVersion);
-    const vendor = urls.findIndex((u) => u.includes("cloudfront"));
-    if (vendor !== -1) assert.equal(vendor, urls.length - 1);
+// The relay is a third party. Every other leg is the publisher or a mirror the
+// publisher's index points at, so the relay is asked only once they have all
+// refused. Its position is not a preference, it is the whole basis for
+// including it at all.
+test("the third-party relay is last in every list", () => {
+  for (const release of [WHEEL_RELEASE, FULL_RELEASE, { ...WHEEL_RELEASE, version: "20261115" }]) {
+    const urls = downloadUrls(release);
+    const relay = urls.findIndex((u) => u.startsWith("https://gh-proxy.org/"));
+    assert.equal(relay, urls.length - 1, release.edition + " " + release.version);
+    assert.equal(urls.filter((u) => u.startsWith("https://gh-proxy.org/")).length, 1);
   }
 });
 
-// Above the pinned version there is no digest to check the vendor archive
-// against, and an unverifiable 121 MB is a liability rather than a fallback.
-test("the vendor archive is dropped when the release is newer than the pin", () => {
-  const newer = { ...WHEEL_RELEASE, version: "20261115" };
-  const urls = downloadUrls(newer, "20260723");
-  assert.ok(!urls.some((u) => u.includes("cloudfront")));
+// full is absent from PyPI (126 MB against a 100 MiB per-file cap), so every
+// PyPI mirror inherits that absence. Two legs, not four, and no mirror leg.
+test("full has no pypi mirror to fall back to", () => {
+  const urls = downloadUrls(FULL_RELEASE);
   assert.equal(urls.length, 2);
+  assert.ok(!urls.some((u) => u.includes("tsinghua")));
+  assert.ok(urls[0]!.startsWith("https://github.com/"));
 });
 
-// full's own url is already the vendor archive, so it must not be listed twice.
-test("the vendor archive is not repeated when it is already the release url", () => {
-  const full = {
-    edition: "full",
-    version: "20260723",
-    url: "https://d2ej7fkh96fzlu.cloudfront.net/sudachidict/sudachi-dictionary-20260723-full.zip",
-    sha256: "f".repeat(64),
-    size: 126615116,
-  } as const;
-  assert.deepEqual(downloadUrls(full, "20260723"), [full.url]);
+// The github url is already the release url for full, so listing it again would
+// have the same host tried twice before anything else was tried once.
+test("github is not repeated when it is already the release url", () => {
+  assert.equal(
+    downloadUrls(FULL_RELEASE).filter((u) => u.startsWith("https://github.com/")).length,
+    1,
+  );
 });
