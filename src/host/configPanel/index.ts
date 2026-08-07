@@ -69,16 +69,22 @@ function render(root: HTMLElement): void {
   // so it names its subjects instead of meaning "the rows after me", and that
   // is what lets kanji repair sit among them: it needs no dictionary, so it is
   // never greyed, and the notice never claims it.
-  const furiganaRow = toggleRow("furigana", t("furigana"), t("furiganaDesc"), refreshPreview);
-  const furiganaSize = sizeRow(refreshPreview);
+  // Size sits under furigana and only while it is on: it scales the ruby, so
+  // with furigana off there is nothing for it to scale.
+  const { toggle: furiganaRow, dependents: furiganaSize } = revealWhile(
+    jp,
+    "furigana",
+    t("furigana"),
+    t("furiganaDesc"),
+    () => [sizeRow(refreshPreview)],
+    { onChange: refreshPreview },
+  );
   const romajiRow = toggleRow("romaji", t("romaji"), t("romajiDesc"), refreshPreview);
   const hintsRow = toggleRow("readingHints", t("hints"), t("hintsDesc"), refreshPreview);
   // The escape hatch for when everything above got a reading wrong, so it comes
   // last: it reads in the order someone reaches for it.
   const overrides = readingOverridesRow();
   for (const rowEl of [
-    furiganaRow,
-    furiganaSize,
     romajiRow,
     hintsRow,
     toggleRow("hanRepair", t("repair"), t("repairDesc"), refreshPreview),
@@ -92,7 +98,10 @@ function render(root: HTMLElement): void {
   // installed. Reading hints are present because although the parsing is pure,
   // consuming a hint means moving it into a ruby, and with no analyzer there is
   // no ruby to move it into.
-  const gated = [furiganaRow, furiganaSize, romajiRow, hintsRow, overrides];
+  // The size row is listed whether or not it is currently in the DOM: greying is
+  // a property of the element, so it stays correct when furigana is switched
+  // back on and the row returns.
+  const gated = [furiganaRow, ...furiganaSize, romajiRow, hintsRow, overrides];
   // Directly under the dictionary row, which is the thing it is about, and a
   // fixed position now that it no longer has to sit above its subjects.
   gateOnDictionary(gated, needsDictionary, jp, furiganaRow);
@@ -118,15 +127,17 @@ function render(root: HTMLElement): void {
   // grouping by what the reader is looking at beats grouping by coverage.
   left.appendChild(sectionTitle(t("sectionFonts")));
   const fonts = card();
-  fontPair(fonts, "useJpFont", t("jpFont"), t("jpFontDesc"), refreshPreview, () =>
+  // `triggersRescan: false` throughout: a font change is styling, and restyling
+  // does not need every line analyzed again.
+  revealWhile(fonts, "useJpFont", t("jpFont"), t("jpFontDesc"), () => [
     fontStackRow("jpFontStack", DEFAULT_JP_FONT_STACK, "fontStack", "fontStackDesc", refreshPreview),
-  );
-  fontPair(fonts, "useZhFont", t("zhFont"), t("zhFontDesc"), refreshPreview, () =>
+  ], { onChange: refreshPreview, triggersRescan: false });
+  revealWhile(fonts, "useZhFont", t("zhFont"), t("zhFontDesc"), () => [
     fontStackRow("zhFontStack", DEFAULT_ZH_FONT_STACK, "zhFontStack", "fontStackDesc", refreshPreview),
-  );
-  fontPair(fonts, "useRowFont", t("rowFont"), t("rowFontDesc"), refreshPreview, () =>
+  ], { onChange: refreshPreview, triggersRescan: false });
+  revealWhile(fonts, "useRowFont", t("rowFont"), t("rowFontDesc"), () => [
     fontStackRow("rowFontStack", DEFAULT_JP_FONT_STACK, "rowFontStack", "fontStackDesc", refreshPreview),
-  );
+  ], { onChange: refreshPreview, triggersRescan: false });
   left.appendChild(fonts);
 
   left.appendChild(sectionTitle(t("sectionAi")));
@@ -169,50 +180,56 @@ function render(root: HTMLElement): void {
 }
 
 /**
- * A font toggle with its stack row, where the stack only exists while the
- * toggle is on.
+ * A toggle plus the rows that only mean anything while it is on.
  *
- * Six rows showing at once made the section read as a wall of text boxes, three
- * of which did nothing: a stack under a toggle that is off is a control with no
- * effect, and two of the three are off on a default install. The same idea is
- * already in this panel, where the AI base URL row is only built for
- * OpenAI-compatible providers.
+ * A stack under a font switch that is off, or a size slider under furigana that
+ * is off, is a control with no effect. Three of the six font rows were in that
+ * state on a default install, which read as a wall of text boxes rather than as
+ * settings. The same idea was already in this panel, where the AI base URL row
+ * is only built for OpenAI-compatible providers.
  *
  * Inserted and removed, never hidden. `.kc-row + .kc-row` draws the divider
  * between rows, and a `display: none` element still sits between two rows as
  * far as the sibling combinator is concerned, so hiding it deletes the line
  * above. That exact bug shipped once already in the dictionary gate.
+ *
+ * Returns both parts, because the caller may still need them: the Japanese card
+ * gates furigana *and* its size on the dictionary, whether or not either is
+ * currently in the DOM.
  */
-function fontPair(
+function revealWhile(
   card: HTMLElement,
   key: BooleanSettingKey,
   label: string,
   description: string,
-  refreshPreview: () => void,
-  buildStack: () => HTMLElement,
-): void {
-  const stack = buildStack();
+  buildDependents: () => readonly HTMLElement[],
+  options: { readonly onChange?: () => void; readonly triggersRescan?: boolean } = {},
+): { toggle: HTMLElement; dependents: readonly HTMLElement[] } {
+  const dependents = buildDependents();
   let reveal = (): void => {};
-  // `false` for triggersRescan: a font change is styling, and restyling does
-  // not need every line analyzed again.
   const toggle = toggleRow(
     key,
     label,
     description,
     () => {
-      refreshPreview();
+      if (options.onChange) options.onChange();
       reveal();
     },
-    false,
+    options.triggersRescan ?? true,
   );
   card.appendChild(toggle);
   reveal = (): void => {
     const on = getSettings()[key];
-    const inCard = stack.parentNode !== null;
-    if (on && !inCard) card.insertBefore(stack, toggle.nextSibling);
-    else if (!on && inCard) stack.remove();
+    // Reversed on insert so each lands directly after the toggle and the group
+    // keeps its written order.
+    for (const dependent of [...dependents].reverse()) {
+      const inCard = dependent.parentNode !== null;
+      if (on && !inCard) card.insertBefore(dependent, toggle.nextSibling);
+      else if (!on && inCard) dependent.remove();
+    }
   };
   reveal();
+  return { toggle, dependents };
 }
 
 /**
