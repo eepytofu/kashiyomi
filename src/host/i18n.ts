@@ -61,7 +61,7 @@ const STRINGS = {
     // Paragraph two is the only thing this dialog sets up; everything else is
     // pointed at rather than duplicated here.
     setupWhatItIs:
-      "Annotates the lyrics NetEase already shows: furigana and romaji on Japanese lines, pinyin on Mandarin, Chinese glyph forms repaired back to Japanese ones, and optional AI translation.",
+      "Annotates the lyrics NetEase already shows: furigana and romaji on Japanese lines, pinyin on Mandarin, Chinese glyph forms repaired back to Japanese ones, and AI translation.",
     setupNeedsDictionary:
       "Only the Japanese dictionary is set up here. AI translation needs your own API key, in this plugin's settings.",
     setupInstalled: "Dictionary installed. Japanese lyrics will show readings from now on.",
@@ -191,7 +191,7 @@ const STRINGS = {
     dictNotInstalled: "未安装",
     dictNeededForThese: "灰色的设置需要日语词典。",
     setupWhatItIs:
-      "在网易云自带的歌词上标注：日语行显示振假名和罗马字，中文行显示拼音，并将中文字形修正为日语字形，另可选用 AI 翻译。",
+      "在网易云自带的歌词上标注：日语行显示振假名和罗马字，中文行显示拼音，并将中文字形修正为日语字形，以及 AI 翻译。",
     setupNeedsDictionary:
       "此处仅设置日语词典。AI 翻译需自备 API key，在本插件的设置中填写。",
     setupInstalled: "词典已安装，之后日语歌词将显示读音。",
