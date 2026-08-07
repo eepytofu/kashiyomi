@@ -54,16 +54,22 @@ export const PANEL_CSS = `
 }
 .kashiyomi-config .kc-tab:hover { color: rgba(255, 255, 255, 0.85); }
 .kashiyomi-config .kc-tab-on { color: #fff; }
-/* A rounded 3px bar, not a square border-bottom, in NCM's actual red
-   rgb(255,58,58) — the rgb(255, 58, 58) used before was this plugin's own colour and is
-   visibly off beside a real NCM control. */
+/* A rounded 3px bar, not a square border-bottom, in NCM's own red. Measured off
+   the host's active tab indicator: #ff3a3a, not the #ec4141 this plugin used
+   for months, which is close enough to look deliberate and wrong enough to look
+   off beside a real NCM control. */
 .kashiyomi-config .kc-tab-on::after {
   content: ""; position: absolute; left: 0; right: 0; bottom: 2px;
   height: 3px; border-radius: 20px; background: rgb(255, 58, 58);
 }
-.kashiyomi-config .kc-tab:focus-visible { outline: 2px solid rgba(236, 65, 65, 0.75); outline-offset: 2px; }
+.kashiyomi-config .kc-tab:focus-visible { outline: 2px solid rgba(255, 58, 58, 0.75); outline-offset: 2px; }
 .kashiyomi-config .kc-status-right { display: flex; align-items: center; gap: 14px; padding-bottom: 6px; }
 .kashiyomi-config .kc-section-title { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.68; margin: 2px 2px -6px; }
+/* Clicking a tab scrolls its heading to the top of the container, which is
+   exactly where the sticky strip sits — without this the heading you asked for
+   lands underneath it. 44px is the strip (about 36px) plus the gap, the same
+   clearance the side column uses. */
+.kashiyomi-config [data-kc-anchor] { scroll-margin-top: 44px; }
 .kashiyomi-config .kc-needs-dict { padding: 9px 14px; font-size: 12px; opacity: 0.68; }
 .kashiyomi-config .kc-switch { position: relative; flex: none; width: 40px; height: 24px; }
 .kashiyomi-config .kc-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
@@ -93,9 +99,9 @@ export const PANEL_CSS = `
    through twelve switches gets no indication of where they are. The unchecked
    rule keeps the outline, which is the same shadow property. */
 .kashiyomi-config .kc-switch input:focus-visible + .kc-track {
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.38), 0 0 0 2px rgba(236, 65, 65, 0.75);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.38), 0 0 0 2px rgba(255, 58, 58, 0.75);
 }
-.kashiyomi-config .kc-switch input:checked:focus-visible + .kc-track { box-shadow: 0 0 0 2px rgba(236, 65, 65, 0.75); }
+.kashiyomi-config .kc-switch input:checked:focus-visible + .kc-track { box-shadow: 0 0 0 2px rgba(255, 58, 58, 0.75); }
 .kashiyomi-config .kc-switch input:checked + .kc-track::after { transform: translateX(16px); }
 .kashiyomi-config .kc-select {
   position: relative; flex: none; display: inline-flex; align-items: center;
@@ -108,7 +114,7 @@ export const PANEL_CSS = `
   min-width: 160px;
 }
 .kashiyomi-config .kc-select select:hover { background: rgba(255, 255, 255, 0.14); }
-.kashiyomi-config .kc-select select:focus { border-color: rgba(236, 65, 65, 0.7); }
+.kashiyomi-config .kc-select select:focus { border-color: rgba(255, 58, 58, 0.7); }
 /* The native popup list is drawn by the OS, so its items only take solid
    colors; keep them readable instead of inheriting the panel's light text. */
 .kashiyomi-config .kc-select option { background: #2b2b2b; color: #f2f2f2; }
@@ -127,7 +133,7 @@ export const PANEL_CSS = `
   background: rgba(255, 255, 255, 0.08); color: inherit; font-size: 12.5px;
   font-family: inherit; outline: none;
 }
-.kashiyomi-config .kc-input:focus { border-color: rgba(236, 65, 65, 0.7); }
+.kashiyomi-config .kc-input:focus { border-color: rgba(255, 58, 58, 0.7); }
 /* accent-color is Chrome 93+ and this runs on CEF 91, where it silently does
    nothing and the slider renders in the default blue. Style the pseudo-elements
    instead — those Chrome has had since long before 91. */
@@ -141,7 +147,7 @@ export const PANEL_CSS = `
   width: 14px; height: 14px; border-radius: 50%; border: none;
   background: rgb(255, 58, 58); cursor: pointer;
 }
-.kashiyomi-config input[type="range"]:focus-visible { box-shadow: 0 0 0 2px rgba(236, 65, 65, 0.45); }
+.kashiyomi-config input[type="range"]:focus-visible { box-shadow: 0 0 0 2px rgba(255, 58, 58, 0.45); }
 /* Ringed as one segmented control with transparent segments, rather than two
    filled chips. Sitting next to Re-annotate, two separately filled chips of the
    same size read as three peer buttons; the ring says "one control, two
@@ -154,7 +160,7 @@ export const PANEL_CSS = `
 .kashiyomi-config .kc-lang button.kc-active { background: rgb(255, 58, 58); }
 /* The switches got a focus ring earlier; these are the remaining tab stops. */
 .kashiyomi-config .kc-button:focus-visible,
-.kashiyomi-config .kc-lang button:focus-visible { outline: 2px solid rgba(236, 65, 65, 0.75); outline-offset: 2px; }
+.kashiyomi-config .kc-lang button:focus-visible { outline: 2px solid rgba(255, 58, 58, 0.75); outline-offset: 2px; }
 .kashiyomi-config .kc-preview { padding: 16px 14px 12px; display: flex; flex-direction: column; gap: 14px; }
 .kashiyomi-config .kc-preview-line { font-size: 19px; line-height: 1.6; }
 /* No opacity override: the row keeps the 0.85 styles.ts gives it everywhere, so

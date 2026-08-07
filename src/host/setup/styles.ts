@@ -60,5 +60,5 @@ export const SETUP_CSS = `
 .kashiyomi-setup .ks-primary:hover:not(:disabled) { background: rgb(255, 90, 90); }
 /* CEF 91 has :focus-visible but not :has() or inert, so the ring is the whole
    keyboard affordance here. Buttons get theirs from the shared sheet. */
-.kashiyomi-setup input:focus-visible { outline: 2px solid rgba(236, 65, 65, 0.75); outline-offset: 2px; }
+.kashiyomi-setup input:focus-visible { outline: 2px solid rgba(255, 58, 58, 0.75); outline-offset: 2px; }
 `;

@@ -356,27 +356,41 @@ function followMissingDictionary(row: HTMLElement, card: HTMLElement): void {
  */
 function tabAnchor(key: TabKey, label: string): HTMLElement {
   const el = sectionTitle(label);
-  el.setAttribute("data-kc-tab", key);
+  // Deliberately not `data-kc-tab`: that is the strip's own buttons. Sharing one
+  // attribute made `querySelectorAll` return ten elements where five were meant,
+  // and the five buttons come first in document order, so the click handler's
+  // `find` returned a button and scrolled to a sticky element already at the top
+  // — every tab click did nothing.
+  el.setAttribute("data-kc-anchor", key);
   return el;
 }
 
 /**
  * Keep the strip in step with the scroll, and scroll on click.
  *
- * `IntersectionObserver` rather than a scroll listener, because the panel does
- * not own its scroll container: two ancestors above `.kashiyomi-config` are the
- * ones with `overflow-y: scroll`, and they belong to BetterNCM. An observer
- * needs no reference to them.
+ * Compares rects on scroll rather than using `IntersectionObserver`. The
+ * observer was tried and could never fire: its band was `rootMargin` of
+ * `0 0 -80% 0` against the viewport, so a heading had to reach the top fifth to
+ * count. Measured on the running app, that band ends at y=173 while the panel
+ * starts at y=212 — BetterNCM's own chrome sits above us and the scrolling
+ * container is 595px tall inside an 864px window, so no heading could ever
+ * enter it and the highlight never moved off the first tab.
  *
- * The band is the top of the viewport: a heading counts as current once it
- * reaches the strip and stops counting when it leaves the upper fifth, which is
- * what makes the highlight change as a section passes under the strip rather
- * than when it happens to be centred.
+ * Any fraction of the viewport has that bug latent in it, since the panel does
+ * not own its scroll container. A rect against the strip's own bottom edge has
+ * nothing to be wrong about: the current section is the last one whose heading
+ * has passed under the strip.
+ *
+ * The listener is on the document in the capture phase, which sees scroll
+ * events from any ancestor container without needing a reference to it — the
+ * property the observer was chosen for in the first place.
  */
 function linkTabsToScroll(root: HTMLElement): void {
   const tabs = [...root.querySelectorAll<HTMLElement>(".kc-tab")];
-  const anchors = [...root.querySelectorAll<HTMLElement>("[data-kc-tab]")];
-  if (tabs.length === 0 || anchors.length === 0) return;
+  const anchors = [...root.querySelectorAll<HTMLElement>("[data-kc-anchor]")];
+  const strip = root.querySelector<HTMLElement>(".kc-tabs");
+  const first = anchors[0];
+  if (tabs.length === 0 || !first || !strip) return;
 
   const light = (key: string): void => {
     for (const tab of tabs) {
@@ -384,30 +398,48 @@ function linkTabsToScroll(root: HTMLElement): void {
     }
   };
 
-  const observer = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        const key = entry.target.getAttribute("data-kc-tab");
-        if (key) {
-          activeTab = key as TabKey;
-          light(key);
-        }
-      }
-    },
-    { rootMargin: "0px 0px -80% 0px", threshold: 0 },
-  );
-  for (const anchor of anchors) observer.observe(anchor);
-  onPanelTeardown(() => observer.disconnect());
+  const current = (): string | null => {
+    // A hair below the strip, so a heading counts as arrived the moment it is
+    // no longer covered by it rather than a frame later.
+    const line = strip.getBoundingClientRect().bottom + 1;
+    let key: string | null = first.getAttribute("data-kc-anchor");
+    for (const anchor of anchors) {
+      if (anchor.getBoundingClientRect().top > line) break;
+      key = anchor.getAttribute("data-kc-anchor");
+    }
+    return key;
+  };
+
+  // Scroll fires far more often than the answer changes, so the work is
+  // coalesced into one frame and the DOM is only touched when the tab differs.
+  let queued = false;
+  const sync = (): void => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      const key = current();
+      if (!key || key === activeTab) return;
+      activeTab = key as TabKey;
+      light(key);
+    });
+  };
+
+  document.addEventListener("scroll", sync, true);
+  onPanelTeardown(() => document.removeEventListener("scroll", sync, true));
+  sync();
 
   for (const tab of tabs) {
     tab.onclick = () => {
       const key = tab.getAttribute("data-kc-tab");
-      const target = anchors.find((a) => a.getAttribute("data-kc-tab") === key);
+      const target = anchors.find((a) => a.getAttribute("data-kc-anchor") === key);
       // Scrolls rather than re-renders: the sections are all present, so there
       // is nothing to rebuild and rebuilding would lose the scroll position.
       target?.scrollIntoView({ behavior: "smooth", block: "start" });
-      if (key) light(key);
+      if (key) {
+        activeTab = key as TabKey;
+        light(key);
+      }
     };
   }
 }

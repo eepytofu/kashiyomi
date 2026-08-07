@@ -41,22 +41,21 @@ export const SHARED_CSS = `
    into a state that silently has no effect. */
 .kashiyomi-ui .kc-inert { opacity: 0.45; cursor: default; }
 .kashiyomi-ui .kc-inert:hover { background: transparent; }
-/* Outlined pill, measured off NCM's own cmd-button-outlineSec (更改目录):
-   transparent fill, 1px hairline at 0.3 alpha, 14px radius on a 28px box.
-   NCM fills almost nothing in settings — the red is kept for state and the play
-   button — so a filled button here reads louder than anything the host does. */
+/* Radius 8, matching every other surface here — card 10, select 8, input 8,
+   language toggle 8. Shipped once as NCM's own pill (radius = half the height)
+   and reverted: it was the only control in the panel not on the shared radius. */
 .kashiyomi-ui .kc-button {
-  padding: 0 12px; height: 28px; border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 14px; background: transparent; color: inherit;
-  font-size: 13px; font-family: inherit; cursor: pointer;
+  padding: 6px 14px; border: none;
+  border-radius: 8px; background: rgba(255, 255, 255, 0.1); color: inherit;
+  font-size: 12.5px; font-family: inherit; cursor: pointer;
 }
-.kashiyomi-ui .kc-button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.45); }
+.kashiyomi-ui .kc-button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
 .kashiyomi-ui .kc-button:disabled { opacity: 0.5; cursor: default; }
 .kashiyomi-ui .kc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: #999; }
 .kashiyomi-ui .kc-ready .kc-dot { background: #52c41a; }
 .kashiyomi-ui .kc-bad .kc-dot { background: #ff4d4f; }
 .kashiyomi-ui .kc-loading .kc-dot { background: #faad14; }
-.kashiyomi-ui .kc-button:focus-visible { outline: 2px solid rgba(236, 65, 65, 0.75); outline-offset: 2px; }
+.kashiyomi-ui .kc-button:focus-visible { outline: 2px solid rgba(255, 58, 58, 0.75); outline-offset: 2px; }
 `;
 
 /**
