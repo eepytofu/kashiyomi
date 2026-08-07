@@ -281,7 +281,7 @@ function annotateJapanese(
     // element is wiped by that line's own repair pass. Rendered first, it never
     // survived to be seen.
     const first = pendingAnalysis[0];
-    if (first) renderNoticeRow(first.line.el, t("dictNoticeMissing"));
+    if (first && settings.lyricDictNotice) renderNoticeRow(first.line.el, t("dictNoticeMissing"));
     return;
   }
 

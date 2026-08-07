@@ -90,6 +90,8 @@ const STRINGS = {
     // convention across published plugins is an inline notice in your own
     // surface, never a popup, and a statement rather than an instruction.
     dictNoticeMissing: "No Japanese dictionary installed. Download it in Kashiyomi settings.",
+    lyricDictNotice: "Missing dictionary notice",
+    lyricDictNoticeDesc: "Show a line on Japanese lyrics while no dictionary is installed",
     dictRetry: "Retry",
     dictFailed: "failed",
     dictFail_offline: "could not reach the download",
@@ -199,6 +201,8 @@ const STRINGS = {
     dictWorkInstalling: "安装中…",
     dictNoSpace: (needed: string) => `磁盘空间不足，需要 ${needed} 可用空间`,
     dictNoticeMissing: "尚未安装日语词典，请在 Kashiyomi 设置中下载。",
+    lyricDictNotice: "缺少词典提示",
+    lyricDictNoticeDesc: "未安装日语词典时，在日语歌词上显示一行提示",
     dictRetry: "重试",
     dictFailed: "失败",
     dictFail_offline: "无法连接下载源",

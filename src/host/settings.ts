@@ -24,6 +24,14 @@ export type Settings = {
   dictCheckedAt: number | undefined;
   /** rt size as a percentage of the base lyric font. */
   furiganaSize: number;
+  /**
+   * Show a line on Japanese lyrics when no dictionary is installed.
+   *
+   * For someone who deliberately never installs it: the plugin is still doing
+   * pinyin and translation for them, and repeating a notice about a feature
+   * they have declined is nagging about a decision already made.
+   */
+  lyricDictNotice: boolean;
   /** Use a Japanese font stack on Japanese lyric lines (Han unification). */
   useJpFont: boolean;
   jpFontStack: string;
@@ -88,6 +96,7 @@ const DEFAULTS: Settings = {
   dictSetupAnswered: false,
   dictCheckedAt: undefined,
   furiganaSize: 50,
+  lyricDictNotice: true,
   useJpFont: true,
   jpFontStack: DEFAULT_JP_FONT_STACK,
   useZhFont: false,

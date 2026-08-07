@@ -124,6 +124,13 @@ function render(root: HTMLElement): void {
   adv.appendChild(fontStackRow("rowFontStack", DEFAULT_JP_FONT_STACK, "rowFontStack", "fontStackDesc", refreshPreview));
   adv.appendChild(toggleRow("annotateCredits", t("credits"), t("creditsDesc")));
   adv.appendChild(toggleRow("debug", t("debug"), t("debugDesc"), () => {}));
+  // Only while there is no dictionary. Once one is installed the notice cannot
+  // fire, so a switch for it is a control that does nothing, and Advanced is
+  // where dead controls accumulate unnoticed.
+  followMissingDictionary(
+    toggleRow("lyricDictNotice", t("lyricDictNotice"), t("lyricDictNoticeDesc")),
+    adv,
+  );
   left.appendChild(adv);
 
   buildAboutCard(right);
@@ -176,6 +183,25 @@ function gateOnDictionary(
         (control as HTMLInputElement).disabled = absent;
       }
     }
+  };
+  paint();
+  onPanelTeardown(onDictionaryChange(paint));
+}
+
+/**
+ * Keep a row in the card only while no dictionary is installed.
+ *
+ * `parentNode`, never `isConnected`: this panel is built detached and handed to
+ * BetterNCM to insert, so `isConnected` is false for the whole of construction
+ * and the removal branch would be unreachable. Same trap as the gate notice
+ * above, which shipped with exactly that bug.
+ */
+function followMissingDictionary(row: HTMLElement, card: HTMLElement): void {
+  const paint = (): void => {
+    const absent = !dictionaryInventory().installed;
+    const inCard = row.parentNode !== null;
+    if (absent && !inCard) card.appendChild(row);
+    else if (!absent && inCard) row.remove();
   };
   paint();
   onPanelTeardown(onDictionaryChange(paint));
