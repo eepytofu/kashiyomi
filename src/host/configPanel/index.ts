@@ -63,15 +63,21 @@ function render(root: HTMLElement): void {
   const needsDictionary = document.createElement("div");
   needsDictionary.className = "kc-needs-dict";
   needsDictionary.textContent = t("dictNeededForThese");
+  // Above the notice because it does not need a dictionary: repair is a
+  // character-by-character glyph map from `opencc-js`, bundled in main.js, and
+  // it now renders on lyrics with nothing installed. It sat inside the gated
+  // block until 2026-08-08, where being greyed out said the opposite.
+  jp.appendChild(toggleRow("hanRepair", t("repair"), t("repairDesc"), refreshPreview));
   // Exactly the settings that do nothing without a dictionary, which is not the
   // whole card. Font routing happens during classification (`applyScriptFont`),
   // before anything is analyzed, so the two font rows work with no dictionary at
-  // all and greying them would misdescribe them.
+  // all and greying them would misdescribe them. Reading hints stay gated: the
+  // parsing is pure, but consuming a hint means moving it into a ruby, and with
+  // no analyzer there is no ruby to move it into.
   const gated = [
     toggleRow("furigana", t("furigana"), t("furiganaDesc"), refreshPreview),
     toggleRow("romaji", t("romaji"), t("romajiDesc"), refreshPreview),
     toggleRow("readingHints", t("hints"), t("hintsDesc"), refreshPreview),
-    toggleRow("hanRepair", t("repair"), t("repairDesc"), refreshPreview),
     sizeRow(refreshPreview),
   ];
   for (const rowEl of gated) jp.appendChild(rowEl);
