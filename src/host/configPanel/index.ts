@@ -496,6 +496,39 @@ function linkTabsToScroll(root: HTMLElement): void {
     return scroller !== null && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
   };
 
+  /**
+   * Scroll a heading to the top, animated by hand.
+   *
+   * `scrollIntoView({ behavior: "smooth" })` moves BetterNCM's nested scroller
+   * 0px, while the instant form moves it the full 1206 and assigning `scrollTop`
+   * works. Recorded on real clicks: the tab lit up and the page stayed put.
+   * Animating the property directly gets both.
+   */
+  let tween = 0;
+  const scrollToAnchor = (el: HTMLElement): void => {
+    const scroller = findScroller();
+    if (!scroller) {
+      el.scrollIntoView({ block: "start" });
+      return;
+    }
+    const margin = Number.parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
+    const from = scroller.scrollTop;
+    const delta = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top - margin;
+    const to = Math.max(0, Math.min(from + delta, scroller.scrollHeight - scroller.clientHeight));
+    const started = performance.now();
+    const token = ++tween;
+    const DURATION = 260;
+    const step = (now: number): void => {
+      // A later click wins: without the token two tweens fight over scrollTop.
+      if (token !== tween) return;
+      const t = Math.min((now - started) / DURATION, 1);
+      const eased = 1 - (1 - t) * (1 - t) * (1 - t);
+      scroller.scrollTop = from + (to - from) * eased;
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+
   const current = (): string | null => {
     // The last section is short, so the container runs out of scroll while its
     // heading is still mid-page: Advanced sits at y=1244 in a 595px scroller and
@@ -566,7 +599,7 @@ function linkTabsToScroll(root: HTMLElement): void {
       const target = anchors.find((a) => a.getAttribute("data-kc-anchor") === key);
       // Scrolls rather than re-renders: the sections are all present, so there
       // is nothing to rebuild and rebuilding would lose the scroll position.
-      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (target) scrollToAnchor(target);
       if (key) {
         pending = key;
         pendingAt = Date.now();
