@@ -245,6 +245,27 @@ export function reportNoSource(): void {
 }
 
 /**
+ * A check answered, and the installed dictionary is already that release.
+ *
+ * The other half of `reportNoSource`. Both are the "nothing to install" ending
+ * of `startDictionaryInstall`, and the point of both is that they *end the job*:
+ * `resolveRelease` sets `resolving` on the way in, so any path that returns
+ * without a terminal state leaves the row reading "Checking…" for good. The job
+ * is module state, so a panel rebuild does not clear it and only a reload does,
+ * and every later press is swallowed by the `job.kind !== "idle"` guard.
+ *
+ * That is not an edge case: it is the second press of Update on a dictionary
+ * that is already current, which is what the button does most of the time.
+ * Recording the check without ending the job is what shipped, and the identical
+ * hazard was already understood one function up, where `checkForNewerRelease`
+ * clears `resolving` for exactly this reason.
+ */
+export function reportUpToDate(): void {
+  recordCheck();
+  setJob({ kind: "idle" });
+}
+
+/**
  * Stop whatever the current attempt is doing, wherever it has got to.
  *
  * Two mechanisms because there are two kinds of work and one signal cannot

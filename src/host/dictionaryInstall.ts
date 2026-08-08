@@ -16,6 +16,7 @@ import {
   downloadDictionary,
   planDownload,
   reportNoSource,
+  reportUpToDate,
   recordCheck,
   resolveRelease,
   type DownloadPlan,
@@ -46,10 +47,11 @@ export async function startDictionaryInstall(): Promise<void> {
   // claim it is current and lets the install proceed.
   const inventory = dictionaryInventory();
   if (inventory.installed && inventory.version === release.version) {
-    // The one honest use of `no-source`: already at the pinned version, and
-    // nothing answered when asked whether a newer one exists. Saying "already
-    // the newest release" there would report an answer never received.
-    if (checked) recordCheck();
+    // Both branches must end the job, not just record what they learned:
+    // `resolveRelease` set `resolving` on the way in. `no-source` is the honest
+    // one when nothing answered — already at the pinned version, so claiming
+    // "already the newest release" would report an answer never received.
+    if (checked) reportUpToDate();
     else reportNoSource();
     return;
   }
