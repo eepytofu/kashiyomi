@@ -1,15 +1,5 @@
 // The dictionary's line in the settings panel: what is installed, and the
 // button that does something about it.
-//
-// It carries the whole feature now. There is one dictionary, so there is
-// nothing to choose and nothing to manage — the row that reports the state is
-// the right place to act on it, and a dialog for a single button would be a
-// dialog for its own sake. What the row shows is the state and one verb:
-// `Install` while there is nothing, `Update` once there is.
-//
-// The setup dialog still exists, but only for first run, where the point is
-// telling someone a 69 MB prerequisite is missing before they meet a plugin
-// that appears to do nothing.
 
 import { t } from "../i18n.ts";
 import {
@@ -48,9 +38,6 @@ export function dictionaryRow(): HTMLElement {
   el.appendChild(text);
 
   // One button, and it never moves. It used to have a Cancel beside it, which
-  // the row's `space-between` rendered wedged between the description and the
-  // action, and which appeared and vanished inside the ~1s an update check
-  // takes. The label is now whatever pressing it would do right now.
   const primary = document.createElement("button");
   primary.className = "kc-button";
   el.appendChild(primary);
@@ -68,11 +55,6 @@ export function dictionaryRow(): HTMLElement {
       // This row is where the button is, so it reports its own outcomes.
       ownsJob: true,
       // Asked fresh on every paint, never stored. This replaced a status bar
-      // above the panel that said the same thing in different words; the row
-      // owns what is on disk, so whether the analyzer opened it belongs here
-      // too. `ready` and `uninitialized` add nothing: the first is the ordinary
-      // case, and the second only happens when there is no dictionary, which
-      // the row already says in plainer words.
       analyzer: analyzerSegment(),
     });
 
@@ -146,13 +128,6 @@ export function dictionaryRow(): HTMLElement {
   });
 
   // Check for a newer release as the panel opens, rather than waiting for a
-  // press. Without it the row could only repeat whatever the last manual check
-  // found, which is how "already the newest release" came to be shown by
-  // something that had checked nothing.
-  //
-  // Silent on failure: opening settings must not produce an error nobody asked
-  // for, and `resolveRelease` falls back to the pinned release reporting
-  // `checked: false`, which the view reads as "do not claim to know".
   if (dictionaryInventory().installed) void checkForNewerRelease();
 
   return el;

@@ -18,9 +18,6 @@ export function parseApiKeys(value: string): string[] {
 
 /**
  * Order keys so the next attempt starts after the last one that worked, and
- * keys still resting after a limit go last. No key is ever dropped: if every
- * key is resting they are all still returned, because a stale cooldown should
- * never block translation entirely.
  */
 export function orderApiKeys(
   keys: readonly string[],

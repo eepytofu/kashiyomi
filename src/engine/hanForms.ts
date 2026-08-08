@@ -42,11 +42,6 @@ export function hasChineseOnlyGlyphs(line: string): boolean {
  * not use at all.
  */
 // Audited against OpenCC on 2026-08-03 rather than trusted as typed. An entry
-// belongs here only if Chinese writes the character differently in *both*
-// simplified and traditional. Removed 随 (simplified of 隨), 壮 (simplified of
-// 壯) and 糖 (identical in all three scripts) — each made any Chinese line
-// containing it look Japanese. 営 was listed twice. 隣 stays: 邻 and 鄰 both
-// convert to it, so it really is the Japanese-only form.
 const JAPANESE_ONLY_KANJI = new Set([
   ...(
     "戦伝転芸覚実対沢帰単変続読駅験廃髪桜楽薬塩満検険剣権観応圧総経絵浄拡" +

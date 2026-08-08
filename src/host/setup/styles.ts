@@ -1,8 +1,4 @@
 // Styles for the setup dialog only.
-//
-// Cards, rows, labels, buttons and status dots come from host/uiStyles.ts,
-// which the settings panel injects too. What is left here is what only a modal
-// has: the box itself, its backdrop, and the radios.
 
 export const SETUP_CSS = `
 .kashiyomi-setup {
@@ -19,12 +15,10 @@ export const SETUP_CSS = `
 .kashiyomi-setup .ks-need { opacity: 0.78; margin-bottom: 14px; white-space: pre-line; }
 /* The radio sits at the start rather than the far end, which is the one place
    an option row differs from a settings row: a setting has its control on the
-   right because the label is the subject, a choice has it on the left because
    the control is what you are pointing at. */
 .kashiyomi-setup .ks-option { justify-content: flex-start; align-items: flex-start; gap: 10px; }
 /* Drawn by hand rather than with accent-color, which is Chromium 93 and does
    nothing on CEF 91: the radios would have rendered default blue in a dark
-   dialog. Same reason the range thumb in the panel sheet is styled through its
    pseudo-element. */
 .kashiyomi-setup .ks-option input {
   -webkit-appearance: none; appearance: none;
@@ -45,7 +39,6 @@ export const SETUP_CSS = `
 .kashiyomi-setup .ks-in-use { color: #8fd97a; opacity: 0.9; }
 /* No min-height: the row is removed once a download starts, and reserving its
    height left a gap where a line used to be, which reads as something broken.
-   Collapsing shrinks the dialog once, at the click that also swaps the button
    to Cancel and the status to progress, so it reads as a response. */
 .kashiyomi-setup .ks-space:empty { display: none; }
 .kashiyomi-setup .ks-space { font-size: 12px; opacity: 0.68; margin-top: 12px; }

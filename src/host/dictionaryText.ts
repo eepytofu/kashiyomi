@@ -1,9 +1,4 @@
 // Turning the dictionary view model into words.
-//
-// Shared by the settings row and the setup dialog. They show the same states in
-// different containers, and the requirement is explicit: one source, or the two
-// drift. `dictionaryRowState` decides, this says it, and neither knows what DOM
-// it ends up in.
 
 import { panelLang, t, tNoSpace } from "./i18n.ts";
 import type { RowAction, RowMessage } from "../engine/dictionaryRowState.ts";
@@ -14,28 +9,13 @@ const GIGABYTE = 1024 * MEGABYTE;
 /** Download and requirement sizes, which are always in the tens or hundreds. */
 export const mb = (bytes: number): string => `${(bytes / MEGABYTE).toFixed(1)} MB`;
 
-/**
- * A size that could be anything, in whichever unit a person would use.
- *
- * Free space is the case: a healthy disk reads "26991.0 MB" through `mb`, which
- * is a number nobody writes and takes a moment to even parse as ~26 GB.
- */
+/** A size that could be anything, in whichever unit a person would use. */
 export const size = (bytes: number): string =>
   bytes >= GIGABYTE ? `${(bytes / GIGABYTE).toFixed(1)} GB` : mb(bytes);
 
 /**
  * SudachiDict versions are release dates as `20260723`. Formatted per panel
  * language, because the two do not agree and neither is "the superior format":
- *
- *   - Chinese and Japanese are **year first**, 2026年7月23日. That is not a
- *     preference, it is the word order (年月日), and GB/T 7408 follows ISO 8601.
- *   - Indonesian and most of Europe are day first, 23/07/2026. English is split,
- *     since the US puts the month first, so day-first is the safer default for
- *     the English panel.
- *
- * **Display only.** The raw string is what the update check compares, so
- * normalising it at the source would have it asking whether "23/07/2026" equals
- * "20260723" and re-downloading forever.
  */
 export function releaseDate(version: string): string {
   const match = /^(\d{4})(\d{2})(\d{2})$/u.exec(version);
@@ -74,9 +54,6 @@ export function describe(message: RowMessage): string {
       return `${t("dictDownloading")} ${mb(message.received)} / ${mb(message.total)}`;
     case "installing":
       // No byte counts here. Measured on a real install: extracting runs 207 MB
-      // in about a second, so the figure jumped 11 -> 207 across four repaints,
-      // which is a number nobody can read. The download above is the phase long
-      // enough to be worth counting.
       return message.phase === "verifying"
         ? t("dictVerifying")
         : message.phase === "extracting"

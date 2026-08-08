@@ -29,14 +29,6 @@ export function applyStyles(): void {
     Math.max(MIN_FURIGANA_SIZE, Math.round(settings.furiganaSize)),
   );
   // Rows first, so the [lang] rules below can override them. Both carry
-  // !important, so the winner is decided on specificity: `.row[lang="zh"]`
-  // (0,2,0) beats `.row` (0,1,0) whatever the source order, but keeping the
-  // order readable matters more than relying on that.
-  //
-  // A row is tagged only when its own text is CJK — see scriptLang.ts. An
-  // untagged row is Latin (romaji, pinyin, an English translation) and takes
-  // the reading-row font, which is the point: it stays one face across songs
-  // instead of inheriting whichever script its line happened to route to.
   let fontRule = "";
   if (settings.useRowFont && settings.rowFontStack.trim() !== "") {
     fontRule += `.${ROW_CLASS} { font-family: ${settings.rowFontStack} !important; }\n`;
@@ -50,11 +42,6 @@ export function applyStyles(): void {
     fontRule += `.${ROW_CLASS}[lang="zh"] { font-family: ${settings.zhFontStack} !important; }\n`;
   }
   // The notice is the plugin's own copy, so it follows the panel language and
-  // not the song. Emitted unconditionally and last: `useZhFont` is off by
-  // default and governs *lyrics*, so leaving this to that setting would render
-  // a Chinese sentence in a Japanese face on a default install, which is the
-  // bug being fixed. Specificity (0,3,0) beats `.row[lang="ja"]` (0,2,0), so it
-  // wins wherever the row stacks would otherwise reach it.
   const noticeZh = settings.zhFontStack.trim() === "" ? DEFAULT_ZH_FONT_STACK : settings.zhFontStack;
   fontRule += `.${ROW_CLASS}.kashiyomi-notice[lang="zh"] { font-family: ${noticeZh} !important; }\n`;
   style.textContent = `
@@ -74,19 +61,9 @@ export function applyStyles(): void {
   font-style: italic;
   opacity: 0.55;
 }
-/* A reading wider than its word overhangs the ruby box and can collide with
-   the next reading. Every case ever measured is a **phrase boundary**, where
-   the two words are separated by a single space: -6.5px on 千本桜 夜ニ紛レ,
-   -5.5px on 此処は宴 鋼の檻, -3.7px on 希望の丘 遥か彼方, all at 75%. 0.2em on
-   each facing side clears all of them (min +3.3px).
-
-   It is applied only on sides that face a space. Applying it to every ruby
-   also spaced out words with nothing between them -- measured on 無, which has
-   no spaced lines at all, removing it entirely left a 0px minimum gap and no
-   overlaps, so there the margin bought nothing and only detached 体 from 僕の.
-
-   Do not replace with display:inline-block or inline-table -- both displace
-   the reading from its base. */
+/**
+ * A reading wider than its word overhangs the ruby box and can collide with
+ */
 ruby.kashiyomi-ruby-gap-start {
   margin-inline-start: 0.2em;
 }

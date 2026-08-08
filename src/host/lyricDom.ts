@@ -1,10 +1,6 @@
 // Everything that knows the shape of NCM's lyric DOM: how to find lines, how
 // to read the text a line came from, how to record that we handled it, and
 // how to see the player's own translation row.
-//
-// Kept apart from the annotation pipeline because this is the layer NCM markup
-// churn breaks. Lines are matched by text content rather than class names, so a
-// changed selector degrades to "no annotation" instead of to wrong output.
 
 import type { CjkDocumentBranch, LineTranslationState } from "../engine/cjk.ts";
 import { hasHan, hasKana } from "../engine/kana.ts";
@@ -45,10 +41,6 @@ export function renderedText(el: HTMLElement): string {
 
 /**
  * The lyric text as NCM provided it. For an element we already annotated,
- * that is the remembered source rather than what is now on screen, because
- * kanji repair may have rewritten the visible characters. Reading the
- * repaired text back would let one misrouted line permanently change how the
- * line is classified.
  */
 export function sourceText(el: HTMLElement): string {
   const rendered = renderedText(el);
@@ -74,13 +66,6 @@ export function isAnnotatedFrom(el: HTMLElement, source: string): boolean {
 /**
  * Undo every annotation on the page, putting the lyric NetEase supplied back
  * on screen first.
- *
- * The order matters. Kanji repair rewrites what is on screen (继续 → 継続) and
- * the untouched original only exists in SRC_ATTR, so clearing that attribute
- * while leaving the repaired text in place would make the next scan read our
- * own output as if it were the source — the one thing routing must never do. A
- * line misrouted once would then stay misrouted no matter how the detector
- * improves.
  */
 export function clearAnnotations(): void {
   for (const el of document.querySelectorAll<HTMLElement>(`[${MARK_ATTR}]`)) {
@@ -114,20 +99,6 @@ export function isOriginalLyricElement(el: HTMLElement): boolean {
  * Tag a line we are not going to annotate with the script it is written in, so
  * the Japanese/Chinese font settings still reach it. Routing normally does
  * this; lines we skip never get routed.
- *
- * `branch` is the document's language, used when the line carries no script of
- * its own. Without it a singer marker naming a Latin-alphabet artist —
- * 【KBShinya 】 in 归家 — matched neither test and kept NCM's default stack,
- * while 【哦漏】 and 【KBShinya/哦漏】 in the same song took the Chinese font
- * because they happen to contain Han. Three treatments, one kind of line.
- *
- * This is the same fallback the routing path already applies to a scriptless
- * *lyric*; it was simply never reachable here, because skipped lines were
- * labelled before the document branch had been resolved.
- *
- * The result is worth stating as an invariant: after a scan every lyric `<p>`
- * carries a `lang`, unless the document branch is undecided — in which case no
- * line on the page has one either, so the page is uniform regardless.
  */
 export function applyScriptFont(
   el: HTMLElement,

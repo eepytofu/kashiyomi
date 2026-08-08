@@ -1,7 +1,4 @@
 // Assembles the per-line Japanese annotation: analyzer tokens + authored
-// reading hints, producing furigana segments (with provenance) and a romaji
-// line. Authored hints win over analyzer readings for both. Pure; no host
-// imports.
 
 import { alignFurigana } from "./furigana.ts";
 import { kanaToRomaji } from "./romaji.ts";
@@ -14,9 +11,6 @@ import { isNumeral, readCountedPhrase, readKanjiNumeral, readKnownPhrase } from 
 
 /**
  * Reading for a numeral at `index`, taking the following counter token with it
- * when the pair is irregular or assimilates. Returns undefined when this is not
- * a numeral the module is confident about, so the caller falls through to the
- * analyzer's own answer.
  */
 function numeralReading(
   tokens: readonly AnalyzerToken[],
@@ -103,10 +97,6 @@ export function annotateJapaneseLine(
     const hint = hints.find((h) => h.start < token.end && h.end > token.start);
     if (!hint) {
       // SudachiDict returns numerals as 数詞 with no reading at all, so 三人
-      // arrives as 三[∅] 人[ニン]: ruby lands on the counter alone and the
-      // romaji row shows the bare kanji. Numerals are rule-governed, so read
-      // them here, taking the following counter with them when the pair has a
-      // sound change (三匹 is さんびき, not さん + ひき).
       const numeral = numeralReading(tokens, i);
       if (numeral) {
         furigana.push({
@@ -206,31 +196,7 @@ function particleSpecial(token: AnalyzerToken): string | undefined {
   return undefined;
 }
 
-/**
- * True when a token continues the previous word rather than starting a new one.
- *
- * The romaji row spaced every analyzer token, so every inflected form came out
- * in pieces: 忘れた as `wasure ta`, 済みません as `sumi mase n`, 食べたかった as
- * `tabe takat ta`. Sudachi splits an inflection into stem plus auxiliary because
- * that is what parsing needs; romanization needs the word back.
- *
- * Three rules, each measured against the analyzer rather than assumed:
- *
- *   1. a prefix binds forward — お + 花 is `ohana`;
- *   2. the te-form binds back — 食べ + て is `tabete`;
- *   3. an auxiliary binds back **onto a verb, adjective or another auxiliary**.
- *
- * Rule 3's condition on the *previous* token is what makes it safe, and it is
- * the part that is easy to miss: 学生 + だっ + た is `gakusei datta`, not
- * `gakuseidatta`, because 学生 is a noun. です is excluded outright — the copula
- * is a word of its own, so 学生です is `gakusei desu`.
- *
- * Rule 2 is deliberately narrower than "any 接続助詞", which is what it looks
- * like it should be. けれど carries the identical tag `助詞,接続助詞`, and
- * binding it gives `ikukeredo` for 行くけれど. Matching the surface instead
- * keeps て and で and leaves the rest alone. から is safe either way — it is
- * 格助詞, not 接続助詞 — but only checking told us that.
- */
+/** True when a token continues the previous word rather than starting a new one. */
 function attachesToPrevious(previous: AnalyzerToken | undefined, token: AnalyzerToken): boolean {
   if (previous === undefined) return false;
   const previousPos = previous.rawPos[0] ?? "";

@@ -1,9 +1,4 @@
 // Copying a lyric line should yield the lyric, not our annotations.
-//
-// A <ruby> puts its <rt> text into any copied selection, so 千本桜 夜ニ紛レ
-// reaches the clipboard as 千本桜せんぼんざくら 夜よるニ紛まぎレ. `user-select:
-// none` on the rt does not prevent it in CEF 91. The romaji and translation
-// rows would come along too, for the same reason.
 
 import { ROW_CLASS } from "./render.ts";
 

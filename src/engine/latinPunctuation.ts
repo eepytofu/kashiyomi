@@ -1,11 +1,4 @@
 // Punctuation for romanized output. Pure; no host imports.
-//
-// Romanization is Latin-script orthography, so it takes Latin punctuation:
-// GB/T 16159 (汉语拼音正词法基本规则) specifies Western marks for pinyin, and
-// Hepburn does the same for romaji. Leaving CJK marks in also breaks spacing —
-// fullwidth ，。、 carry their own advance width, which is why a Han line needs
-// no space around them, so a romanized line that keeps them ends up with the
-// tokenizer's spaces on both sides: "yuán ， sān" instead of "yuán, sān".
 
 const CJK_TO_LATIN = new Map([
   ["，", ","],
@@ -68,9 +61,6 @@ export function toLatinPunctuation(text: string): string {
 
 /**
  * The same, over romaji segments. The renderer draws authored readings from
- * the segments and the plain line from the joined string, so the two must
- * agree; fixing them separately would let the coloured line and the plain one
- * disagree about spacing.
  */
 export function latinizeSegments<T extends { text: string }>(segments: readonly T[]): T[] {
   const out = segments.map((segment) => ({ ...segment, text: spaceMarks(mapMarks(segment.text)) }));
@@ -88,9 +78,6 @@ export function latinizeSegments<T extends { text: string }>(segments: readonly 
       // A space ending one segment and another starting the next join into a
       // double space that neither segment's own pass can see, because each is
       // collapsed on its own. With reading hints off this is the normal case:
-      // the brackets of 天（そら） are blanked for the analyzer, so the tokens
-      // around them carry spaces on both sides and the romaji read
-      // "ten  sora  wa".
       next.text = next.text.replace(/^[ \t]+/u, "");
     }
   }

@@ -1,7 +1,6 @@
 // The analyzer-neutral token contract shared with the native backend, plus
 // the fail-closed validator: a token stream that cannot be mapped back onto
 // the exact analyzed text is rejected outright rather than partially used.
-// Pure; no host imports.
 
 export type AnalyzerToken = {
   readonly surface: string;

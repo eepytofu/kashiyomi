@@ -53,9 +53,6 @@ export function rowText(label: string, description: string): HTMLElement {
   labelEl.textContent = label;
   text.appendChild(labelEl);
   // A description that only restates its label is noise, and it also makes the
-  // row taller than its neighbours for nothing. Those are blanked per language
-  // in i18n.ts rather than deleted, so a translation can keep one where the
-  // label alone does not carry.
   if (description !== "") {
     const desc = document.createElement("div");
     desc.className = "kc-desc";
@@ -192,21 +189,7 @@ export function textRow(
   return el;
 }
 
-/**
- * The user's own word→reading list, as free text.
- *
- * A textarea rather than a managed list of rows: the list is expected to be
- * short and rarely touched, and `word=reading` per line is something you can
- * paste, diff and back up. A row-per-entry widget would be more code and less
- * portable for the same result.
- *
- * Written on blur, then the analysis cache is dropped and every visible line is
- * analyzed again. **Both steps are required.** `rescan()` only clears the DOM;
- * the annotation cache is keyed by display text, so a rescan without
- * `resetAnalysisCache()` re-renders the reading the user just changed and the
- * setting looks like it does nothing. Same pairing `hanRepair` and
- * `readingHints` need, for the same reason.
- */
+/** The user's own word→reading list, as free text. */
 export function readingOverridesRow(): HTMLElement {
   const el = row();
   el.style.flexWrap = "wrap";

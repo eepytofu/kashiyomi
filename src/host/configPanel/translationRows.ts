@@ -1,7 +1,4 @@
 // Rows specific to the AI translation lane. Kept apart from rows.ts because
-// each of these carries knowledge the generic primitives do not: the provider
-// list, the target-language list, that keys are secrets, and that the cache
-// count has to be re-read after clearing.
 
 import { t, tSongsCached } from "../i18n.ts";
 import { getSettings, updateSettings, type Settings } from "../settings.ts";
@@ -12,9 +9,6 @@ import { row, rowText, textInput } from "./rows.ts";
 
 /**
  * `onProvider` updates the rows the choice affects: the base URL and the model
- * placeholder. It used to rebuild the whole panel, which replaced the `<select>`
- * under the pointer — recorded over CDP, every change was followed by `blur`
- * within 15ms, so the control lost focus and the panel visibly rebuilt.
  */
 export function providerRow(onProvider: (provider: Settings["aiProvider"]) => void): HTMLElement {
   const el = row();
@@ -41,12 +35,6 @@ export function providerRow(onProvider: (provider: Settings["aiProvider"]) => vo
  * The shortcut list, not a catalogue. Custom takes anything not here, so the
  * only job of this list is to save typing for the languages people actually
  * pick.
- *
- * **Endonyms, with an English alias for finding them.** The value goes into a
- * prompt as free text, so unlike a translation API we need no language codes and
- * can name each language the way its own speakers write it. That makes the list
- * unreachable from a Latin keyboard, which is what `search` fixes: typing
- * "japanese" lands on 日本語.
  */
 const COMMON_TARGET_LANGS: readonly { label: string; search: string }[] = [
   { label: "English", search: "english" },

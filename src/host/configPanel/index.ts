@@ -52,14 +52,7 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-/**
- * Module-scoped, not a local.
- *
- * `render(root)` is called by the provider dropdown and by Re-annotate, so a
- * local would snap back to Japanese the moment someone changed the AI provider
- * from inside the Translation tab. Not persisted either: NCM's own settings
- * opens on its first tab, and a remembered tab is state nobody asked for.
- */
+/** Module-scoped, not a local. */
 let activeTab: TabKey = "japanese";
 
 function render(root: HTMLElement): void {
@@ -90,11 +83,6 @@ function render(root: HTMLElement): void {
   needsDictionary.textContent = t("dictNeededForThese");
 
   // Rows in reading order, not gating order. The notice says "greyed settings",
-  // so it names its subjects instead of meaning "the rows after me", and that
-  // is what lets kanji repair sit among them: it needs no dictionary, so it is
-  // never greyed, and the notice never claims it.
-  // Size sits under furigana and only while it is on: it scales the ruby, so
-  // with furigana off there is nothing for it to scale.
   const { toggle: furiganaRow, dependents: furiganaSize } = revealWhile(
     jp,
     "furigana",
@@ -118,13 +106,6 @@ function render(root: HTMLElement): void {
   }
 
   // Exactly the settings that do nothing without a dictionary. Kanji repair is
-  // absent because `opencc-js` is bundled and it renders with nothing
-  // installed. Reading hints are present because although the parsing is pure,
-  // consuming a hint means moving it into a ruby, and with no analyzer there is
-  // no ruby to move it into.
-  // The size row is listed whether or not it is currently in the DOM: greying is
-  // a property of the element, so it stays correct when furigana is switched
-  // back on and the row returns.
   const gated = [furiganaRow, ...furiganaSize, romajiRow, hintsRow, overrides];
   // Directly under the dictionary row, which is the thing it is about, and a
   // fixed position now that it no longer has to sit above its subjects.
@@ -141,14 +122,6 @@ function render(root: HTMLElement): void {
   // Typography in one place. Six rows used to sit across three sections, and the
   // reading-row font had to live in Advanced with a comment explaining it
   // belonged to neither language — the per-feature grouping failing out loud.
-  // The same split appears in the author's spicy-lyrics fork, which keeps
-  // readings under Languages and font stacks under Appearance, and in browsers,
-  // where per-script font choices are one panel rather than one page each.
-  //
-  // Directly under the two language sections, because all three are about how
-  // a lyric renders; translation is a separate capability and Advanced is the
-  // leftovers. The reading-row font does also style translation rows, but
-  // grouping by what the reader is looking at beats grouping by coverage.
   left.appendChild(tabAnchor("fonts", t("sectionFonts")));
   const fonts = card();
   // `triggersRescan: false` throughout: a font change is styling, and restyling
@@ -214,24 +187,7 @@ function render(root: HTMLElement): void {
   linkTabsToScroll(root);
 }
 
-/**
- * A toggle plus the rows that only mean anything while it is on.
- *
- * A stack under a font switch that is off, or a size slider under furigana that
- * is off, is a control with no effect. Three of the six font rows were in that
- * state on a default install, which read as a wall of text boxes rather than as
- * settings. The same idea was already in this panel, where the AI base URL row
- * is only built for OpenAI-compatible providers.
- *
- * Inserted and removed, never hidden. `.kc-row + .kc-row` draws the divider
- * between rows, and a `display: none` element still sits between two rows as
- * far as the sibling combinator is concerned, so hiding it deletes the line
- * above. That exact bug shipped once already in the dictionary gate.
- *
- * Returns both parts, because the caller may still need them: the Japanese card
- * gates furigana *and* its size on the dictionary, whether or not either is
- * currently in the DOM.
- */
+/** A toggle plus the rows that only mean anything while it is on. */
 function revealWhile(
   card: HTMLElement,
   key: BooleanSettingKey,
@@ -270,16 +226,6 @@ function revealWhile(
 /**
  * Grey out settings that cannot do anything until a dictionary exists, and say
  * so once above them.
- *
- * Disabled rather than hidden: a panel that changes shape when a download
- * finishes is disorienting, and the greyed rows are also the clearest statement
- * of what the dictionary is *for*. Disabled rather than merely dimmed, too,
- * because a toggle that looks inactive but still writes a setting lets someone
- * turn on furigana, see nothing happen, and have no way to tell which of the two
- * things is broken.
- *
- * Follows the inventory rather than being decided once: the dialog this panel
- * opens can install a dictionary without the panel being rebuilt.
  */
 function gateOnDictionary(
   rows: readonly HTMLElement[],
@@ -290,18 +236,6 @@ function gateOnDictionary(
   const paint = (): void => {
     const absent = !dictionaryInventory().installed;
     // Inserted and removed, never hidden. `.kc-row + .kc-row` draws the divider
-    // between settings, and a `display:none` element still sits between two
-    // rows as far as the sibling combinator is concerned, so hiding it silently
-    // deleted the line under the dictionary row.
-    //
-    // `parentNode`, never `isConnected`: this panel is built detached and
-    // handed to BetterNCM to insert, so `isConnected` is false for the whole of
-    // construction. Boot resolves the asset paths asynchronously (measured at
-    // 8.6s once), and opening settings inside that window inserted the notice
-    // and then had the removal skipped, because the dictionary arrived while
-    // the card was still detached. The panel then attached with a notice under
-    // a row already reading "installed", and it stayed until some later change
-    // repainted it.
     const inCard = notice.parentNode !== null;
     if (absent && !inCard) card.insertBefore(notice, before);
     else if (!absent && inCard) notice.remove();
@@ -316,14 +250,7 @@ function gateOnDictionary(
   onPanelTeardown(onDictionaryChange(paint));
 }
 
-/**
- * Keep a row in the card only while no dictionary is installed.
- *
- * `parentNode`, never `isConnected`: this panel is built detached and handed to
- * BetterNCM to insert, so `isConnected` is false for the whole of construction
- * and the removal branch would be unreachable. Same trap as the gate notice
- * above, which shipped with exactly that bug.
- */
+/** Keep a row in the card only while no dictionary is installed. */
 function followMissingDictionary(row: HTMLElement, card: HTMLElement): void {
   const paint = (): void => {
     const absent = !dictionaryInventory().installed;
@@ -338,63 +265,16 @@ function followMissingDictionary(row: HTMLElement, card: HTMLElement): void {
 /**
  * NCM's own settings navigation: a horizontal strip, active tab underlined,
  * only that tab's content below.
- *
- * Copied from the host rather than invented. NCM's settings page runs
- * 账号 / 常规 / 系统 / 播放 / … the same way, and it is the surface a user is
- * actually comparing this against, so it reads as native instead of as a
- * control this plugin made up.
- *
- * It also replaced an "Analyzer ready" status line that sat here. That line was
- * Japanese-specific on a global bar, said the same thing as the dictionary row
- * in different words, and read like a crash when it said "not started". What it
- * genuinely reported — that a dictionary can be on disk and still fail to open —
- * now lives on the row that owns the dictionary.
- *
- * Re-annotate and the language toggle keep the right end. The toggle in
- * particular has to stay reachable without scrolling: it was tried inside a
- * section once and landed 1500px down a page that someone who cannot read the
- * panel has to traverse to reach the control that fixes it.
  */
-/**
- * A section heading the tab strip can scroll to and highlight.
- *
- * NCM's own settings work this way and its class names say so:
- * `cmd-anchor-link-wrapper` over `cmd-anchor-link-title`. Every section is on
- * one scrolling page and the strip is an index into it, not a filter — measured
- * on the running app, where the ten tabs all sit at `top: 140` while the section
- * headings are spread from -1891 to +2310.
- */
+/** A section heading the tab strip can scroll to and highlight. */
 function tabAnchor(key: TabKey, label: string): HTMLElement {
   const el = sectionTitle(label);
   // Deliberately not `data-kc-tab`: that is the strip's own buttons. Sharing one
-  // attribute made `querySelectorAll` return ten elements where five were meant,
-  // and the five buttons come first in document order, so the click handler's
-  // `find` returned a button and scrolled to a sticky element already at the top
-  // — every tab click did nothing.
   el.setAttribute("data-kc-anchor", key);
   return el;
 }
 
-/**
- * Keep the strip in step with the scroll, and scroll on click.
- *
- * Compares rects on scroll rather than using `IntersectionObserver`. The
- * observer was tried and could never fire: its band was `rootMargin` of
- * `0 0 -80% 0` against the viewport, so a heading had to reach the top fifth to
- * count. Measured on the running app, that band ends at y=173 while the panel
- * starts at y=212 — BetterNCM's own chrome sits above us and the scrolling
- * container is 595px tall inside an 864px window, so no heading could ever
- * enter it and the highlight never moved off the first tab.
- *
- * Any fraction of the viewport has that bug latent in it, since the panel does
- * not own its scroll container. A rect against the strip's own bottom edge has
- * nothing to be wrong about: the current section is the last one whose heading
- * has passed under the strip.
- *
- * The listener is on the document in the capture phase, which sees scroll
- * events from any ancestor container without needing a reference to it — the
- * property the observer was chosen for in the first place.
- */
+/** Keep the strip in step with the scroll, and scroll on click. */
 function linkTabsToScroll(root: HTMLElement): void {
   const tabs = [...root.querySelectorAll<HTMLElement>(".kc-tab")];
   const anchors = [...root.querySelectorAll<HTMLElement>("[data-kc-anchor]")];
@@ -408,45 +288,13 @@ function linkTabsToScroll(root: HTMLElement): void {
     }
   };
 
-  /**
-   * The gap between the strip and a heading that has just been scrolled to.
-   *
-   * One number on purpose: it sets where a clicked heading comes to rest and
-   * where the spy counts it as arrived. Written separately they drifted 8px
-   * apart, which put every click one section behind.
-   */
+  /** The gap between the strip and a heading that has just been scrolled to. */
   const AIR = 8;
 
   // The scrolling ancestor belongs to BetterNCM, so it is found rather than
-  // assumed, and cached because this runs inside a scroll handler. Looked up
-  // lazily rather than at setup: BetterNCM builds the config element detached
-  // and inserts it later, so at construction there is no scrolling ancestor to
-  // find and every rect is zero.
   let scroller: HTMLElement | null = null;
 
-  /**
-   * Teach the strip and the anchors how much room the strip really takes.
-   *
-   * Sticky `top: 0` parks the strip at the scrollport, which sits below the
-   * container's own `padding-top` — measured on the running app, the container
-   * starts at y=196 with 16px of padding and the strip lands at 212. That band
-   * is not covered by anything, so rows scroll visibly through it above the
-   * tabs, and it is dead space the tabs could have used.
-   *
-   * So the strip takes it: a negative margin moves it up in flow and the same
-   * negative sticky offset keeps it there once stuck, which matters because the
-   * two are separate positions — margin alone would leave the tabs jumping 16px
-   * upward on the first scroll.
-   *
-   * The same padding was breaking clicks, because `scroll-margin-top` counts
-   * from the container's top edge and not from below the strip: a heading asked
-   * for at 44px landed underneath it. That is why the clearance is published
-   * here as a custom property instead of written into the stylesheet — it is the
-   * strip's measured height, so it cannot fall out of step with the strip.
-   *
-   * Read from the host rather than hardcoded: the padding is BetterNCM's and it
-   * is free to change it.
-   */
+  /** Teach the strip and the anchors how much room the strip really takes. */
   const calibrate = (container: HTMLElement): void => {
     const pad = Number.parseFloat(getComputedStyle(container).paddingTop) || 0;
     if (pad > 0) {
@@ -454,15 +302,6 @@ function linkTabsToScroll(root: HTMLElement): void {
       strip.style.top = `-${pad}px`;
     }
     // Two clearances, because the two properties do not measure from the same
-    // edge. `scroll-margin-top` counts from the container's border box, sticky
-    // `top` counts from its content box, and the gap between them is exactly the
-    // padding above. Publishing one number for both put the side column 4px
-    // below the settings column at rest: PREVIEW at 259 against JAPANESE at 255.
-    // The strip has to paint its own background or rows scroll through it, and
-    // the colour has to match the page exactly or the strip becomes a visible
-    // panel. Take it from whichever ancestor actually paints one: measured, the
-    // first is `body`, because all 13 elements between are fully transparent.
-    // Read rather than hardcoded so a themed or reskinned client still matches.
     for (let el: HTMLElement | null = strip.parentElement; el; el = el.parentElement) {
       const bg = getComputedStyle(el).backgroundColor;
       if (bg && bg !== "transparent" && !bg.startsWith("rgba(0, 0, 0, 0")) {
@@ -496,14 +335,7 @@ function linkTabsToScroll(root: HTMLElement): void {
     return scroller !== null && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
   };
 
-  /**
-   * Scroll a heading to the top, animated by hand.
-   *
-   * `scrollIntoView({ behavior: "smooth" })` moves BetterNCM's nested scroller
-   * 0px, while the instant form moves it the full 1206 and assigning `scrollTop`
-   * works. Recorded on real clicks: the tab lit up and the page stayed put.
-   * Animating the property directly gets both.
-   */
+  /** Scroll a heading to the top, animated by hand. */
   let tween = 0;
   const scrollToAnchor = (el: HTMLElement): void => {
     const scroller = findScroller();
@@ -531,10 +363,6 @@ function linkTabsToScroll(root: HTMLElement): void {
 
   const current = (): string | null => {
     // The last section is short, so the container runs out of scroll while its
-    // heading is still mid-page: Advanced sits at y=1244 in a 595px scroller and
-    // can never reach the strip at y=249. Without this it is unreachable by
-    // scrolling *and* by clicking, since the click settles the same way. At the
-    // end of the scroll the last section is the current one by definition.
     const last = anchors[anchors.length - 1];
     if (last && atBottom()) return last.getAttribute("data-kc-anchor");
 
@@ -549,15 +377,7 @@ function linkTabsToScroll(root: HTMLElement): void {
     return key;
   };
 
-  /**
-   * The tab a click is still travelling to, if any.
-   *
-   * Without it the spy lights every section the smooth scroll crosses, walking
-   * the indicator to the target instead of moving it there. Cleared on arrival
-   * so a hand scroll takes over immediately; the timeout is a backstop for a
-   * scroll that cannot reach its target. `scrollend` would say this exactly and
-   * is Chrome 114.
-   */
+  /** The tab a click is still travelling to, if any. */
   let pending: string | null = null;
   let pendingAt = 0;
 
@@ -573,7 +393,6 @@ function linkTabsToScroll(root: HTMLElement): void {
       // BetterNCM builds the panel detached and inserts it later, so every rect
       // is 0 until it lands. That reads as "every heading is above the line" and
       // lights the last tab, which is why opening settings showed Advanced.
-      // Bounded so a panel that never attaches stops asking.
       if (strip.getBoundingClientRect().height === 0 && waitingForLayout++ < 120) {
         sync();
         return;
@@ -648,9 +467,6 @@ function buildLangToggle(root: HTMLElement): HTMLElement {
   const wrap = document.createElement("span");
   wrap.className = "kc-lang";
   // Sitting in the status bar with no label, this control does not say what it
-  // changes; more than one reading of "EN / 中文" next to a lyrics plugin is
-  // plausible. The settings-row experiment made the scope explicit and cost too
-  // much elsewhere, so the wording survives as the hover text.
   wrap.title = t("panelLanguageDesc");
   const current = panelLang();
   const options: [PanelLang, string][] = [

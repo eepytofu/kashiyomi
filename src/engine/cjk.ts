@@ -1,8 +1,4 @@
 // Per-line CJK routing: decide whether a lyric line should get Japanese
-// readings, pinyin, or nothing. Document context matters because Han-only
-// lines are ambiguous between Chinese and kanji-only Japanese lines, but
-// bilingual songs mix both, so a Han-only line that looks Chinese wins over
-// the document branch. Pure; no host imports.
 
 import { hasChineseOnlyGlyphs, hasJapaneseOnlyGlyphs } from "./hanForms.ts";
 import { HAN_CHAR, hasHan, hasKana } from "./kana.ts";
@@ -26,9 +22,6 @@ export type CjkDocumentContext = {
 
 /**
  * Whether the player shows a Chinese translation under this particular line.
- * NetEase translates foreign lyrics into Chinese and has no reason to
- * translate a Chinese line, so within a song that carries translations, a
- * translated line is not Chinese and an untranslated one very likely is.
  */
 export type LineTranslationState = "translated" | "untranslated" | "unknown";
 
@@ -39,16 +32,6 @@ const CHINESE_MARKERS = new Set(
 );
 
 // Dropped on 2026-08-04: 給. It is the traditional form of 给, and it is also
-// the everyday Japanese kanji — SudachiDict has 給料, 供給, 配給, 支給, 給料日,
-// 供給源 — so it is character-identical to ordinary Japanese, the same test that
-// removed 時候/過去/現在/出來. NetEase ships simplified (4/4 songs captured), so
-// 給 could only ever misfire here while 给 does the work. Reopen if a captured
-// NetEase song is served in traditional and uses 給 as the verb.
-//
-// Checked and kept in the same pass: 讓 is only a given name in SudachiDict
-// (ユズル, and names land in credit lines, which are skipped); 說 and 麼 are OOV
-// entirely; 一個 tokenizes as 一 + 個 (numeral plus counter), not as a word, so
-// it cannot appear in a kana-free Japanese line the way 時候 could.
 
 // Chinese word patterns whose characters are individually ambiguous but whose
 // pairing is not.
@@ -62,18 +45,9 @@ const CHINESE_BIGRAMS = [
 ];
 
 // Dropped on 2026-08-03: 時候, 過去, 現在, 出來. Each is a traditional form that
-// is character-identical to an ordinary Japanese word (ジコウ, カコ, ゲンザイ,
-// デキ), so it could only ever misfire here — NetEase is a mainland service and
-// ships simplified, including in credit labels, on every song captured so far.
-// The simplified twins 时候/过去/现在/出来 stay; 出来 is also common Japanese, but
-// unlike the others it is genuinely the form this platform serves.
 
 /**
  * Japanese lyric lines almost always carry kana, because particles and
- * inflection are written in kana. A run of this many Han characters with no
- * kana at all is therefore very likely Chinese, but only in a document that
- * already looks bilingual: an all-Japanese song may still contain a set
- * phrase such as 天上天下唯我独尊, and it must not be mistaken for Chinese.
  */
 const HAN_RUN_CHINESE_LENGTH = 5;
 
@@ -81,7 +55,6 @@ const HAN_RUN_CHINESE_LENGTH = 5;
  * Normalize a line before any script test. Halfwidth katakana (ｱﾏﾂｷﾂﾈ) lives
  * in a different code range from normal kana, so without this a line written
  * that way reads as having no kana at all and gets routed as Chinese.
- * Detection only; the displayed text is never normalized.
  */
 export function normalizeForDetection(line: string): string {
   return line.normalize("NFKC");
@@ -111,9 +84,6 @@ function hasChineseVocabulary(rawLine: string): boolean {
 
 /**
  * Positive evidence that a kana-free line is Chinese. Glyph forms are checked
- * alongside vocabulary because literary lines carry no function words, and
- * vocabulary is checked at all because a bilingual song's Chinese lines are
- * sometimes typed with Japanese glyph forms (継続 for 继续).
  */
 function looksChinese(line: string): boolean {
   return hasChineseVocabulary(line) || hasChineseOnlyGlyphs(line);
@@ -121,14 +91,6 @@ function looksChinese(line: string): boolean {
 
 /**
  * Classify the whole lyric document. A couple of kana lines mark the song as
- * Japanese; a clear majority of Han-only lines marks it as Chinese. A small
- * Japanese island must not flip an otherwise Chinese document, so Chinese
- * needs a 2:1 advantage in Han-only lines.
- *
- * There used to be an absolute floor of two Han-only lines alongside the
- * ratio. It never did anything: the only case it excluded (no kana lines, one
- * Han-only line) falls through to the final branch, which returns "chinese"
- * regardless.
  */
 export function resolveDocumentBranch(lines: readonly string[]): CjkDocumentBranch {
   return resolveDocumentContext(lines).branch;
@@ -150,9 +112,6 @@ export function resolveDocumentContext(
 
   // Evidence of a *second language* is counted over distinct lines instead. A
   // chorus line repeated four times is one piece of evidence, not four:
-  // counting occurrences let 千本桜's twice-repeated 三千世界 常世之闇 make the
-  // song look bilingual by itself, after which every kana-free line in it
-  // routed to Chinese.
   let distinctKanaLines = 0;
   let longHanOnlyLines = 0;
   let chineseEvidenceLines = 0;
@@ -183,40 +142,13 @@ export function resolveDocumentContext(
   else branch = "chinese";
 
   // A second language has to actually show itself. Length is not evidence:
-  // the absence of Japanese orthography is not the presence of Chinese, and
-  // treating it as such made an all-Japanese song of four-character compounds
-  // (千本桜) look bilingual. So require at least one line carrying positive
-  // Chinese evidence — vocabulary or Chinese-only glyph forms — as well as a
-  // recurring pattern of kana-free lines rather than one stray set phrase.
   const bilingual =
     distinctKanaLines >= 2 && chineseEvidenceLines >= 1 && longHanOnlyLines >= 2;
   const hasTranslations = translationStates.some((state) => state === "translated");
   return { branch, bilingual, hasTranslations };
 }
 
-/**
- * Route one line, strongest evidence first:
- *
- * 1. kana present, so Japanese;
- * 2. the player is translating this song and translated this line, so it is
- *    not Chinese — NetEase translates foreign lyrics into Chinese and has no
- *    reason to translate a Chinese line;
- * 3. the same song, but this line went untranslated, so it is Chinese;
- * 4. positive Chinese evidence (vocabulary or Chinese-only glyph forms);
- * 5. Japanese-only glyph forms or the iteration mark;
- * 6. in a bilingual song, a long kana-free Han run;
- * 7. otherwise the document branch.
- *
- * The translation slot outranks every character heuristic because it is what
- * the player itself concluded about the line, per line, rather than a guess
- * from its glyphs. It only speaks when 译 is on; rungs 4-7 are the fallback
- * for when it is off, and 無 (立入禁止/歌爱ユキ/诗岸) is the song that needs
- * them.
- *
- * Below the translation slot, Chinese evidence outranks Japanese glyph forms
- * because a Chinese sentence typed with Japanese forms is still Chinese, while
- * 的 as a particle is not Japanese at all.
- */
+/** Route one line, strongest evidence first: */
 export function resolveLineRoute(
   rawLine: string,
   doc: CjkDocumentBranch | CjkDocumentContext,
@@ -232,9 +164,6 @@ export function resolveLineRoute(
   if (!kana && !han) return undefined;
   if (kana) return "japanese";
   // In a song the player is translating into Chinese, whether this line got a
-  // translation says more than any character heuristic: a Japanese line typed
-  // with a Chinese-only glyph form used to route Chinese even while NCM was
-  // visibly showing a translation for it.
   if (context.hasTranslations && translation === "translated") return "japanese";
   if (context.hasTranslations && translation === "untranslated") return "chinese";
   if (looksChinese(line)) return "chinese";

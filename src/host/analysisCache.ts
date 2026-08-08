@@ -1,11 +1,4 @@
 // In-memory cache of line analysis results.
-//
-// Analysis is deterministic for a given display text, and NCM recycles line
-// elements constantly while scrolling, so the same lines would otherwise be
-// re-analyzed many times per song. A plain map is enough: the expensive part
-// is the one-off dictionary load, not tokenizing a line, and keeping this out
-// of storage avoids competing with the translation cache for quota and avoids
-// stale results when the dictionary or engine changes.
 
 import type { JapaneseLineAnnotation } from "../engine/japanese.ts";
 

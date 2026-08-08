@@ -135,11 +135,6 @@ export async function translateSong(
 }
 
 // ---- providers ---------------------------------------------------------
-//
-// The two providers differ only in where the request goes, how the key is
-// carried, how the prompt is shaped, and where the text sits in the reply.
-// `send` owns everything they share, so adding a third provider is a table
-// entry rather than another copy of the error handling.
 
 type ProviderRequest = {
   url: string;

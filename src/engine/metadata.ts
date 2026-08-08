@@ -12,21 +12,7 @@ function normalizeLabel(label: string): string {
   return label.replace(/[\s·・]/gu, "").toLowerCase();
 }
 
-/**
- * The pieces credit labels are built from, not the labels themselves.
- *
- * This used to be a list of whole labels, and every miss reported against it
- * was the same shape: a real role the list did not happen to contain. 录音 was
- * listed and 录音室 was not; 和声 and 编写 were listed and 和声编写 was not; 声
- * appeared only inside 人声 and 和声, so 女声 was a lyric. Chinese role labels
- * are compounds, so enumerating them is enumerating a product set — the list
- * grows forever and is never finished.
- *
- * Listing the *morphemes* instead makes the compounds fall out. Entries longer
- * than one character are here because they do not decompose (吉他, 琵琶,
- * イラスト) or because their parts are too weak to carry a label alone (工作室,
- * 特别感谢).
- */
+/** The pieces credit labels are built from, not the labels themselves. */
 const ROLE_MORPHEMES = new Set([
   // Chinese, one character: the productive pieces. 声 alone covers 女声/男声/
   // 童声/和声/人声, which is six table entries the old list needed separately.
@@ -36,11 +22,6 @@ const ROLE_MORPHEMES = new Set([
   // Modifiers that specify a role rather than name one. They never stand alone
   // as a label: at the 2/3 threshold 女 or 主 on its own leaves a two-character
   // label at 0.50 and it stays a lyric.
-  //
-  // 人 is deliberately absent, and 人声 listed whole instead. As a morpheme it
-  // made 女人, 男人 and 主人 into credits at 1.00, so a song with spoken parts
-  // would lose the labelled line and the dialogue on it. It is the one modifier
-  // here that is also an everyday noun.
   "主", "女", "男", "童", "合", "伴", "领", "領", "独", "獨", "配", "原",
   "和", "翻", "改", "特", "总", "總", "副",
   "人声", "人聲",
@@ -76,14 +57,7 @@ const ROLE_MORPHEMES = new Set([
   "op", "mv",
 ].map(normalizeLabel));
 
-/**
- * How much of a label is accounted for by role morphemes, 0 to 1.
- *
- * Longest-cover dynamic program: `best[i]` is the most characters coverable in
- * the first `i`. Uncovered characters are skipped rather than failing the
- * label, which is the whole difference from the exact decomposition this
- * replaces — 录音室 scores 0.67 instead of failing outright on 室.
- */
+/** How much of a label is accounted for by role morphemes, 0 to 1. */
 function roleCoverRatio(label: string): number {
   const chars = [...label];
   if (chars.length === 0) return 0;
@@ -101,28 +75,10 @@ function roleCoverRatio(label: string): number {
 
 /**
  * Two thirds, and it is derived rather than tuned: it is exactly the ratio of
- * 录音室 (录音 + 室), the label that forced this rewrite. Read as a rule it says
- * a two-character label needs both characters covered, a three-character label
- * needs two, a four needs three.
- *
- * It sits high on purpose. A label this test *misses* is still recovered by the
- * credit run in `lineKinds.ts`, which needs no vocabulary at all; a label it
- * wrongly *accepts* is recovered by nothing and silently drops a sung line. So
- * the bound is set by the weakest real credit we want to anchor a run, not by
- * the strongest counterexample — at 0.50 the two-character case collapses, and
- * 词穷 becomes indistinguishable from 女声.
- *
- * Measured over 33 labels observed in captures and screenshots: 0.67 accepts
- * 28, and the five below it (文案故事 at 0.50 is the clearest) are all inside a
- * credit block, where the run reaches them anyway.
  */
 const ROLE_COVER_MIN = 2 / 3;
 
 // A short label, optionally numbered, followed by a colon and a value. The
-// bound is only a cheap prefilter — every part still has to be a known role —
-// so it has to be loose enough for real compound credits. At 20 it rejected
-// "Lyrics & Music & Arrangement:" and "special thanks & translation:", both of
-// which are ordinary on Vocaloid uploads.
 const CREDIT_LINE =
   /^\s*(?:\d{1,3}\s*[.．、)]\s*)?([\p{L}\p{N}][\p{L}\p{N}\s&/・·,，、-]{0,40}?)\s*[:：]\s*(\S.*)$/u;
 
@@ -139,11 +95,6 @@ export function isCreditLine(line: string): boolean {
   // A label may list several roles at once: 词/曲, 编曲/和声编写, Lyrics & Music.
   // Each side has to stand on its own, so that 作词/张三 — a role beside a name,
   // which is a lyric-side slash — is not accepted because half of it matched.
-  // Empty parts are kept rather than filtered. A trailing or doubled separator
-  // ("Lyrics&", 作词、) leaves one, it covers nothing, and so it fails the
-  // threshold on its own — which is what stops a role plus a stray separator
-  // from being read as a credit. Filtering them first is what made the old code
-  // need a separate part-count check.
   const parts = label.split(/[&/,，、]/u);
   return parts.every((part) => roleCoverRatio(part) >= ROLE_COVER_MIN);
 }
@@ -151,16 +102,6 @@ export function isCreditLine(line: string): boolean {
 /**
  * True when the line is a rights notice rather than a lyric — 未经许可不得使用,
  * 本歌曲版权由…享有, 版权所有 侵权必究.
- *
- * These carry no label and no colon, so neither credit test can see them: they
- * are whole sentences, and they get pinyin and a translation request like any
- * other line.
- *
- * Matching is by term count rather than by containment, because the vocabulary
- * splits cleanly in two and treating it as one set would misfire. 版权, 侵权 and
- * 著作权 are legal words that no lyric uses, so one is enough. The rest are
- * ordinary Chinese — 不得 in particular is everywhere in literary lyrics
- * (不得不, 舍不得) — so they only count in company.
  */
 export function isCopyrightNotice(line: string): boolean {
   for (const term of RIGHTS_TERMS) {
@@ -188,8 +129,6 @@ const NOTICE_TERMS = [
 /**
  * True when the whole line is a singer or section marker: 【合】, 【海伊】,
  * [Chorus]. Duet uploads put these on their own line to say who sings next.
- * They are not lyrics — romanizing 【合】 as "hé" and translating it is noise —
- * and they carry no role label, so `isCreditLine` cannot see them.
  */
 export function isPartMarkerLine(line: string): boolean {
   return PART_MARKER_LINE.test(line);
@@ -202,16 +141,6 @@ const PART_MARKER_LINE = /^\s*[【〖\[(（]\s*[^】〗\])）]{1,12}\s*[】〗\]
 /**
  * True when a line is *shaped* like a credit — a short label, then a colon,
  * then a value — without requiring the label to be a role we know.
- *
- * The role table cannot be complete (`PV:`, `Mastering Engineer:`, `特效:` are
- * all real and all absent), and an unrecognized credit becomes a lyric: it gets
- * annotated and sent to the translator. This is the weaker test a caller can
- * combine with evidence the table does not have — where the line sits in the
- * song, and whether the player translated it.
- *
- * Deliberately stricter than `CREDIT_LINE` on the label, because on its own
- * this would swallow lyrics: no kana (roles are written in kanji or Latin, so
- * "君に言った: さよなら" is excluded) and short.
  */
 export function hasCreditShape(line: string): boolean {
   const match = CREDIT_LINE.exec(line);
@@ -229,9 +158,5 @@ const CREDIT_SHAPE_MAX_LABEL = 20;
 
 /**
  * A role label is a noun phrase. These characters belong to sentences, so a
- * "label" holding one is a lyric that happens to contain a colon —
- * 答案是：我不知道 is the case that forced this. Kept deliberately small, and
- * free of characters that appear in real roles (和 rules out 和声, 制 rules out
- * 制作人).
  */
 const SENTENCE_CHARS = new Set([..."是不我你他她們们的了吗嗎呢吧很麼么怎"]);

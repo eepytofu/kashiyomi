@@ -1,15 +1,4 @@
 // Downloading, verifying and installing the Sudachi dictionary.
-//
-// Splits the work where each side is strong: `fetch` here, because it is
-// already HTTPS, already streams, and already honours whatever proxy the user
-// has configured, all of which a Rust client would need written by hand, and
-// the users who most need a proxy are exactly the ones this exists for.
-// Verification and extraction happen natively, because the extracted dictionary
-// is 207 MB and has no business in this heap.
-//
-// Policy lives in `engine/dictionarySource.ts`: which source to try, what each
-// failure means, whether it fits the disk. That half is covered by
-// `node --test` without a network.
 
 import {
   DICTIONARY_MEMBER,
@@ -57,31 +46,12 @@ export function dictionaryJob(): DictionaryJob {
   return job;
 }
 
-/**
- * How many things are currently following the dictionary.
- *
- * On the debug handle rather than in a test, because the failure it catches is
- * a leak across panel rebuilds and the only place that actually happens is a
- * running NCM.
- *
- * **The number is not one.** An open settings panel is two: the dictionary row
- * repaints itself, and the Japanese card's gate greys the settings that need a
- * dictionary. The first-run dialog adds a third while it is open. What matters
- * is that the count returns to its baseline after a rebuild or a close, not
- * that it equals any particular figure, so read it twice rather than once.
- */
+/** How many things are currently following the dictionary. */
 export function dictionaryListenerCount(): number {
   return listeners.size;
 }
 
-/**
- * Notify a listener whenever either changes, whoever changed it.
- *
- * The settings row used to repaint only in response to its own button, so a
- * download started anywhere else left it reading "not installed" over a
- * dictionary that was installed and working. A control whose whole job is
- * reporting state has to follow the state rather than its own last click.
- */
+/** Notify a listener whenever either changes, whoever changed it. */
 export function onDictionaryChange(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -98,25 +68,11 @@ function setJob(next: DictionaryJob): DictionaryJob {
   return job;
 }
 
-/**
- * The shortest gap between two progress announcements.
- *
- * A `ReadableStream` over a 69 MB transfer hands back roughly a thousand
- * chunks, and every one of them used to notify every listener, each repainting
- * a row whose smallest visible step is 0.1 MB. Nothing could see most of that
- * work. At 250 ms the bar still moves continuously to a human and the panel
- * repaints a few dozen times instead of a thousand.
- */
+/** The shortest gap between two progress announcements. */
 const PROGRESS_ANNOUNCE_MS = 250;
 let lastProgressAnnounce = 0;
 
-/**
- * Record progress every chunk, tell anyone about it far less often.
- *
- * The value stays current because the control also samples it on a timer, so
- * this is a coalesced *notification*, never a coalesced measurement: a reader
- * arriving between announcements still sees the true byte count.
- */
+/** Record progress every chunk, tell anyone about it far less often. */
 function setProgress(next: DictionaryJob): void {
   job = next;
   const now = Date.now();
@@ -125,14 +81,7 @@ function setProgress(next: DictionaryJob): void {
   announce();
 }
 
-/**
- * Publish what the disk holds.
- *
- * Takes the answer rather than reading it, because boot has already asked the
- * directory and reading it twice invites the two answers to differ. The
- * recorded version is dropped when the file is not there: a version describes a
- * file, and outliving it would let the control date something nothing can open.
- */
+/** Publish what the disk holds. */
 export function reportInventory(installed: boolean): void {
   if (!installed && getSettings().dictVersion !== undefined) {
     updateSettings({ dictVersion: undefined });
@@ -166,47 +115,20 @@ async function refreshInventory(dictDir: string): Promise<void> {
   reportInventory(await dictionaryOnDisk(dictDir));
 }
 
-/**
- * Whether a check ran recently enough that another one cannot learn anything.
- *
- * The interval lives in the engine beside the view that reads it, so the rule
- * the button is disabled by and the rule the network request is skipped by are
- * the same number rather than two that can drift.
- */
+/** Whether a check ran recently enough that another one cannot learn anything. */
 export function checkedRecently(): boolean {
   const at = getSettings().dictCheckedAt;
   return at !== undefined && Date.now() - at < CHECK_INTERVAL_MS;
 }
 
-/**
- * Record that a check got a real answer.
- *
- * Written on any answered check, including one that found nothing: "nothing
- * newer exists" is exactly the answer worth remembering, since it is the one
- * that makes asking again pointless for a while.
- */
+/** Record that a check got a real answer. */
 export function recordCheck(): void {
   const at = Date.now();
   updateSettings({ dictCheckedAt: at });
   inventory = { ...inventory, checkedAt: at };
 }
 
-/**
- * Check for a newer release without anyone pressing anything.
- *
- * Refuses while anything else is happening, so it can never interrupt an
- * install or steal its abort signal, and it clears its own resolving state
- * afterwards so a background check does not leave the button reading
- * "Checking…" forever.
- *
- * Also refuses inside the interval. Opening settings used to fire two requests
- * every time, which for a dictionary that ships quarterly is a network call to
- * re-learn what is already on disk.
- *
- * A failure records nothing. `latest` staying undefined means "not asked",
- * which is exactly why it can never be mistaken for "up to date": a control
- * asserting a check it had never made is what this exists to end.
- */
+/** Check for a newer release without anyone pressing anything. */
 export async function checkForNewerRelease(): Promise<void> {
   if (inFlight || job.kind !== "idle" || checkedRecently()) return;
   const { release, checked } = await resolveRelease();
@@ -218,14 +140,7 @@ export async function checkForNewerRelease(): Promise<void> {
   else announce();
 }
 
-/**
- * Forget the last check, so the next open asks again.
- *
- * Debug only, on `kashiyomi.forgetDictCheck`. A twelve-hour throttle that
- * persists across restarts is otherwise untestable without hand-editing
- * settings, which is how a test ends up proving something about a blob rather
- * than about the code.
- */
+/** Forget the last check, so the next open asks again. */
 export function forgetDictionaryCheck(): void {
   updateSettings({ dictCheckedAt: undefined });
   inventory = { ...inventory, checkedAt: undefined, latest: undefined };
@@ -235,41 +150,18 @@ export function forgetDictionaryCheck(): void {
 /**
  * The update check itself failed, with the dictionary already at the pinned
  * version so there is nothing to install instead.
- *
- * The only place `no-source` is set. It used to be declared and unreachable,
- * which meant the control could never say the difference between "nothing
- * newer exists" and "nobody answered".
  */
 export function reportNoSource(): void {
   setJob({ kind: "failed", reason: "no-source", at: Date.now() });
 }
 
-/**
- * A check answered, and the installed dictionary is already that release.
- *
- * The other half of `reportNoSource`: both are the "nothing to install" ending
- * of `startDictionaryInstall` and both must *end the job*. `resolveRelease` sets
- * `resolving` on the way in, so returning without a terminal state leaves the
- * row reading "Checking…" until a reload, with every later press swallowed by
- * the `job.kind !== "idle"` guard.
- */
+/** A check answered, and the installed dictionary is already that release. */
 export function reportUpToDate(): void {
   recordCheck();
   setJob({ kind: "idle" });
 }
 
-/**
- * Stop whatever the current attempt is doing, wherever it has got to.
- *
- * Two mechanisms because there are two kinds of work and one signal cannot
- * reach both: the metadata check and the transfer are `fetch` calls behind an
- * `AbortController`, while verifying and unpacking happen on a native worker
- * that only sees a flag it polls between chunks.
- *
- * Safe at every point it is accepted. Nothing is written to the live path until
- * the swap, and the swap is exactly where the native side stops agreeing to be
- * cancelled.
- */
+/** Stop whatever the current attempt is doing, wherever it has got to. */
 export function cancelDictionaryDownload(): void {
   abort?.abort();
   nativeCancelInstall();
@@ -287,23 +179,11 @@ export function simulateDictionaryFailure(reason: DictionaryFailure | undefined)
 
 export type ResolvedRelease = {
   readonly release: DictionaryRelease;
-  /**
-   * False when every metadata source refused and this is the build-time pin.
-   *
-   * The distinction is the whole of `no-source`: an install can go ahead on the
-   * pin, but an *update check* cannot honestly report "already the newest" when
-   * nothing answered the question.
-   */
+  /** False when every metadata source refused and this is the build-time pin. */
   readonly checked: boolean;
 };
 
-/**
- * Resolve the newest release, trying each source in turn.
- *
- * Falls through on **failure**, never on a guess about where the user is: a
- * mainland connection reaches the mirror naturally and everyone else never
- * learns it exists.
- */
+/** Resolve the newest release, trying each source in turn. */
 export async function resolveRelease(): Promise<ResolvedRelease> {
   // The attempt's abort signal starts here, not at the download: an update
   // check against a source that is timing out is exactly when someone reaches
@@ -357,17 +237,7 @@ export function planDownload(release: DictionaryRelease, dictionaryDir: string):
   };
 }
 
-/**
- * Fetch, verify, install, and load, in that order and never any other.
- *
- * The dictionary is only replaced by a rename of a file that has already been
- * hash-checked and extracted, so a failure at any step leaves the working one
- * in place. Nothing here writes to the live path.
- *
- * Guarded against re-entry: two concurrent writers to one path is the one race
- * that could corrupt a good install, and pressing a button twice is the easiest
- * way to cause it.
- */
+/** Fetch, verify, install, and load, in that order and never any other. */
 export async function downloadDictionary(
   plan: DownloadPlan,
   resourceDir: string,
@@ -375,9 +245,6 @@ export async function downloadDictionary(
   if (inFlight) return job;
   inFlight = true;
   // Reuse the controller `resolveRelease` opened for this attempt rather than
-  // replacing it. A fresh one would drop the signal for the moment between the
-  // update check finishing and the transfer starting, where Cancel is on screen
-  // and enabled and would have quietly done nothing.
   abort = abort ?? new AbortController();
   try {
     if (simulated) return fail(simulated);
@@ -427,18 +294,12 @@ export async function downloadDictionary(
     const installed = await awaitInstall();
     if (!installed.ok) {
       // The backend already discarded the archive and any staging. Cancelling
-      // is reported as its own outcome by the worker rather than inferred from
-      // a message, so a genuine failure that happens to mention the word cannot
-      // be mistaken for one the user asked for.
       if (installed.cancelled) return fail("cancelled");
       log.info(`dictionary install failed: ${installed.error}`);
       return fail(/checksum/u.test(installed.error) ? "checksum" : "extract");
     }
 
     // Recorded before the load is judged, not after. The bytes are verified and
-    // in place by this point, so forgetting the version because a load was
-    // momentarily busy used to cost another 69 MB to learn a date string
-    // already on the disk.
     updateSettings({ dictVersion: plan.release.version });
     await refreshInventory(plan.directory);
     // `started` is the analyzer's answer about this install, and it is still
@@ -464,14 +325,7 @@ type InstallOutcome =
   | { ok: false; cancelled: true }
   | { ok: false; cancelled?: false; error: string };
 
-/**
- * Follow the worker to its end, republishing each phase as it goes.
- *
- * Progress is coalesced the same way the download is: the phase and byte count
- * are recorded every poll, but listeners hear about it on the slower cadence,
- * because a 207 MB extract at 150 ms is still far more repaints than a control
- * measured in tenths of a megabyte can show.
- */
+/** Follow the worker to its end, republishing each phase as it goes. */
 async function awaitInstall(): Promise<InstallOutcome> {
   for (;;) {
     await new Promise((resolve) => window.setTimeout(resolve, INSTALL_POLL_MS));
@@ -497,13 +351,7 @@ async function awaitInstall(): Promise<InstallOutcome> {
   }
 }
 
-/**
- * Stream the archive to disk, updating progress as it goes.
- *
- * Read through a `ReadableStream` rather than awaiting `.blob()` so the status
- * can move while a 69 MB transfer is in flight: a progress bar that only moves
- * at the end is worse than none.
- */
+/** Stream the archive to disk, updating progress as it goes. */
 async function fetchArchive(
   plan: DownloadPlan,
 ): Promise<{ ok: true } | { ok: false; reason: DictionaryFailure }> {

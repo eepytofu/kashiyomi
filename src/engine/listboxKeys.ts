@@ -1,10 +1,4 @@
 // Keyboard behaviour for the settings panel's dropdown, without a DOM.
-//
-// The dropdown replaced a native <select>, which cost about a second of blocked
-// main thread per open on CEF 91. Everything the platform control gave us for
-// free now has to be written, and the two parts with real edge cases are here so
-// they can be tested: which option a key moves to, and where typing a letter
-// lands.
 
 /** Keys that move the highlight. Anything else is not this module's business. */
 export type MoveKey = "ArrowUp" | "ArrowDown" | "Home" | "End" | "PageUp" | "PageDown";
@@ -23,15 +17,7 @@ export function isMoveKey(key: string): key is MoveKey {
   );
 }
 
-/**
- * Where a movement key lands.
- *
- * Clamps rather than wraps, which is what a Windows select does: Arrow Down on
- * the last option stays put instead of jumping back to the top.
- *
- * `current` may be -1 when nothing is selected yet, so Arrow Down opens on the
- * first option rather than the second.
- */
+/** Where a movement key lands. */
 export function nextIndex(current: number, key: MoveKey, count: number): number {
   if (count <= 0) return -1;
   const last = count - 1;
@@ -53,18 +39,7 @@ export function nextIndex(current: number, key: MoveKey, count: number): number 
   }
 }
 
-/**
- * Where typing lands, or -1 when nothing matches.
- *
- * Searches from just after `from` and wraps once, so pressing the same letter
- * repeatedly cycles through the options starting with it — the behaviour a
- * native select has and the reason this is worth having at all with 15 target
- * languages.
- *
- * Case-insensitive, and it must simply miss rather than misbehave on labels that
- * cannot match an ASCII prefix: 简体中文, 한국어 and العربية are all real entries
- * in that list, and typing "e" must not land on one of them.
- */
+/** Where typing lands, or -1 when nothing matches. */
 export function typeAheadIndex(
   options: readonly { readonly label: string; readonly search?: string }[],
   buffer: string,
@@ -89,10 +64,5 @@ export function typeAheadIndex(
   return -1;
 }
 
-/**
- * How long a type-ahead buffer survives between keystrokes.
- *
- * Long enough to type "de" as one search, short enough that coming back later
- * and pressing "e" starts a new one.
- */
+/** How long a type-ahead buffer survives between keystrokes. */
 export const TYPE_AHEAD_RESET_MS = 700;

@@ -41,14 +41,7 @@ export function nativeInit(dictPath: string, resourceDir: string): void {
   dispatch({ cmd: "init", dictPath, resourceDir });
 }
 
-/**
- * Load a different dictionary in place of the one already in memory.
- *
- * `nativeInit` cannot do this — it returns early once a dictionary is loaded,
- * which is right for an idempotent startup call and useless for switching
- * edition. Returns false when the backend declined because a load was already
- * running, so the caller can retry rather than race it.
- */
+/** Load a different dictionary in place of the one already in memory. */
 export function nativeReload(dictPath: string, resourceDir: string): boolean {
   const response = dispatch({ cmd: "reload", dictPath, resourceDir });
   if (!response || response.status === "error") return false;
@@ -65,14 +58,7 @@ export type NativeInstallJob =
   | { kind: "failed"; message: string }
   | { kind: "cancelled" };
 
-/**
- * Ask a running install to stop, and report whether it agreed to.
- *
- * False means the worker is past the swap. By then the old dictionary is
- * unloaded and the rename may have landed, so stopping would leave the analyzer
- * closed over a half-replaced file. The row disables Cancel through those
- * phases, so a refusal should not normally be reachable from the panel.
- */
+/** Ask a running install to stop, and report whether it agreed to. */
 export function nativeCancelInstall(): boolean {
   const response = dispatch({ cmd: "cancelInstall" });
   if (!response || response.status === "error") return false;
@@ -84,13 +70,7 @@ export type NativeDictStatus = {
   job: NativeInstallJob;
 };
 
-/**
- * Analyzer state and install progress in one call.
- *
- * Polled while an install runs, which is the only reason it exists: the work
- * moved to a worker thread, so its result no longer comes back as the return
- * value of the call that started it.
- */
+/** Analyzer state and install progress in one call. */
 export function nativeDictStatus(): NativeDictStatus | undefined {
   const response = dispatch({ cmd: "dictStatus" });
   if (!response || response.status === "error") return undefined;
@@ -99,30 +79,7 @@ export function nativeDictStatus(): NativeDictStatus | undefined {
   return { analyzer: data.analyzer, job: data.job };
 }
 
-/**
- * Start verifying and installing a downloaded archive, and return at once.
- *
- * The fetch happens in JS because `fetch` is already HTTPS, already streams and
- * already honours the user's proxy. Everything after it happens natively,
- * because extraction produces 207 MB and that must not exist in this heap.
- *
- * **Asynchronous.** Hashing up to 121 MB and extracting 207 MB used to run on
- * the renderer thread, freezing NCM's entire UI for seconds with nothing on
- * screen to explain it. `started: false` means a job was already running, which
- * is a refusal rather than a failure.
- *
- * The load is not a separate call any more. Installing closes the dictionary in
- * order to replace it, so a caller that installed and then failed to reload
- * would leave the analyzer shut — and the host cannot close it itself, which is
- * how the unload and the rename ended up in the wrong order to begin with.
- *
- * `superseded` is a dictionary this one replaces (switching edition). The
- * backend deletes it only once the new one has loaded, so a failed load still
- * leaves a working dictionary on the machine.
- *
- * `sha256` is the value pinned at build time. A failure here always leaves the
- * previous dictionary untouched.
- */
+/** Start verifying and installing a downloaded archive, and return at once. */
 export function nativeStartInstall(
   archive: string,
   sha256: string,
@@ -148,9 +105,6 @@ export function nativeStartInstall(
 
 /**
  * Bytes free on the volume holding `directory`, or undefined if it cannot be
- * asked. Checked before a download starts: extraction needs ~207 MB on top of
- * the 69 MB archive, so a disk that cannot hold both should fail before the
- * bandwidth is spent rather than after.
  */
 export function nativeFreeSpace(directory: string): number | undefined {
   const response = dispatch({ cmd: "freeSpace", directory });

@@ -53,13 +53,6 @@ async function start(): Promise<void> {
   installCopyHandler();
 
   // First run, and only ever once. Two conditions, both required: the user has
-  // not answered before, and there is genuinely no dictionary. The second is
-  // what makes this self-clearing, so there is no "have they seen it" flag that
-  // can get out of step with reality.
-  //
-  // Raised here rather than from the panel because the whole problem is that a
-  // new install shows no furigana and says nothing about why, and the settings
-  // panel is the place someone goes *after* deciding something is wrong.
   if (!getSettings().dictSetupAnswered && !installed) {
     openDictionarySetup();
   }
@@ -75,22 +68,10 @@ async function start(): Promise<void> {
     }),
     cancelDictionary: cancelDictionaryDownload,
     // Forget the last update check, so the next settings open asks again.
-    // Without it a twelve-hour throttle that persists across restarts can only
-    // be exercised by hand-editing settings, which tests the blob rather than
-    // the code.
     forgetDictCheck: forgetDictionaryCheck,
     // The first-run dialog without clicking through to it, which is otherwise
-    // reachable only on a machine that has never had a dictionary. There is no
-    // settings button for it: re-running a first-run prompt is a thing to test,
-    // not a thing to offer.
     setup: () => openDictionarySetup(),
     // Every dictionary failure state on demand, so the messages can be read in
-    // the real panel without unplugging anything. Unit tests prove the state
-    // machine; they cannot tell whether "could not reach the download" reads
-    // like something a person would act on.
-    //
-    //   kashiyomi.simulateDictFailure("checksum")   then press Download
-    //   kashiyomi.simulateDictFailure()             back to normal
     simulateDictFailure: (reason?: string) =>
       simulateDictionaryFailure(reason as never),
     // Runs the real fetch → verify → install → reload path against the data
@@ -98,21 +79,12 @@ async function start(): Promise<void> {
     // development checkout's own dictionary.
     downloadDictionary: async () => {
       // Deliberately the data directory rather than `paths.dictDir`: under
-      // dev-paths.json the latter is the checkout's own assets/dict, and a
-      // debug download must not overwrite the dictionary being developed
-      // against. The consequence is that in a dev install this exercises the
-      // whole path without the result being what the analyzer then loads.
       const dataDir = `${await betterncm.app.getDataPath()}/kashiyomi`.replace(/\\/gu, "/");
       const release = await resolveRelease();
       const paths = await resolveAssetPaths();
       return downloadDictionary(planDownload(release.release, dataDir), paths?.resourceDir ?? "");
     },
     // Redacted, because this handle is read as routine: the project's own rule
-    // is to record kashiyomi.settings() with every live observation, so its
-    // output lands in docs, transcripts and screenshots. It returned the key
-    // verbatim, and did so once. Debugging needs to know whether translation is
-    // configured, never the secret itself. The panel still edits the real value
-    // through getSettings directly.
     settings: () => {
       const settings = getSettings();
       const count = parseApiKeys(settings.aiApiKey).length;

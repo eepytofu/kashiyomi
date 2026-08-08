@@ -92,9 +92,6 @@ async function scan(): Promise<void> {
   const scanned: (ClassifiableLine & { el: HTMLElement })[] = [];
   for (const el of elements) {
     // NCM renders the translation (译) and its own romanization (音) as
-    // additional p siblings after the original line; only the first p in a
-    // lyric entry is the lyric itself. Chinese translation siblings still get
-    // a lang tag so the Chinese font setting can reach them.
     if (!isOriginalLyricElement(el)) {
       const siblingText = (el.textContent ?? "").trim();
       if (hasHan(siblingText) && !hasKana(siblingText)) el.setAttribute("lang", "zh");
@@ -111,8 +108,6 @@ async function scan(): Promise<void> {
   // Lines we will not annotate but must still give a font to. They cannot be
   // labelled here: the document branch is the fallback for a line with no
   // script of its own, and it is not known until `allTexts` below is complete.
-  // Labelling them in this loop is why 【KBShinya 】 kept NCM's default stack
-  // while 【哦漏】 two lines above it did not — same song, same kind of line.
   const unrouted: OriginalLine[] = [];
   const allTexts: string[] = [];
   const translationStates: LineTranslationState[] = [];
@@ -142,11 +137,6 @@ async function scan(): Promise<void> {
   if (pending.length === 0 && unrouted.length === 0) {
     // Steady state: every visible line is annotated. Attach (and, when
     // enabled, request) AI translations now so they never race annotation.
-    //
-    // Both lists must be work *remaining*, which is why the pushes above check
-    // `isAnnotatedFrom` the way `pending` does. Collecting already-handled lines
-    // kept `unrouted` permanently non-empty on any song with a credit or a
-    // marker, so this branch never ran and AI translation never started.
     maybeTranslate(originals, scheduleScan);
     return;
   }
@@ -176,10 +166,6 @@ async function scan(): Promise<void> {
       // A line with no script of its own — "-interlude-" in 無 — still needs a
       // font, or it keeps NCM's default stack, which leads with 微软雅黑: a
       // Chinese sans rendering Latin text in a song set in a Japanese serif.
-      // applyScriptFont cannot help, because it reads the line's own script and
-      // finds none; the document's branch is the only signal there is. Left
-      // unset when the document branch is undecided, which is the honest answer
-      // for a line that could belong to either.
       if (docContext.branch === "japanese") line.el.setAttribute("lang", "ja");
       else if (docContext.branch === "chinese") line.el.setAttribute("lang", "zh");
       markAnnotated(line.el, line.original);
@@ -248,27 +234,9 @@ function annotateJapanese(
   if (pendingAnalysis.length === 0) return;
 
   // Say it before asking the analyzer, because the analyzer cannot say it. The
-  // engine ships inside backend.dll, so it is always present; what is missing
-  // is the dictionary it maps. With none installed `nativeInit` is never
-  // called, the backend sits at `uninitialized`, and `nativeAnalyze` reports
-  // that as `pending` — indistinguishable from a dictionary that is genuinely
-  // still loading. The retry below then fired every 1.5s forever and the notice
-  // was never reached, on the only machines it exists for.
-  //
-  // The disk is the authority on whether a dictionary exists, so this asks the
-  // inventory rather than trying to read intent out of a backend state.
   if (!dictionaryInventory().installed) {
     for (const { line } of pendingAnalysis) {
       // Kanji repair still applies. It is a character-by-character glyph map
-      // that ships in the bundle and needs no dictionary, so leaving 梦见ては on
-      // screen until a 207 MB download arrives was withholding a fix already in
-      // hand.
-      //
-      // Reading hints are **not** consumed here, which is why this re-prepares
-      // instead of reusing `entry.displayText`. Consuming a hint means moving
-      // 天（そら） into furigana, and with no analyzer there is no ruby to move
-      // it to: the brackets would simply be deleted and the author's reading
-      // lost. Repaired, brackets intact, is the honest rendering.
       const repaired = prepareJapaneseLine(line.original, {
         hanRepair: settings.hanRepair,
         readingHints: false,
@@ -282,9 +250,6 @@ function annotateJapanese(
       markAnnotated(line.el, line.original, repaired);
     }
     // **After the loop, never before it.** `renderJapaneseLine` opens with
-    // `el.textContent = ""`, so a notice appended to the first line's own
-    // element is wiped by that line's own repair pass. Rendered first, it never
-    // survived to be seen.
     const first = pendingAnalysis[0];
     if (first && settings.lyricDictNotice) renderNoticeRow(first.line.el, t("dictNoticeMissing"));
     return;
@@ -306,9 +271,6 @@ function annotateJapanese(
   if (result.kind === "unavailable") {
     log.warn("native analyzer unavailable", result.error ?? "");
     // A dictionary is on disk and the backend still could not serve it: a
-    // failed load, or no backend at all. The line above already covered the
-    // missing-dictionary case, so this one stays silent on the page rather
-    // than blaming a dictionary that is sitting right there.
     for (const { line } of pendingAnalysis) {
       markAnnotated(line.el, line.original);
     }
@@ -322,11 +284,6 @@ function annotateJapanese(
     const { line, displayText, analysisText, hints } = pendingAnalysis[i]!;
     const raw = result.lines[i] ?? [];
     // Two layers, and the order is the point. JMdict only fills readings the
-    // analyzer abstained on, so it can never change an existing annotation. The
-    // user's list then overrides whatever either of them decided, because
-    // disagreeing with the dictionary is what it is for. A reading written into
-    // the lyric still beats both: hints are applied further down, in
-    // annotateJapaneseLine.
     const filled = jmdict ? applyJmdictReadings(raw, jmdict) : raw;
     // Corrections before the user's own list, so an override always wins.
     const corrected = applyHeteronymDefaults(filled);

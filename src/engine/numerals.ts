@@ -1,13 +1,5 @@
 // Readings for kanji numerals, and the sound changes they trigger against a
 // following counter. Pure; no host imports.
-//
-// SudachiDict returns numerals as 名詞,数詞 with **no reading at all** and an OOV
-// flag, so 三人 comes back as 三[∅] 人[ニン]: the furigana lands on the counter
-// alone and the romaji row shows the raw kanji ("三 nin no shoujo"). Numerals
-// are systematic, so this is a rule rather than a dictionary.
-//
-// Measured 2026-08-04 against 150 ground-truth fixtures: counters scored 2/10
-// and numeric assimilation 0/6 before this module existed.
 
 const DIGITS: Record<string, string> = {
   〇: "ぜろ", 零: "れい",
@@ -34,9 +26,6 @@ const BARE_POWER: Record<string, string> = { 十: "じゅう", 百: "ひゃく",
 
 /**
  * Arabic digits, halfwidth and fullwidth. Lyrics write both, and the analyzer
- * abstains on them exactly as it does on kanji numerals: 21グラム comes back
- * 21[∅] グラム, and 3匹 comes back 3[∅] 匹[ヒキ], which voices as "3 hiki"
- * instead of さんびき.
  */
 const ARABIC = /^[0-9０-９]+$/u;
 

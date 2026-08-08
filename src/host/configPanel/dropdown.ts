@@ -1,14 +1,4 @@
 // The settings panel's dropdown.
-//
-// Replaces a native <select>, which cost about a second of blocked main thread
-// every time it opened on CEF 91 — measured as 9 long tasks totalling 8.2s over
-// 20s of clicking, with no Kashiyomi function anywhere in the CPU profile. NCM's
-// own settings use a custom listbox for the same reason.
-//
-// The popup is `position: fixed` because six ancestors clip, starting with our
-// own `.kc-card`. Checked over CDP: nothing between here and `body` sets
-// transform, filter, perspective or contain, so fixed resolves against the
-// viewport as intended.
 
 import { isMoveKey, nextIndex, typeAheadIndex, TYPE_AHEAD_RESET_MS } from "../../engine/listboxKeys.ts";
 
@@ -121,9 +111,6 @@ export function dropdown(config: {
   };
 
   // Follow the trigger rather than closing on scroll. A fixed popup does not
-  // move with the panel, and closing it would fight the user on a page whose
-  // whole job is scrolling; InfLink's own combobox repositions for the same
-  // reason. Capture phase, because BetterNCM owns the scrolling ancestor.
   const reposition = (): void => {
     if (open) place();
   };

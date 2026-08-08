@@ -1,9 +1,4 @@
 // Aligns a token's kana reading onto its surface so ruby lands only over the
-// kanji runs: 照らさ/てらさ → て over 照. Kana characters embedded in the
-// surface act as anchors that split the reading. When the anchoring is
-// ambiguous (lazy and greedy matching disagree), we abstain from splitting and
-// return one segment over the whole surface, never a guessed split.
-// Pure; no host imports.
 
 import { HAN_CHAR, KANA_ONLY, kataToHira } from "./kana.ts";
 
@@ -57,13 +52,7 @@ function matchRuns(
   return match ? match.slice(1) : undefined;
 }
 
-/**
- * Compute furigana segments for one analyzed token.
- *
- * Returns [] when the surface has no kanji (no ruby needed) or when the
- * reading is unusable. Returns one whole-surface segment when the reading
- * cannot be split unambiguously across the kanji runs.
- */
+/** Compute furigana segments for one analyzed token. */
 export function alignFurigana(surface: string, readingKana: string): FuriganaSegment[] {
   if (surface === "" || readingKana === "" || !KANA_ONLY.test(readingKana)) return [];
   const reading = kataToHira(readingKana);

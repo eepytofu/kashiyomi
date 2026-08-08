@@ -1,7 +1,6 @@
 // Hiragana → romaji in the wapuro-Hepburn style common in fan lyric romaji:
 // long vowels stay spelled out (とうきょう → toukyou), sokuon doubles the next
 // consonant (って → tte, っち → tchi), ん becomes n (n' before vowels and y).
-// Pure; no host imports.
 
 import { kataToHira } from "./kana.ts";
 

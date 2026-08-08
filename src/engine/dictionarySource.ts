@@ -1,31 +1,9 @@
 // Where the Sudachi dictionary comes from, and what to do when that fails.
-//
-// Pure policy: no fetch, no filesystem. The host performs the transfer and the
-// native side verifies and extracts; everything decidable without doing either
-// lives here, so the failure model is covered by `node --test` rather than by
-// hoping. See docs for the measurements behind the choices.
-//
-// Two metadata formats are parsed because the fallback has to survive the
-// primary being unreachable, and the mirror speaks a different dialect:
-// PyPI's own JSON API, and PEP 691's JSON simple index which mirrors serve.
-//
-// **One edition, `core`.** The plugin used to offer small, core and full, and
-// most of this file was the machinery for choosing. That choice is where the
-// bugs were, and the evidence never justified it: on 514 real lyric lines core
-// matches full on 93.6% and is right in all three cases where they differ, with
-// an identical OOV rate. What core also has, and full does not, is a PyPI wheel
-// and therefore an official mirror — which is why the third-party relay that
-// once carried full is gone from here entirely.
 
 /** The package on PyPI. One edition, so this is a constant rather than a lookup. */
 const PACKAGE = "SudachiDict-core";
 
-/**
- * Where the dictionary sits inside the wheel.
- *
- * A wheel is a ZIP, so the native extractor treats it the same as any archive;
- * only the member path is specific to the packaging.
- */
+/** Where the dictionary sits inside the wheel. */
 export const DICTIONARY_MEMBER = "sudachidict_core/resources/system.dic";
 
 /** Where PyPI serves the bytes, as opposed to the metadata. */
@@ -47,16 +25,6 @@ export type DictionaryRelease = {
 /**
  * The same wheel on the Tsinghua mirror, or undefined when the URL is not one
  * the swap applies to.
- *
- * A host swap rather than a second lookup, **verified rather than assumed**
- * (2026-08-07): the mirror serves the identical
- * `/packages/<2>/<2>/<64hex>/<file>` path, the identical byte count, and
- * publishes the identical sha256. Its own simple index hands out
- * `../../packages/...`, which resolves to exactly the URL this produces, so the
- * two derivations agree.
- *
- * This is also the mainland route, and it is an official mirror of the
- * publisher's own index rather than a third party.
  */
 export function mirrorUrl(url: string): string | undefined {
   return url.startsWith(`${PYTHONHOSTED}/`)
@@ -64,18 +32,7 @@ export function mirrorUrl(url: string): string | undefined {
     : undefined;
 }
 
-/**
- * Every place the bytes can come from, best first.
- *
- * The metadata always fell back across sources; the **archive** did not, so a
- * user who reached PyPI's API and then could not reach its CDN had a download
- * that simply failed with a mirror sitting right there.
- *
- * Falling through on **failure** rather than on a guess about where the user
- * is means never mis-detecting a VPN user, an expat or a corporate proxy: the
- * mainland reaches the mirror naturally and everyone else never learns it
- * exists.
- */
+/** Every place the bytes can come from, best first. */
 export function downloadUrls(release: DictionaryRelease): readonly string[] {
   const mirror = mirrorUrl(release.url);
   return mirror ? [release.url, mirror] : [release.url];
@@ -103,13 +60,7 @@ export const SIMPLE_INDEX_ACCEPT = "application/vnd.pypi.simple.v1+json";
 
 const WHEEL = /^sudachidict_core-(\d{8})-/;
 
-/**
- * Read PyPI's own JSON API response.
- *
- * Only a wheel is acceptable. An sdist is a ~9 KB stub that fetches the real
- * archive at install time, so it carries no dictionary and its digest vouches
- * for nothing.
- */
+/** Read PyPI's own JSON API response. */
 export function parsePypiRelease(body: unknown): DictionaryRelease | undefined {
   const root = body as { info?: { version?: unknown }; urls?: readonly unknown[] };
   const version = typeof root?.info?.version === "string" ? root.info.version : undefined;
@@ -128,13 +79,7 @@ export function parsePypiRelease(body: unknown): DictionaryRelease | undefined {
   return undefined;
 }
 
-/**
- * Read a PEP 691 JSON simple index, which is what the mirrors serve.
- *
- * The index lists every version ever published with no "latest" marker, so the
- * newest is found by the date in the filename rather than by position — the
- * order is not guaranteed and sorting strings would break on a schema change.
- */
+/** Read a PEP 691 JSON simple index, which is what the mirrors serve. */
 export function parseSimpleIndexRelease(body: unknown): DictionaryRelease | undefined {
   const files = (body as { files?: readonly unknown[] })?.files;
   if (!Array.isArray(files)) return undefined;
@@ -169,17 +114,7 @@ function buildRelease(
   return { version, url, sha256, size };
 }
 
-/**
- * Free space an install needs, archive plus its extraction plus a margin.
- *
- * Checked **before** downloading rather than after, so a full disk does not
- * spend the user's bandwidth before discovering it, which is the one failure
- * that wastes something unrecoverable.
- *
- * The multiplier is measured, not guessed: core is 68.9 MB compressed against
- * 207.4 MB extracted, almost exactly 3x. The margin covers the filesystem and a
- * future release growing slightly.
- */
+/** Free space an install needs, archive plus its extraction plus a margin. */
 export function requiredFreeBytes(archiveBytes: number): number {
   const EXTRACTED_RATIO = 3;
   const MARGIN = 64 * 1024 * 1024;
@@ -207,14 +142,7 @@ export function isRetryable(reason: DictionaryFailure): boolean {
   return reason !== "no-source";
 }
 
-/**
- * Whether a downloaded archive may be installed.
- *
- * Deliberately not a boolean parameter list — a mismatch must never be
- * reachable by passing the wrong flag. There is no override, no "install
- * anyway": a corrupt 69 MB download is an annoyance, a silently corrupted
- * dictionary handed to a native analyzer is not.
- */
+/** Whether a downloaded archive may be installed. */
 export function mayInstall(expected: DictionaryRelease, actualSha256: string): boolean {
   return actualSha256.toLowerCase() === expected.sha256.toLowerCase();
 }

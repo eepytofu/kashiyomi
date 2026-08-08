@@ -24,13 +24,7 @@ export type Settings = {
   dictCheckedAt: number | undefined;
   /** rt size as a percentage of the base lyric font. */
   furiganaSize: number;
-  /**
-   * Show a line on Japanese lyrics when no dictionary is installed.
-   *
-   * For someone who deliberately never installs it: the plugin is still doing
-   * pinyin and translation for them, and repeating a notice about a feature
-   * they have declined is nagging about a decision already made.
-   */
+  /** Show a line on Japanese lyrics when no dictionary is installed. */
   lyricDictNotice: boolean;
   /** Use a Japanese font stack on Japanese lyric lines (Han unification). */
   useJpFont: boolean;
@@ -43,11 +37,6 @@ export type Settings = {
   zhFontStack: string;
   /**
    * Font for reading rows (romaji, pinyin) and for translation rows carrying no
-   * CJK of their own. Without it a row inherits its lyric's script, so the same
-   * romaji renders in two different faces on a bilingual page — 58 rows split
-   * across both stacks on 無. Following the document branch instead was
-   * rejected: it gives one face per song but changes face *between* songs,
-   * which is worse than the inconsistency it fixes.
    */
   useRowFont: boolean;
   rowFontStack: string;
@@ -76,8 +65,6 @@ const KEY = "kashiyomi:settings";
  * Furigana size as a percentage of the lyric text, bounded so the slider cannot
  * be dragged into a setting that looks like a bug. NCM renders lyrics at 22px,
  * so 50% is 11px and the old floor of 10% was 2.2px (measured 2026-08-04).
- * Kanji carry far more strokes per em than Latin, so ruby stops being readable
- * well above the size at which Latin still is.
  */
 export const MIN_FURIGANA_SIZE = 50;
 export const MAX_FURIGANA_SIZE = 100;
@@ -123,9 +110,6 @@ export function getSettings(): Settings {
       const raw = localStorage.getItem(KEY);
       const stored: unknown = raw ? JSON.parse(raw) : {};
       // The dictionary fields go through a migration rather than a spread: they
-      // changed shape (one edition plus one version string became a preference
-      // plus a version per edition) and an install predating that would
-      // otherwise read as a fresh one and re-download what is already there.
       current = {
         ...DEFAULTS,
         ...(stored as Partial<Settings>),

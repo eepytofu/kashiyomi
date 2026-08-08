@@ -1,8 +1,4 @@
 // The AI translation lane: one request per song, and the rows it produces.
-//
-// Separate from NCM's own 译 lane, which is never overwritten: these rows are
-// <div>s *inside* the lyric <p>, while 译 renders as a sibling <p>. The two
-// coexist, and routing reads 译 through translationStateFor, not from here.
 
 import { shouldDisplayTranslation } from "../engine/aiTranslation.ts";
 import { labelScript, targetLangScript } from "../engine/scriptLang.ts";
@@ -28,28 +24,12 @@ export function resetTranslation(): void {
 function attachTranslationRows(originals: readonly OriginalLine[]): void {
   if (txByText.size === 0) return;
   // The row sits inside the lyric <p>, so without a lang of its own it inherits
-  // the *lyric's* script: a Japanese song translated to 简体中文 rendered its
-  // Chinese in Hiragino. Measured on 下等马 2026-08-05 — the row computed to
-  // Noto Serif SC with no lang attribute at all. Invisible while the target is
-  // English, because Latin has no regional variants.
-  //
-  // The target setting is only the fallback, never the answer: it has a
-  // free-text Custom option, so no name-to-tag table can be complete, and the
-  // model may ignore the instruction anyway. What came back is the ground truth.
   const targetFallback = targetLangScript(getSettings().aiTargetLang);
   for (const { el, text } of originals) {
     const translated = txByText.get(text);
     if (!translated) continue;
     if (el.querySelector(".kashiyomi-tx")) continue;
     // The row is shown even when NCM is displaying its own 译 for this line.
-    // The two are not the same information: 译 is always Chinese, while this
-    // lane is whatever target language the user asked for, so suppressing it
-    // silently ignores that setting. Comparing the two texts instead does not
-    // work — two independent translations of a line never come out identical,
-    // so the check would never fire.
-    //
-    // The invariant is that NCM's 译 is never *overwritten*, and it is not:
-    // this appends a div inside the lyric <p>, while 译 is a sibling <p>.
     const row = document.createElement("div");
     row.className = `${ROW_CLASS} kashiyomi-tx`;
     row.textContent = translated;

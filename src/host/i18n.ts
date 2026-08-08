@@ -45,26 +45,10 @@ const STRINGS = {
     // SudachiDict's own README, verbatim. The publisher describes its three
     // editions in one line each, so the plugin quotes them instead of writing a
     // Shown over the settings that do nothing until a dictionary is installed.
-    // Not all of the Japanese card: fonts route during classification, so they
-    // work with no dictionary at all, and greying them would be a lie.
     dictNeededForThese: "Greyed settings need the Japanese dictionary.",
     // The two things a new install needs a decision about, and nothing else.
     // Everything else is on by default and works with no setup at all, so
     // listing it would be telling someone about work they do not have to do.
-    //
-    // The second line replaced "Mandarin and translation work without one",
-    // which was true about the dictionary and misleading about translation:
-    // `translator.ts` needs a key and a model before it runs, so a reader who
-    // believed that line and switched translation on got nothing, and no
-    // explanation. That is the silent failure this dialog exists to prevent.
-    // Paragraph one is what the plugin *is*, for someone arriving from the
-    // plugin market where "Kashiyomi" says nothing the way "Furigana" would.
-    // Four headline features and no more: kanji repair, per-line routing and
-    // the rest are quality-of-life, which is where the README files them too,
-    // and a wizard listing them would be a feature tour in a setup step.
-    //
-    // Paragraph two is the only thing this dialog sets up; everything else is
-    // pointed at rather than duplicated here.
     setupWhatItIs:
       "Adds furigana, romaji, pinyin and AI translation directly to the native lyrics page.",
     setupNeedsDictionary:
@@ -72,9 +56,6 @@ const STRINGS = {
     setupInstalled: "Dictionary installed. Japanese lyrics will show readings from now on.",
     setupDone: "Done",
     // The countdown is shown, not silent. A dialog that closes on a hidden
-    // timer gives no chance to read it and can steal a click already moving
-    // toward the button; a labelled one does neither, and the button keeps
-    // doing the same thing if pressed early.
     setupDoneIn: (seconds: number) => `Done (closing in ${seconds})`,
     setupSpace: "needs {needed} free, you have {free}",
     // Not "Later": everything except Japanese readings already works, so
@@ -106,9 +87,6 @@ const STRINGS = {
     // once, so 68.9 MB of download needs about 340 MB free.
     dictNoSpace: (needed: string) => `not enough disk space, ${needed} free required`,
     // Shown on the lyrics page itself when a Japanese line has no dictionary to
-    // read it with. A fact and where to fix it, in that order, in one line: the
-    // convention across published plugins is an inline notice in your own
-    // surface, never a popup, and a statement rather than an instruction.
     dictNoticeMissing:
       "No Japanese dictionary installed. Download it in Kashiyomi settings, or turn this notice off there.",
     lyricDictNotice: "Missing dictionary notice",

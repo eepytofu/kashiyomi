@@ -25,12 +25,6 @@ export const CACHE_KEY = "kashiyomi:txcache";
  * Songs kept. Raised from 80 on 2026-08-06 after a live install was found
  * sitting at **78 of 80** — the cap was one song from evicting translations the
  * user had already paid for, which is the opposite of what a cache is for.
- *
- * Measured on that install: 78 songs in 189.9 KB, median entry 2350 bytes,
- * largest 4888. So 500 is roughly 1.2 MB, comfortable against a localStorage
- * budget of several MB that we share with NCM itself. The real safety net is
- * not this number but the quota handler in `persist`, which sheds oldest-first
- * when the browser actually says no.
  */
 export const CACHE_CAP = 500;
 
@@ -86,18 +80,7 @@ export function cacheGet(
   return entry.lines;
 }
 
-/**
- * Store lines, then enforce the cap, evicting least-recently-used first.
- *
- * **Entries do not expire.** There was a 90-day TTL; it was removed on
- * 2026-08-06 because nothing it did was wanted. It could not be protecting
- * against staleness — the key already covers the lines, provider, model, target
- * language and custom prompt, so changing any of those produces a different key
- * and an old entry can never be served. It could not be bounding growth either;
- * the cap does that. What was left was re-paying for a translation of a song
- * the user still plays, silently and on a timer. A bad translation is already
- * recoverable on demand through Clear in the settings panel, for free.
- */
+/** Store lines, then enforce the cap, evicting least-recently-used first. */
 export function cachePut(
   storage: CacheStorage,
   key: string,

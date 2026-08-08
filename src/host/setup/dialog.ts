@@ -1,30 +1,4 @@
 // The first-run dictionary dialog: say what is missing, offer to fetch it.
-//
-// **First run only.** It used to double as a manage surface reached from
-// settings, because there were three editions and something had to present the
-// choice. There is one edition now, so managing is a single button and it lives
-// on the settings row where the state is already reported. What is left here is
-// the job a settings row cannot do: speak up on a fresh install, before the
-// user meets a plugin that silently does nothing on Japanese lyrics.
-//
-// **It does not describe the plugin.** An earlier version opened with a summary
-// of every feature, which is a pitch in a place where nobody needs one: whoever
-// is looking at this installed from a listing that already described it. What
-// earns space is only what the user must act on, and against the shipped
-// defaults that is two things. The dictionary, which is here. And an API key,
-// which cannot be here, because the settings panel has six coupled controls for
-// it and half a copy would be two places to configure one feature -- so it is
-// named and pointed at, not offered.
-//
-// **Why a dialog is allowed here.** The project's first rule protects the lyrics
-// page: never replace it, never overlay it. A transient, dismissible surface is
-// not the lyrics page, and a plugin that cannot mention a 69 MB prerequisite it
-// does not have is a plugin that silently does nothing. BetterNCM has no toast
-// or notification API, so this is the only way to say it.
-//
-// `<dialog>` and `::backdrop` were checked against the real runtime before this
-// was written (CEF 91 / Chrome 91.0.4472.164): both work. `inert` and `:has()`
-// do not, so focus containment is by hand.
 
 import { t, tCloseIn } from "../i18n.ts";
 import {
@@ -122,16 +96,7 @@ export function openDictionarySetup(): void {
 
   let freeBytes = readFreeSpace();
 
-  /**
-   * Which of the wizard's three states applies.
-   *
-   * **Not `dictionaryRowState`.** That is the settings row's model and it
-   * answers "what can be done to this dictionary right now" — install, update,
-   * cancel, retry — which is right for a control that lives forever. A wizard is
-   * a task with an end, and its only question is whether a dictionary exists
-   * yet. Borrowing the row's model is what put an Update button and a freshness
-   * claim in front of someone who had finished downloading ten seconds earlier.
-   */
+  /** Which of the wizard's three states applies. */
   const state = (): "needed" | "working" | "done" => {
     const job = dictionaryJob();
     if (job.kind === "resolving" || job.kind === "downloading" || job.kind === "installing") {
@@ -152,9 +117,6 @@ export function openDictionarySetup(): void {
     const now = state();
 
     // Only before anything starts. It answers "will this fit", which is settled
-    // the moment a transfer begins, so carrying it through the download is
-    // restating a decision already made. The row collapses when empty rather
-    // than holding a blank line (see ks-space:empty).
     space.textContent =
       now === "needed" && freeBytes !== undefined
         ? t("setupSpace")
@@ -197,13 +159,7 @@ export function openDictionarySetup(): void {
     close.style.display = "";
   };
 
-  /**
-   * Close by itself once the dictionary is in, counting down on the button.
-   *
-   * Started only on reaching `done`, and only once: `paint` runs on every
-   * dictionary change, so an unguarded start would reset the count each time
-   * and the dialog would never actually close.
-   */
+  /** Close by itself once the dictionary is in, counting down on the button. */
   const CLOSE_AFTER_SECONDS = 5;
   let countdown: number | undefined;
   let remaining = CLOSE_AFTER_SECONDS;

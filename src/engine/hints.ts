@@ -1,7 +1,4 @@
 // Authored reading hints: lyrics sometimes carry the intended reading inline,
-// e.g. 天(そら)へ or 思ゆ(おぼゆ). The parenthetical is hidden from the
-// display line and used as the furigana and romaji for the word it follows,
-// taking precedence over the analyzer. Pure; no host imports.
 
 import { kataToHira } from "./kana.ts";
 
@@ -28,18 +25,7 @@ const HINT_PATTERN =
 const DECORATION_ONLY = /^[\s\p{P}\p{S}]*$/u;
 const KANA_ONLY_LOOSE = /^[ぁ-ゖァ-ヺー\s\p{P}\p{S}]*$/u;
 
-/**
- * Extract authored reading hints from a lyric line.
- *
- * Rejections (the annotation stays visible in those cases):
- * - the word carries okurigana that the reading does not end with, so the
- *   parenthetical cannot be its reading;
- * - the parenthetical is the tail of the line with nothing but kana and
- *   punctuation before it; that reads as a backing-vocal chant echo like
- *   勝負服(はっはっ), not a reading;
- * - non-kana inside the parens or whitespace before the paren (never match
- *   the pattern).
- */
+/** Extract authored reading hints from a lyric line. */
 export function projectReadingHints(line: string): HintProjection {
   const hints: ReadingHint[] = [];
   let display = "";
@@ -60,15 +46,6 @@ export function projectReadingHints(line: string): HintProjection {
 /**
  * The line with only the *brackets* of each accepted hint blanked out, same
  * length, for feeding to the analyzer when the display keeps the annotation.
- *
- * Needed because the annotation confuses tokenization: SudachiDict contains
- * 天（そら） as a single entry reading テン, so an untouched line yields one
- * five-character token and a てん ruby smeared across the brackets. Blanking
- * just the brackets leaves 天 and そら as separate words, so the ruby lands on
- * 天 alone and そら still romanizes.
- *
- * Length is preserved because every offset the annotator computes — furigana
- * spans, hint ranges — indexes the displayed text.
  */
 export function maskHintBrackets(line: string): string {
   let out = "";

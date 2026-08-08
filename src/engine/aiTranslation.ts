@@ -1,8 +1,4 @@
 // Whole-song AI translation: prompt construction and strict response parsing.
-// One request carries the entire lyric so the model keeps narrative context;
-// the response contract is a JSON array with exactly one string per input
-// line, which is validated before anything is displayed. Pure; no host
-// imports.
 
 export type TranslationMeta = {
   readonly title?: string;

@@ -1,14 +1,5 @@
 // Turning a Japanese lyric line into the two strings the rest of the pipeline
 // needs: what the user sees, and what the analyzer is given.
-//
-// They are not the same string, and they must be the same *length*. Every
-// offset produced by the analyzer indexes the displayed text, so any transform
-// here has to map one character to one. That constraint is why brackets are
-// blanked rather than removed and why katakana okurigana is converted rather
-// than stripped.
-//
-// Pure, and worth keeping that way: three separate bugs have landed in this
-// handful of lines, and none of them could be reproduced without NCM running.
 
 import { repairJapaneseHan } from "./hanRepair.ts";
 import { maskHintBrackets, projectReadingHints, type ReadingHint } from "./hints.ts";
@@ -35,21 +26,10 @@ export function prepareJapaneseLine(
   options: LineTextOptions,
 ): PreparedJapaneseLine {
   // **Repair always happens for analysis; the setting only chooses what is
-  // shown.** It used to gate both, so turning it off handed the analyzer
-  // 梦见てる, which is OOV, and the line silently lost its furigana — a setting
-  // described as being about glyph *forms* was quietly removing readings. We
-  // know which kanji those glyphs stand for, so we can still read the line.
-  //
-  // Safe for the same reason the two adjustments below are: `repairJapaneseHan`
-  // walks the string character by character, so it is 1:1 and every offset in
-  // the display still indexes the analysis.
   const repaired = repairJapaneseHan(source);
   const shown = options.hanRepair ? repaired : source;
 
   // With hints on, the annotation is consumed: it leaves the display and
-  // becomes the reading. With hints off the lyric is left exactly as NetEase
-  // serves it, brackets and all — the setting is about using the author's
-  // reading, not about rewriting the line.
   const projection = projectReadingHints(shown);
   const displayText = options.readingHints ? projection.displayText : shown;
   const hints = options.readingHints ? projection.hints : [];
@@ -61,9 +41,6 @@ export function prepareJapaneseLine(
   const analysisShown = options.readingHints ? analysed.displayText : repaired;
 
   // Either way the *analyzer* must not see the brackets. SudachiDict contains
-  // 天（そら） as a single entry reading テン, so an untouched line produced one
-  // five-character token and a てん ruby smeared across 天（そら）. Blanking just
-  // the brackets keeps the length, so every offset still indexes the display.
   const unbracketed = options.readingHints ? analysisShown : maskHintBrackets(analysisShown);
 
   // Katakana-okurigana lines (夜ニ紛レ) are analyzed as hiragana; the conversion
