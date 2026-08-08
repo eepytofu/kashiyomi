@@ -458,6 +458,19 @@ function linkTabsToScroll(root: HTMLElement): void {
     // `top` counts from its content box, and the gap between them is exactly the
     // padding above. Publishing one number for both put the side column 4px
     // below the settings column at rest: PREVIEW at 259 against JAPANESE at 255.
+    // The strip has to paint its own background or rows scroll through it, and
+    // the colour has to match the page exactly or the strip becomes a visible
+    // panel. Take it from whichever ancestor actually paints one: measured, the
+    // first is `body`, because all 13 elements between are fully transparent.
+    // Read rather than hardcoded so a themed or reskinned client still matches.
+    for (let el: HTMLElement | null = strip.parentElement; el; el = el.parentElement) {
+      const bg = getComputedStyle(el).backgroundColor;
+      if (bg && bg !== "transparent" && !bg.startsWith("rgba(0, 0, 0, 0")) {
+        strip.style.background = bg;
+        break;
+      }
+    }
+
     const clearance = Math.round(strip.getBoundingClientRect().height) + AIR;
     root.style.setProperty("--kc-strip-clearance", `${clearance}px`);
     root.style.setProperty("--kc-side-top", `${Math.max(clearance - pad, 0)}px`);

@@ -25,29 +25,31 @@ export const PANEL_CSS = `
    which is what the host does and what makes this read as part of the app
    rather than as a control this plugin invented. */
 .kashiyomi-config .kc-tabs {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
   margin-bottom: 6px;
-  /* Sticky, so it stays reachable while the settings scroll. NCM's own strip is
-     static inside a header that never scrolls, which is why theirs needs no
-     background and ours does.
-     The fill is the card's translucent white, not an opaque colour: it tints
-     whatever is behind instead of replacing it, so it follows NCM's coloured
-     album pages. An opaque dark fill stayed black on those. The blur is what
-     stops rows reading through 6% of white, and it is also the only thing that
-     can see the accent at all, which is painted outside this element's
-     ancestors and so cannot be sampled. */
+  /* Sticky, because NCM's own strip cannot be copied literally: theirs is
+     position:static inside a header that does not scroll, and the panel does
+     not own its scroll container — the two ancestors above .kashiyomi-config
+     are BetterNCM's and they are the ones that scroll. Sticky is the same
+     result without owning the layout.
+
+     It needs its own background for the same reason: measured over CDP, all 13
+     ancestors between the strip and the document body are rgba(0,0,0,0), so
+     without one the rows scroll through the tabs. It was a translucent fill plus a 10px blur,
+     which NCM does nowhere and which read as a plugin flourish; the fill is
+     solid now and set from the page's own colour at runtime, so nothing here is
+     assumed. This value is only the frame before that lands. */
   position: sticky; top: 0; z-index: 2;
-  margin-left: -2px; margin-right: -2px; padding: 4px 2px;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(16px);
+  margin-left: -2px; margin-right: -2px; padding-left: 2px; padding-right: 2px;
+  background: rgb(19, 19, 26);
 }
-.kashiyomi-config .kc-tablist { display: flex; align-items: center; gap: 22px; min-width: 0; flex-wrap: wrap; }
+.kashiyomi-config .kc-tablist { display: flex; align-items: flex-end; gap: 22px; min-width: 0; flex-wrap: wrap; }
 /* Measured off cmd-anchor-link-title: 16px, weight 600 in BOTH states, and only
    the colour changes. A weight change would reflow the strip on every scroll,
    which is the whole reason NCM does not do it. */
 .kashiyomi-config .kc-tab {
   appearance: none; -webkit-appearance: none; background: none; border: none;
-  position: relative; padding: 8px 0 10px; margin: 0; cursor: pointer;
+  position: relative; padding: 6px 0 10px; margin: 0; cursor: pointer;
   color: rgba(255, 255, 255, 0.6); font-family: inherit;
   font-size: 15px; font-weight: 600;
   transition: color 0.12s ease;
@@ -63,7 +65,7 @@ export const PANEL_CSS = `
   height: 3px; border-radius: 20px; background: rgb(255, 58, 58);
 }
 .kashiyomi-config .kc-tab:focus-visible { outline: 2px solid rgba(255, 58, 58, 0.75); outline-offset: 2px; }
-.kashiyomi-config .kc-status-right { display: flex; align-items: center; gap: 14px; }
+.kashiyomi-config .kc-status-right { display: flex; align-items: center; gap: 14px; padding-bottom: 6px; }
 .kashiyomi-config .kc-section-title { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.68; margin: 2px 2px -6px; }
 /* Clicking a tab scrolls its heading to the top of the container, which is
    exactly where the sticky strip sits — without this the heading you asked for
