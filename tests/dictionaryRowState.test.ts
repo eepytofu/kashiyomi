@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   CHECK_BUSY_AFTER_MS,
   CHECK_INTERVAL_MS,
+  RECHECK_COOLDOWN_MS,
   DICTIONARY_COOLDOWN_MS,
   dictionaryRowState,
   type RowInput,
@@ -206,7 +207,7 @@ test("the button never keeps its idle label while working", () => {
 // *automatic* check; the row only says so.
 test("a recent check is stated in the row", () => {
   const v = view({
-    inventory: installed("20260723", "20260723", NOW - DICTIONARY_COOLDOWN_MS - 1),
+    inventory: installed("20260723", "20260723", NOW - RECHECK_COOLDOWN_MS - 1),
   });
   assert.equal(v.message.kind, "installed");
   if (v.message.kind === "installed") assert.equal(v.message.upToDate, true);
@@ -215,24 +216,42 @@ test("a recent check is stated in the row", () => {
   assert.equal(v.settling, false, "a 12h window is not something to poll on");
 });
 
-// The throttle governs what the plugin does unprompted. A press is the user
-// asking, and a disabled control with no visible end time reads as broken.
-test("the button stays pressable inside the interval", () => {
-  const v = view({
-    inventory: installed("20260723", "20260723", NOW - DICTIONARY_COOLDOWN_MS - 1),
-  });
-  assert.equal(v.primary.disabled, false, "an explicit press is never refused");
+// A button reading "Update" that runs a check and updates nothing is naming an
+// action it does not perform. While the answer is known to be "nothing to do",
+// it is unavailable rather than misleading.
+test("the button is down while the dictionary is known to be current", () => {
+  const v = view({ inventory: installed("20260723", "20260723", NOW - 1000) });
+  assert.equal(v.primary.disabled, true, "promises nothing it will not do");
   assert.equal(v.primary.action.kind, "update");
-  assert.equal(v.settling, false, "nothing left to wait for");
+  assert.ok(RECHECK_COOLDOWN_MS < CHECK_INTERVAL_MS, "shorter than the automatic throttle");
 });
 
-// A press still gets the ordinary guard, so a double click cannot start two
-// checks. Seconds, not the interval.
-test("the seconds right after a check hold the button", () => {
+// The old objection to disabling it was that a control with no visible end time
+// is indistinguishable from a broken one. The row answers that by saying when
+// the check happened, so the reason sits next to the greyed button.
+test("a disabled button says why it is disabled", () => {
+  const v = view({ inventory: installed("20260723", "20260723", NOW - 60_000) });
+  assert.equal(v.primary.disabled, true);
+  if (v.message.kind === "installed") {
+    assert.equal(v.message.checkedAgoMs, 60_000, "how long ago, for the row to word");
+  }
+});
+
+// Five minutes of a 300ms repaint timer would be a thousand repaints to watch
+// one deadline, so the row is told when to look rather than asked to poll.
+test("a long wait is scheduled, not polled", () => {
   const v = view({ inventory: installed("20260723", "20260723", NOW - 1000) });
-  assert.equal(v.primary.disabled, true, "double-click guard");
-  assert.equal(v.settling, true, "must re-enable itself without another event");
-  assert.ok(DICTIONARY_COOLDOWN_MS < CHECK_INTERVAL_MS, "the guard is far shorter than the interval");
+  assert.equal(v.settling, false, "nothing to poll for");
+  assert.equal(v.settlesAt, NOW - 1000 + RECHECK_COOLDOWN_MS, "one timer, at the expiry");
+});
+
+test("the button comes back once the cooldown passes", () => {
+  const v = view({
+    inventory: installed("20260723", "20260723", NOW - RECHECK_COOLDOWN_MS - 1),
+  });
+  assert.equal(v.primary.disabled, false, "asking again can now learn something");
+  assert.equal(v.settlesAt, undefined);
+  if (v.message.kind === "installed") assert.equal(v.message.checkedAgoMs, undefined);
 });
 
 test("the up-to-date claim expires with the interval", () => {

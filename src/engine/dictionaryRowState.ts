@@ -47,6 +47,24 @@ export const DICTIONARY_COOLDOWN_MS = 4000;
 export const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
 /**
+ * How long the button stays down after a check that found nothing.
+ *
+ * A button reading "Update" that runs a check and does not update is naming an
+ * action it usually does not perform. Disabled, it promises nothing, which is
+ * the state Chrome and macOS Software Update reach by removing the control
+ * entirely once there is nothing to do.
+ *
+ * The old objection to disabling it was that a control with no visible end time
+ * is indistinguishable from a broken one. That is answered by saying when the
+ * check happened rather than by leaving the button live: the row now carries
+ * "checked just now", so the reason is on screen next to the greyed control.
+ *
+ * Five minutes, not the half-hour interval: long enough that pressing again
+ * cannot learn anything, short enough that nobody waits on it.
+ */
+export const RECHECK_COOLDOWN_MS = 5 * 60 * 1000;
+
+/**
  * How long a check must run before the row says it is checking.
  *
  * The metadata request measures ~3 ms warm and ~322 ms cold, so an unguarded
@@ -84,6 +102,12 @@ export type RowMessage =
        * the plugin has no recorded version, and "unknown" is not "behind".
        */
       readonly updateAvailable: boolean;
+      /**
+       * How long ago the last check was, when that is why the button is down.
+       * Undefined the rest of the time, so the row only explains a state the
+       * reader can currently see.
+       */
+      readonly checkedAgoMs: number | undefined;
       /**
        * What the analyzer is doing with the file on disk, when that is worth
        * saying. Undefined once it is open, which is the ordinary case and needs
@@ -135,6 +159,12 @@ export type RowView = {
   readonly primary: { readonly action: RowAction; readonly disabled: boolean };
   /** The view will change without further input (progress, or a cooldown expiring). */
   readonly settling: boolean;
+  /**
+   * When the view next changes on its own, for a wait too long to poll through.
+   * `settling` drives a 300ms repaint timer, which is right for progress and
+   * wrong for five minutes of it.
+   */
+  readonly settlesAt?: number;
 };
 
 export type RowInput = {
@@ -334,8 +364,13 @@ function settledView(input: RowInput): RowView {
     // The ordinary double-click guard, read off the same timestamp rather than
     // out of a job: a press that found nothing sets `checkedAt`, so the seconds
     // after it are exactly the window worth holding the button for.
-    const justChecked =
-      inventory.checkedAt !== undefined && now - inventory.checkedAt < DICTIONARY_COOLDOWN_MS;
+    // Down while the answer is still known to be "nothing to do". Guarded by
+    // `!updateAvailable` for the same reason `fresh` is: once something newer
+    // has been seen the button installs rather than asks, and refusing that
+    // press would strand a reader in front of an update they cannot take.
+    const checkedAt = inventory.checkedAt;
+    const cooling =
+      !updateAvailable && checkedAt !== undefined && now - checkedAt < RECHECK_COOLDOWN_MS;
 
     return {
       dot: "ready",
@@ -344,6 +379,7 @@ function settledView(input: RowInput): RowView {
         version: inventory.version,
         upToDate: fresh,
         updateAvailable,
+        checkedAgoMs: cooling && checkedAt !== undefined ? now - checkedAt : undefined,
         analyzer: input.analyzer,
       },
       // **Live once the guard passes.** The interval exists to stop the plugin
@@ -351,11 +387,12 @@ function settledView(input: RowInput): RowView {
       // an explicit request and it runs a real check. Held down for the whole
       // interval it also had no visible end time, so a control that was merely
       // idle looked broken.
-      primary: { action: { kind: "update" }, disabled: justChecked },
-      // True only for those few seconds, never for the interval: `settling`
-      // starts a repaint timer, and one running for half an hour would poll for
-      // as long as the panel stayed open.
-      settling: justChecked,
+      primary: { action: { kind: "update" }, disabled: cooling },
+      // Not `settling`: that polls every 300ms, and five minutes of it would
+      // repaint a thousand times to watch one deadline. The row schedules a
+      // single timer for `settlesAt` instead.
+      settling: false,
+      settlesAt: cooling && checkedAt !== undefined ? checkedAt + RECHECK_COOLDOWN_MS : undefined,
     };
   }
 

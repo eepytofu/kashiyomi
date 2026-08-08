@@ -63,6 +63,9 @@ export function describe(message: RowMessage): string {
       // ran recently and found nothing. Mutually exclusive by construction.
       if (message.updateAvailable) line += ` · ${t("dictUpdateAvailable")}`;
       else if (message.upToDate) line += ` · ${t("dictUpToDate")}`;
+      // Why the button is down, next to the button. The cooldown is minutes, so
+      // one phrase covers the whole window and neither language needs a plural.
+      if (message.checkedAgoMs !== undefined) line += ` · ${t("dictCheckedJustNow")}`;
       return line;
     }
     case "checking":

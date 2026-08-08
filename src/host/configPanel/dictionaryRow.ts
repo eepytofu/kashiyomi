@@ -85,6 +85,19 @@ export function dictionaryRow(): HTMLElement {
     primary.disabled = current.primary.disabled;
 
     if (current.settling) startPolling();
+    scheduleSettle(current.settlesAt);
+  };
+
+  // A wait too long to poll through: one timer, cancelled and re-armed on every
+  // paint so it can never outlive the state that asked for it.
+  let settleTimer: number | undefined;
+  const scheduleSettle = (at: number | undefined): void => {
+    if (settleTimer !== undefined) {
+      window.clearTimeout(settleTimer);
+      settleTimer = undefined;
+    }
+    if (at === undefined) return;
+    settleTimer = window.setTimeout(paint, Math.max(at - Date.now(), 0) + 50);
   };
 
   // A cooldown expiring and a progress figure advancing both change the view
@@ -129,6 +142,7 @@ export function dictionaryRow(): HTMLElement {
   onPanelTeardown(() => {
     unsubscribe();
     stopPolling();
+    scheduleSettle(undefined);
   });
 
   // Check for a newer release as the panel opens, rather than waiting for a
