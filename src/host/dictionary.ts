@@ -247,18 +247,11 @@ export function reportNoSource(): void {
 /**
  * A check answered, and the installed dictionary is already that release.
  *
- * The other half of `reportNoSource`. Both are the "nothing to install" ending
- * of `startDictionaryInstall`, and the point of both is that they *end the job*:
- * `resolveRelease` sets `resolving` on the way in, so any path that returns
- * without a terminal state leaves the row reading "Checking…" for good. The job
- * is module state, so a panel rebuild does not clear it and only a reload does,
- * and every later press is swallowed by the `job.kind !== "idle"` guard.
- *
- * That is not an edge case: it is the second press of Update on a dictionary
- * that is already current, which is what the button does most of the time.
- * Recording the check without ending the job is what shipped, and the identical
- * hazard was already understood one function up, where `checkForNewerRelease`
- * clears `resolving` for exactly this reason.
+ * The other half of `reportNoSource`: both are the "nothing to install" ending
+ * of `startDictionaryInstall` and both must *end the job*. `resolveRelease` sets
+ * `resolving` on the way in, so returning without a terminal state leaves the
+ * row reading "Checking…" until a reload, with every later press swallowed by
+ * the `job.kind !== "idle"` guard.
  */
 export function reportUpToDate(): void {
   recordCheck();
@@ -316,7 +309,7 @@ export async function resolveRelease(): Promise<ResolvedRelease> {
   // check against a source that is timing out is exactly when someone reaches
   // for Cancel, and there was nothing to press it against.
   abort = new AbortController();
-  setJob({ kind: "resolving" });
+  setJob({ kind: "resolving", at: Date.now() });
 
   for (const source of metadataSources()) {
     try {

@@ -401,12 +401,9 @@ function linkTabsToScroll(root: HTMLElement): void {
   /**
    * The gap between the strip and a heading that has just been scrolled to.
    *
-   * One number on purpose. It sets both where a clicked heading comes to rest
-   * (`scroll-margin-top`) and where the spy considers a heading arrived, and
-   * those were written separately, 8px apart. Recorded over CDP: clicking 中文
-   * settled on 日语, 字体 settled on 中文 — every click landing one section
-   * behind, because the heading rested 8px past the line the spy was still
-   * measuring against, so it never counted as reached.
+   * One number on purpose: it sets where a clicked heading comes to rest and
+   * where the spy counts it as arrived. Written separately they drifted 8px
+   * apart, which put every click one section behind.
    */
   const AIR = 8;
 
@@ -459,8 +456,14 @@ function linkTabsToScroll(root: HTMLElement): void {
         break;
       }
     }
+    // Two clearances, because the two properties do not measure from the same
+    // edge. `scroll-margin-top` counts from the container's border box, sticky
+    // `top` counts from its content box, and the gap between them is exactly the
+    // padding above. Publishing one number for both put the side column 4px
+    // below the settings column at rest: PREVIEW at 259 against JAPANESE at 255.
     const clearance = Math.round(strip.getBoundingClientRect().height) + AIR;
     root.style.setProperty("--kc-strip-clearance", `${clearance}px`);
+    root.style.setProperty("--kc-side-top", `${Math.max(clearance - pad, 0)}px`);
   };
 
   const findScroller = (): HTMLElement | null => {
@@ -506,17 +509,11 @@ function linkTabsToScroll(root: HTMLElement): void {
   /**
    * The tab a click is still travelling to, if any.
    *
-   * A smooth scroll crosses every section between here and there, and the spy
-   * faithfully lights each one on the way — so clicking 高级 from 日语 walked
-   * the red bar through 中文, 字体 and AI 翻译 before settling. NCM's own strip
-   * moves its indicator straight to the target, and the animation is the part
-   * worth keeping, not the flicker.
-   *
-   * Cleared when the scroll actually arrives, so the spy takes over again the
-   * moment the user scrolls away by hand. The timeout is only a backstop for a
-   * scroll that never reaches its target — a section too short to reach the top
-   * would otherwise leave the strip frozen. `scrollend` would say this exactly
-   * and is Chrome 114, so it is unavailable here.
+   * Without it the spy lights every section the smooth scroll crosses, walking
+   * the indicator to the target instead of moving it there. Cleared on arrival
+   * so a hand scroll takes over immediately; the timeout is a backstop for a
+   * scroll that cannot reach its target. `scrollend` would say this exactly and
+   * is Chrome 114.
    */
   let pending: string | null = null;
   let pendingAt = 0;

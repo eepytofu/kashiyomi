@@ -46,6 +46,16 @@ export const DICTIONARY_COOLDOWN_MS = 4000;
  */
 export const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
+/**
+ * How long a check must run before the row says it is checking.
+ *
+ * The metadata request measures ~3 ms warm and ~322 ms cold, so an unguarded
+ * busy state rendered for 20-27 ms: a twitch rather than feedback. 400 ms is
+ * clear of both, so an ordinary check stays silent and only a slow one
+ * announces itself, by which point it is readable.
+ */
+export const CHECK_BUSY_AFTER_MS = 400;
+
 export type RowDot = "ready" | "loading" | "bad" | "neutral";
 
 /**
@@ -171,6 +181,18 @@ export function dictionaryRowState(input: RowInput): RowView {
   if (running) return running;
 
   const settled = settledView(input);
+
+  // A check too young to announce: hold the row exactly as it was, minus the
+  // ability to press it again. `settling` keeps the repaint timer alive so the
+  // row can still promote itself to the busy view if the check does drag on.
+  if (input.job.kind === "resolving") {
+    return {
+      ...settled,
+      primary: { action: settled.primary.action, disabled: true },
+      settling: true,
+    };
+  }
+
   return recentOutcomeView(input, settled) ?? settled;
 }
 
@@ -182,11 +204,14 @@ function runningView(input: RowInput): RowView | undefined {
   const { job } = input;
   switch (job.kind) {
     case "resolving":
+      // Only once it has lasted long enough to be read; the caller holds the
+      // settled view until then.
+      //
       // **Not cancellable, deliberately.** Two HTTP requests that finish in
       // about a second: a Cancel here only ever appeared and disappeared before
       // it could be aimed at. If a source hangs, `fetch` fails on its own and
       // the row offers Retry.
-      return busy({ kind: "checking" });
+      return input.now - job.at < CHECK_BUSY_AFTER_MS ? undefined : busy({ kind: "checking" });
     case "downloading":
       // The clearest window where cancelling is both safe and implemented:
       // nothing has been written to the live path and the transfer holds an

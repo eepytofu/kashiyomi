@@ -19,7 +19,7 @@ export const PANEL_CSS = `
    spans both columns, so at top: 8px this column's first heading slid under the
    strip and was covered. Same measured clearance the section headings use, so
    the two cannot drift apart. */
-.kashiyomi-config .kc-col-side { position: sticky; top: var(--kc-strip-clearance, 60px); align-self: start; }
+.kashiyomi-config .kc-col-side { position: sticky; top: var(--kc-side-top, 29px); align-self: start; }
 /* NCM's own settings strip: tabs left, underline on the active one, in its red.
    Not a card and not a pill row — flat, with a hairline under the whole strip,
    which is what the host does and what makes this read as part of the app

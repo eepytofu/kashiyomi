@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
+  CHECK_BUSY_AFTER_MS,
   CHECK_INTERVAL_MS,
   DICTIONARY_COOLDOWN_MS,
   dictionaryRowState,
@@ -112,7 +113,7 @@ test("an installed dictionary is not blocked by the space check", () => {
 // and a Cancel offered inside that window appeared and vanished before it could
 // be aimed at.
 test("the update check offers no way to cancel it", () => {
-  const v = view({ job: job({ kind: "resolving" }) });
+  const v = view({ job: job({ kind: "resolving", at: NOW - 500 }) });
   assert.equal(v.message.kind, "checking");
   assert.equal(v.primary.action.kind, "working");
   assert.equal(v.primary.disabled, true);
@@ -166,7 +167,7 @@ test("every state yields exactly one action", () => {
     { freeBytes: 1024 },
     { inventory: installed("20260723") },
     { inventory: installed("20260723", "20260723", NOW) },
-    { job: job({ kind: "resolving" }) },
+    { job: job({ kind: "resolving", at: NOW - 500 }) },
     { job: job({ kind: "downloading", received: 1, total: 2 }) },
     { job: job({ kind: "installing", phase: "extracting", done: 1, total: 2 }) },
     { job: job({ kind: "installing", phase: "swapping", done: 0, total: 0 }) },
@@ -187,7 +188,7 @@ test("every state yields exactly one action", () => {
 // never as the action that started it.
 test("the button never keeps its idle label while working", () => {
   const running: DictionaryJob[] = [
-    { kind: "resolving" },
+    { kind: "resolving", at: NOW - 500 },
     { kind: "downloading", received: 0, total: 10 },
     { kind: "installing", phase: "verifying", done: 0, total: 10 },
     { kind: "installing", phase: "loading", done: 0, total: 0 },
@@ -454,4 +455,26 @@ test("a running job is shown even on a surface that does not own it", () => {
   assert.equal(v.message.kind, "downloading");
   assert.equal(v.primary.action.kind, "cancel");
   assert.equal(v.settling, true);
+});
+
+// Measured over CDP: the metadata request answers in ~3 ms warm and ~322 ms
+// cold, so "Checking…" rendered for 20-27 ms and read as a glitch rather than
+// as feedback.
+test("a check too fast to read does not announce itself", () => {
+  const inventory = installed("20260723", "20260723", NOW - CHECK_INTERVAL_MS - 1);
+  const v = view({ inventory, job: job({ kind: "resolving", at: NOW - 50 }) });
+
+  assert.equal(v.message.kind, "installed", "the row keeps the description it had");
+  assert.equal(v.primary.action.kind, "update", "and the label it had");
+  assert.equal(v.primary.disabled, true, "but cannot start a second check");
+  assert.equal(v.settling, true, "and keeps repainting, in case it does drag on");
+});
+
+test("a check slow enough to read says so", () => {
+  const inventory = installed("20260723", "20260723", NOW - CHECK_INTERVAL_MS - 1);
+  const v = view({ inventory, job: job({ kind: "resolving", at: NOW - CHECK_BUSY_AFTER_MS - 1 }) });
+
+  assert.equal(v.message.kind, "checking");
+  assert.equal(v.primary.action.kind, "working");
+  assert.equal(v.primary.disabled, true);
 });

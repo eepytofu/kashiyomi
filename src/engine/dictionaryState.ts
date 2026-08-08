@@ -68,7 +68,8 @@ export type DictionaryInventory = {
  */
 export type DictionaryJob =
   | { readonly kind: "idle" }
-  | { readonly kind: "resolving" }
+  /** `at` is when the check started, so the row can decline to flash a state nobody can read. */
+  | { readonly kind: "resolving"; readonly at: number }
   | { readonly kind: "downloading"; readonly received: number; readonly total: number }
   | {
       readonly kind: "installing";
