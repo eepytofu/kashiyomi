@@ -521,11 +521,20 @@ function linkTabsToScroll(root: HTMLElement): void {
   // Scroll fires far more often than the answer changes, so the work is
   // coalesced into one frame and the DOM is only touched when the tab differs.
   let queued = false;
+  let waitingForLayout = 0;
   const sync = (): void => {
     if (queued) return;
     queued = true;
     requestAnimationFrame(() => {
       queued = false;
+      // BetterNCM builds the panel detached and inserts it later, so every rect
+      // is 0 until it lands. That reads as "every heading is above the line" and
+      // lights the last tab, which is why opening settings showed Advanced.
+      // Bounded so a panel that never attaches stops asking.
+      if (strip.getBoundingClientRect().height === 0 && waitingForLayout++ < 120) {
+        sync();
+        return;
+      }
       const key = current();
       if (pending) {
         if (key === pending || Date.now() - pendingAt > 1200) pending = null;

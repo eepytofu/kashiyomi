@@ -69,18 +69,16 @@ export function describe(message: RowMessage): string {
       return t("dictChecking");
     case "downloading":
       return `${t("dictDownloading")} ${mb(message.received)} / ${mb(message.total)}`;
-    case "installing": {
-      // The two measurable phases carry their byte counts. The swap and the
-      // load are neither long nor divisible, so a bar there would be a bar that
-      // never moves.
-      const label =
-        message.phase === "verifying"
-          ? t("dictVerifying")
-          : message.phase === "extracting"
-            ? t("dictUnpacking")
-            : t("dictActivating");
-      return message.total > 0 ? `${label} ${mb(message.done)} / ${mb(message.total)}` : label;
-    }
+    case "installing":
+      // No byte counts here. Measured on a real install: extracting runs 207 MB
+      // in about a second, so the figure jumped 11 -> 207 across four repaints,
+      // which is a number nobody can read. The download above is the phase long
+      // enough to be worth counting.
+      return message.phase === "verifying"
+        ? t("dictVerifying")
+        : message.phase === "extracting"
+          ? t("dictUnpacking")
+          : t("dictActivating");
     case "failed":
       return `${t("dictFailed")}: ${t(`dictFail_${message.reason.replace(/-/gu, "_")}` as never)}`;
     case "updateCheckFailed":
