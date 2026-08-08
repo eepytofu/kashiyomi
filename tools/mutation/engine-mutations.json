@@ -983,8 +983,8 @@
     "id": "rowstate/resolve-offers-cancel",
     "file": "src/engine/dictionaryRowState.ts",
     "what": "the ~1s update check offers a cancel button again, which only ever flickers",
-    "find": "      return busy({ kind: \"checking\" });",
-    "replace": "      return cancellable({ kind: \"checking\" });"
+    "find": "      return input.now - job.at < CHECK_BUSY_AFTER_MS ? undefined : busy({ kind: \"checking\" });",
+    "replace": "      return input.now - job.at < CHECK_BUSY_AFTER_MS ? undefined : cancellable({ kind: \"checking\" });"
   },
   {
     "id": "dictionary/mirror-swap-unguarded",
