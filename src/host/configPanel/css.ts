@@ -17,8 +17,9 @@ export const PANEL_CSS = `
    height, so with align-self:start the item has 1481px to travel through. */
 /* Parked below the tab strip, not behind it. Both are sticky and the strip
    spans both columns, so at top: 8px this column's first heading slid under the
-   strip and was covered. 44px clears the strip (about 36px) plus the gap. */
-.kashiyomi-config .kc-col-side { position: sticky; top: 44px; align-self: start; }
+   strip and was covered. Same measured clearance the section headings use, so
+   the two cannot drift apart. */
+.kashiyomi-config .kc-col-side { position: sticky; top: var(--kc-strip-clearance, 60px); align-self: start; }
 /* NCM's own settings strip: tabs left, underline on the active one, in its red.
    Not a card and not a pill row — flat, with a hairline under the whole strip,
    which is what the host does and what makes this read as part of the app
@@ -32,14 +33,15 @@ export const PANEL_CSS = `
      are BetterNCM's and they are the ones that scroll. Sticky is the same
      result without owning the layout.
 
-     It needs its own background for the same reason: every ancestor is
-     transparent, so content would scroll through the strip. Blur rather than a
-     flat colour, since the exact page colour is not ours to assume;
-     backdrop-filter was verified present on CEF 91. */
+     It needs its own background for the same reason: measured over CDP, all 13
+     ancestors between the strip and the document body are rgba(0,0,0,0), so
+     without one the rows scroll through the tabs. It was a translucent fill plus a 10px blur,
+     which NCM does nowhere and which read as a plugin flourish; the fill is
+     solid now and set from the page's own colour at runtime, so nothing here is
+     assumed. This value is only the frame before that lands. */
   position: sticky; top: 0; z-index: 2;
   margin-left: -2px; margin-right: -2px; padding-left: 2px; padding-right: 2px;
-  background: rgba(19, 19, 26, 0.86);
-  backdrop-filter: blur(10px);
+  background: rgb(19, 19, 26);
 }
 .kashiyomi-config .kc-tablist { display: flex; align-items: flex-end; gap: 22px; min-width: 0; flex-wrap: wrap; }
 /* Measured off cmd-anchor-link-title: 16px, weight 600 in BOTH states, and only
@@ -67,9 +69,11 @@ export const PANEL_CSS = `
 .kashiyomi-config .kc-section-title { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.68; margin: 2px 2px -6px; }
 /* Clicking a tab scrolls its heading to the top of the container, which is
    exactly where the sticky strip sits — without this the heading you asked for
-   lands underneath it. 44px is the strip (about 36px) plus the gap, the same
-   clearance the side column uses. */
-.kashiyomi-config [data-kc-anchor] { scroll-margin-top: 44px; }
+   lands underneath it. The value is measured at runtime and set as
+   --kc-strip-clearance, because scroll-margin counts from the container's own
+   top edge and BetterNCM puts padding there; the fallback is only for the frame
+   before that measurement lands. */
+.kashiyomi-config [data-kc-anchor] { scroll-margin-top: var(--kc-strip-clearance, 60px); }
 .kashiyomi-config .kc-needs-dict { padding: 9px 14px; font-size: 12px; opacity: 0.68; }
 .kashiyomi-config .kc-switch { position: relative; flex: none; width: 40px; height: 24px; }
 .kashiyomi-config .kc-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }

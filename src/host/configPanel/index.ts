@@ -398,10 +398,103 @@ function linkTabsToScroll(root: HTMLElement): void {
     }
   };
 
+  /**
+   * The gap between the strip and a heading that has just been scrolled to.
+   *
+   * One number on purpose. It sets both where a clicked heading comes to rest
+   * (`scroll-margin-top`) and where the spy considers a heading arrived, and
+   * those were written separately, 8px apart. Recorded over CDP: clicking 中文
+   * settled on 日语, 字体 settled on 中文 — every click landing one section
+   * behind, because the heading rested 8px past the line the spy was still
+   * measuring against, so it never counted as reached.
+   */
+  const AIR = 8;
+
+  // The scrolling ancestor belongs to BetterNCM, so it is found rather than
+  // assumed, and cached because this runs inside a scroll handler. Looked up
+  // lazily rather than at setup: BetterNCM builds the config element detached
+  // and inserts it later, so at construction there is no scrolling ancestor to
+  // find and every rect is zero.
+  let scroller: HTMLElement | null = null;
+
+  /**
+   * Teach the strip and the anchors how much room the strip really takes.
+   *
+   * Sticky `top: 0` parks the strip at the scrollport, which sits below the
+   * container's own `padding-top` — measured on the running app, the container
+   * starts at y=196 with 16px of padding and the strip lands at 212. That band
+   * is not covered by anything, so rows scroll visibly through it above the
+   * tabs, and it is dead space the tabs could have used.
+   *
+   * So the strip takes it: a negative margin moves it up in flow and the same
+   * negative sticky offset keeps it there once stuck, which matters because the
+   * two are separate positions — margin alone would leave the tabs jumping 16px
+   * upward on the first scroll.
+   *
+   * The same padding was breaking clicks, because `scroll-margin-top` counts
+   * from the container's top edge and not from below the strip: a heading asked
+   * for at 44px landed underneath it. That is why the clearance is published
+   * here as a custom property instead of written into the stylesheet — it is the
+   * strip's measured height, so it cannot fall out of step with the strip.
+   *
+   * Read from the host rather than hardcoded: the padding is BetterNCM's and it
+   * is free to change it.
+   */
+  const calibrate = (container: HTMLElement): void => {
+    const pad = Number.parseFloat(getComputedStyle(container).paddingTop) || 0;
+    if (pad > 0) {
+      strip.style.marginTop = `-${pad}px`;
+      strip.style.top = `-${pad}px`;
+    }
+
+    // The strip has to paint its own background or rows scroll through it, and
+    // the colour has to match the page exactly or the strip becomes a visible
+    // panel. Take it from whichever ancestor actually paints one: measured, the
+    // first is `body`, because all 13 elements between are fully transparent.
+    // Read rather than hardcoded so a themed or reskinned client still matches.
+    for (let el: HTMLElement | null = strip.parentElement; el; el = el.parentElement) {
+      const bg = getComputedStyle(el).backgroundColor;
+      if (bg && bg !== "transparent" && !bg.startsWith("rgba(0, 0, 0, 0")) {
+        strip.style.background = bg;
+        break;
+      }
+    }
+    const clearance = Math.round(strip.getBoundingClientRect().height) + AIR;
+    root.style.setProperty("--kc-strip-clearance", `${clearance}px`);
+  };
+
+  const findScroller = (): HTMLElement | null => {
+    if (scroller) return scroller;
+    for (let el = strip.parentElement; el; el = el.parentElement) {
+      const style = getComputedStyle(el);
+      if (/(auto|scroll)/.test(style.overflowY) && el.scrollHeight > el.clientHeight + 4) {
+        scroller = el;
+        calibrate(el);
+        break;
+      }
+    }
+    return scroller;
+  };
+
+  const atBottom = (): boolean => {
+    findScroller();
+    // The 2px absorbs subpixel rounding at display scaling, where scrollTop and
+    // clientHeight are fractional and never sum to exactly scrollHeight.
+    return scroller !== null && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
+  };
+
   const current = (): string | null => {
-    // A hair below the strip, so a heading counts as arrived the moment it is
-    // no longer covered by it rather than a frame later.
-    const line = strip.getBoundingClientRect().bottom + 1;
+    // The last section is short, so the container runs out of scroll while its
+    // heading is still mid-page: Advanced sits at y=1244 in a 595px scroller and
+    // can never reach the strip at y=249. Without this it is unreachable by
+    // scrolling *and* by clicking, since the click settles the same way. At the
+    // end of the scroll the last section is the current one by definition.
+    const last = anchors[anchors.length - 1];
+    if (last && atBottom()) return last.getAttribute("data-kc-anchor");
+
+    // Where a clicked heading comes to rest counts as arrived, plus a pixel for
+    // subpixel rounding. Anything stricter puts the click one section behind.
+    const line = strip.getBoundingClientRect().bottom + AIR + 1;
     let key: string | null = first.getAttribute("data-kc-anchor");
     for (const anchor of anchors) {
       if (anchor.getBoundingClientRect().top > line) break;
@@ -409,6 +502,24 @@ function linkTabsToScroll(root: HTMLElement): void {
     }
     return key;
   };
+
+  /**
+   * The tab a click is still travelling to, if any.
+   *
+   * A smooth scroll crosses every section between here and there, and the spy
+   * faithfully lights each one on the way — so clicking 高级 from 日语 walked
+   * the red bar through 中文, 字体 and AI 翻译 before settling. NCM's own strip
+   * moves its indicator straight to the target, and the animation is the part
+   * worth keeping, not the flicker.
+   *
+   * Cleared when the scroll actually arrives, so the spy takes over again the
+   * moment the user scrolls away by hand. The timeout is only a backstop for a
+   * scroll that never reaches its target — a section too short to reach the top
+   * would otherwise leave the strip frozen. `scrollend` would say this exactly
+   * and is Chrome 114, so it is unavailable here.
+   */
+  let pending: string | null = null;
+  let pendingAt = 0;
 
   // Scroll fires far more often than the answer changes, so the work is
   // coalesced into one frame and the DOM is only touched when the tab differs.
@@ -419,6 +530,10 @@ function linkTabsToScroll(root: HTMLElement): void {
     requestAnimationFrame(() => {
       queued = false;
       const key = current();
+      if (pending) {
+        if (key === pending || Date.now() - pendingAt > 1200) pending = null;
+        else return;
+      }
       if (!key || key === activeTab) return;
       activeTab = key as TabKey;
       light(key);
@@ -437,6 +552,8 @@ function linkTabsToScroll(root: HTMLElement): void {
       // is nothing to rebuild and rebuilding would lose the scroll position.
       target?.scrollIntoView({ behavior: "smooth", block: "start" });
       if (key) {
+        pending = key;
+        pendingAt = Date.now();
         activeTab = key as TabKey;
         light(key);
       }
