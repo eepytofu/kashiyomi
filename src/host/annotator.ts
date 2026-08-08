@@ -124,7 +124,7 @@ async function scan(): Promise<void> {
     // setting says. A credit answers "who made this"; these two answer nothing
     // and have nothing to read.
     if (kind === "marker" || kind === "notice") {
-      unrouted.push({ el, text });
+      if (!isAnnotatedFrom(el, text)) unrouted.push({ el, text });
       continue;
     }
     if (kind === "lyric") {
@@ -132,7 +132,7 @@ async function scan(): Promise<void> {
       originals.push({ el, text });
       translationStates.push(line.translation);
     } else if (!settings.annotateCredits) {
-      unrouted.push({ el, text });
+      if (!isAnnotatedFrom(el, text)) unrouted.push({ el, text });
       continue;
     }
     if (isAnnotatedFrom(el, text)) continue;
@@ -142,6 +142,11 @@ async function scan(): Promise<void> {
   if (pending.length === 0 && unrouted.length === 0) {
     // Steady state: every visible line is annotated. Attach (and, when
     // enabled, request) AI translations now so they never race annotation.
+    //
+    // Both lists must be work *remaining*, which is why the pushes above check
+    // `isAnnotatedFrom` the way `pending` does. Collecting already-handled lines
+    // kept `unrouted` permanently non-empty on any song with a credit or a
+    // marker, so this branch never ran and AI translation never started.
     maybeTranslate(originals, scheduleScan);
     return;
   }
