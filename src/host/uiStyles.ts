@@ -25,9 +25,11 @@ export const UI_ROOT_CLASS = "kashiyomi-ui";
 export const SHARED_CSS = `
 .kashiyomi-ui * { box-sizing: border-box; }
 .kashiyomi-ui .kc-card { border-radius: 10px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
-.kashiyomi-ui .kc-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 14px; cursor: pointer; }
+.kashiyomi-ui .kc-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 14px; }
 .kashiyomi-ui .kc-row + .kc-row { border-top: 1px solid rgba(255, 255, 255, 0.06); }
-.kashiyomi-ui .kc-row:hover { background: rgba(255, 255, 255, 0.04); }
+/* No row is clickable: every row's control is its own hit target, which is what
+   the rest of the panel already did and what NCM's own plugins do. A row-wide
+   hover would advertise a target that is not there. */
 /* Weight separates label from description, not opacity. The two were 13.5px and
    12px, a 1.125 ratio and near-identical, so the whole hierarchy rested on
    opacity, which is also what sets contrast. That made the two impossible to
@@ -40,7 +42,7 @@ export const SHARED_CSS = `
    arrives, and its controls are genuinely disabled so nothing can be switched
    into a state that silently has no effect. */
 .kashiyomi-ui .kc-inert { opacity: 0.45; cursor: default; }
-.kashiyomi-ui .kc-inert:hover { background: transparent; }
+.kashiyomi-ui .kc-inert .kc-switch { cursor: default; }
 /* Radius 8, matching every other surface here — card 10, select 8, input 8,
    language toggle 8. Shipped once as NCM's own pill (radius = half the height)
    and reverted: it was the only control in the panel not on the shared radius. */

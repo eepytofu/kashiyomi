@@ -7,48 +7,88 @@ import { t, tSongsCached } from "../i18n.ts";
 import { getSettings, updateSettings, type Settings } from "../settings.ts";
 import { resetTranslation } from "../translationLane.ts";
 import { cachedTranslationCount, clearTranslationCache } from "../translator.ts";
-import { row, rowText, styledSelect, textInput } from "./rows.ts";
+import { dropdown } from "./dropdown.ts";
+import { row, rowText, textInput } from "./rows.ts";
 
-/** `rerender` rebuilds the whole panel: the provider decides which rows exist. */
-export function providerRow(rerender: () => void): HTMLElement {
+/**
+ * `onProvider` updates the rows the choice affects: the base URL and the model
+ * placeholder. It used to rebuild the whole panel, which replaced the `<select>`
+ * under the pointer — recorded over CDP, every change was followed by `blur`
+ * within 15ms, so the control lost focus and the panel visibly rebuilt.
+ */
+export function providerRow(onProvider: (provider: Settings["aiProvider"]) => void): HTMLElement {
   const el = row();
   el.appendChild(rowText(t("aiProvider"), t("aiProviderDesc")));
-  const { wrap, select } = styledSelect();
-  for (const [value, label] of [
-    ["openai", "OpenAI-compatible"],
-    ["gemini", "Gemini"],
-  ] as const) {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = label;
-    if (getSettings().aiProvider === value) option.selected = true;
-    select.appendChild(option);
-  }
-  select.onchange = () => {
-    updateSettings({ aiProvider: select.value as Settings["aiProvider"] });
-    resetTranslation();
-    // Provider choice changes which rows exist (base URL, placeholders).
-    rerender();
-  };
-  el.appendChild(wrap);
+  const control = dropdown({
+    options: [
+      { value: "openai", label: "OpenAI-compatible" },
+      { value: "gemini", label: "Gemini" },
+    ],
+    value: getSettings().aiProvider,
+    label: t("aiProvider"),
+    onChange: (value) => {
+      const provider = value as Settings["aiProvider"];
+      updateSettings({ aiProvider: provider });
+      resetTranslation();
+      onProvider(provider);
+    },
+  });
+  el.appendChild(control.el);
   return el;
 }
 
-const COMMON_TARGET_LANGS = [
-  "English",
-  "简体中文",
-  "繁體中文",
-  "Bahasa Indonesia",
-  "日本語",
-  "한국어",
-  "Español",
-  "Français",
-  "Deutsch",
-  "Português",
-  "Русский",
-  "ไทย",
-  "Tiếng Việt",
-  "العربية",
+/**
+ * The shortcut list, not a catalogue. Custom takes anything not here, so the
+ * only job of this list is to save typing for the languages people actually
+ * pick.
+ *
+ * **Endonyms, with an English alias for finding them.** The value goes into a
+ * prompt as free text, so unlike a translation API we need no language codes and
+ * can name each language the way its own speakers write it. That makes the list
+ * unreachable from a Latin keyboard, which is what `search` fixes: typing
+ * "japanese" lands on 日本語.
+ */
+const COMMON_TARGET_LANGS: readonly { label: string; search: string }[] = [
+  { label: "English", search: "english" },
+  { label: "简体中文", search: "chinese simplified" },
+  { label: "繁體中文", search: "chinese traditional" },
+  { label: "日本語", search: "japanese" },
+  { label: "한국어", search: "korean" },
+  { label: "Bahasa Indonesia", search: "indonesian" },
+  { label: "Bahasa Melayu", search: "malay" },
+  { label: "Basa Jawa", search: "javanese" },
+  { label: "Basa Sunda", search: "sundanese" },
+  { label: "Tiếng Việt", search: "vietnamese" },
+  { label: "ไทย", search: "thai" },
+  { label: "Filipino", search: "filipino tagalog" },
+  { label: "ភាសាខ្មែរ", search: "khmer" },
+  { label: "မြန်မာ", search: "burmese myanmar" },
+  { label: "Español", search: "spanish" },
+  { label: "Português", search: "portuguese" },
+  { label: "Français", search: "french" },
+  { label: "Deutsch", search: "german" },
+  { label: "Italiano", search: "italian" },
+  { label: "Nederlands", search: "dutch" },
+  { label: "Polski", search: "polish" },
+  { label: "Čeština", search: "czech" },
+  { label: "Română", search: "romanian" },
+  { label: "Magyar", search: "hungarian" },
+  { label: "Svenska", search: "swedish" },
+  { label: "Norsk", search: "norwegian" },
+  { label: "Dansk", search: "danish" },
+  { label: "Suomi", search: "finnish" },
+  { label: "Türkçe", search: "turkish" },
+  { label: "Ελληνικά", search: "greek" },
+  { label: "Русский", search: "russian" },
+  { label: "Українська", search: "ukrainian" },
+  { label: "עברית", search: "hebrew" },
+  { label: "العربية", search: "arabic" },
+  { label: "فارسی", search: "persian farsi" },
+  { label: "اردو", search: "urdu" },
+  { label: "हिन्दी", search: "hindi" },
+  { label: "বাংলা", search: "bengali" },
+  { label: "தமிழ்", search: "tamil" },
+  { label: "Kiswahili", search: "swahili" },
 ];
 
 export function targetLangRow(): HTMLElement {
@@ -58,21 +98,7 @@ export function targetLangRow(): HTMLElement {
 
   const CUSTOM = "__custom__";
   const current = getSettings().aiTargetLang;
-  const isListed = COMMON_TARGET_LANGS.includes(current);
-
-  const { wrap, select } = styledSelect();
-  for (const lang of COMMON_TARGET_LANGS) {
-    const option = document.createElement("option");
-    option.value = lang;
-    option.textContent = lang;
-    if (lang === current) option.selected = true;
-    select.appendChild(option);
-  }
-  const customOption = document.createElement("option");
-  customOption.value = CUSTOM;
-  customOption.textContent = t("customOption");
-  if (!isListed) customOption.selected = true;
-  select.appendChild(customOption);
+  const isListed = COMMON_TARGET_LANGS.some((lang) => lang.label === current);
 
   const input = textInput(isListed ? "" : current);
   input.style.flex = "1 1 100%";
@@ -85,18 +111,26 @@ export function targetLangRow(): HTMLElement {
     }
   };
 
-  select.onchange = () => {
-    if (select.value === CUSTOM) {
-      input.style.display = "";
-      input.focus();
-    } else {
+  const control = dropdown({
+    options: [
+      ...COMMON_TARGET_LANGS.map((lang) => ({ value: lang.label, label: lang.label, search: lang.search })),
+      { value: CUSTOM, label: t("customOption") },
+    ],
+    value: isListed ? current : CUSTOM,
+    label: t("aiTargetLang"),
+    onChange: (value) => {
+      if (value === CUSTOM) {
+        input.style.display = "";
+        input.focus();
+        return;
+      }
       input.style.display = "none";
-      updateSettings({ aiTargetLang: select.value });
+      updateSettings({ aiTargetLang: value });
       resetTranslation();
-    }
-  };
+    },
+  });
 
-  el.appendChild(wrap);
+  el.appendChild(control.el);
   el.appendChild(input);
   return el;
 }

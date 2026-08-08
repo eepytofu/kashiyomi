@@ -167,18 +167,28 @@ function render(root: HTMLElement): void {
   left.appendChild(tabAnchor("translation", t("sectionAi")));
   const ai = card();
   ai.appendChild(toggleRow("aiAutoTranslate", t("aiAuto"), t("aiAutoDesc"), resetTranslation));
-  ai.appendChild(providerRow(() => render(root)));
-  // Gemini has a fixed Google endpoint; the base URL only applies to
-  // OpenAI-compatible providers.
-  if (getSettings().aiProvider === "openai") {
-    ai.appendChild(textRow("aiBaseUrl", "aiBaseUrl", "aiBaseUrlDesc", { placeholder: "https://api.openai.com/v1" }));
-  }
+
+  const baseUrlRow = textRow("aiBaseUrl", "aiBaseUrl", "aiBaseUrlDesc", {
+    placeholder: "https://api.openai.com/v1",
+  });
+  const modelRow = textRow("aiModel", "aiModel", "aiModelDesc", {});
+  const modelPlaceholder = (provider: string): string =>
+    provider === "gemini" ? "gemini-3.5-flash-lite" : "gpt-5.6-luna";
+  // Both rows always exist; the provider only decides how they look. Rebuilding
+  // the panel to add or drop one row took the focused <select> with it.
+  const applyProvider = (provider: string): void => {
+    // Gemini has a fixed Google endpoint; the base URL only applies to
+    // OpenAI-compatible providers.
+    baseUrlRow.style.display = provider === "openai" ? "" : "none";
+    const model = modelRow.querySelector("input");
+    if (model) model.placeholder = modelPlaceholder(provider);
+  };
+
+  ai.appendChild(providerRow(applyProvider));
+  ai.appendChild(baseUrlRow);
   ai.appendChild(apiKeysRow());
-  ai.appendChild(
-    textRow("aiModel", "aiModel", "aiModelDesc", {
-      placeholder: getSettings().aiProvider === "gemini" ? "gemini-3.5-flash-lite" : "gpt-5.6-luna",
-    }),
-  );
+  ai.appendChild(modelRow);
+  applyProvider(getSettings().aiProvider);
   ai.appendChild(targetLangRow());
   ai.appendChild(textRow("aiCustomPrompt", "aiCustomPrompt", "aiCustomPromptDesc", {}));
   ai.appendChild(clearCacheRow());
@@ -442,19 +452,6 @@ function linkTabsToScroll(root: HTMLElement): void {
     if (pad > 0) {
       strip.style.marginTop = `-${pad}px`;
       strip.style.top = `-${pad}px`;
-    }
-
-    // The strip has to paint its own background or rows scroll through it, and
-    // the colour has to match the page exactly or the strip becomes a visible
-    // panel. Take it from whichever ancestor actually paints one: measured, the
-    // first is `body`, because all 13 elements between are fully transparent.
-    // Read rather than hardcoded so a themed or reskinned client still matches.
-    for (let el: HTMLElement | null = strip.parentElement; el; el = el.parentElement) {
-      const bg = getComputedStyle(el).backgroundColor;
-      if (bg && bg !== "transparent" && !bg.startsWith("rgba(0, 0, 0, 0")) {
-        strip.style.background = bg;
-        break;
-      }
     }
     // Two clearances, because the two properties do not measure from the same
     // edge. `scroll-margin-top` counts from the container's border box, sticky

@@ -74,15 +74,6 @@ export function textInput(value: string): HTMLInputElement {
   return input;
 }
 
-/** Wraps a select so the custom chevron and popup colors apply. */
-export function styledSelect(): { wrap: HTMLElement; select: HTMLSelectElement } {
-  const wrap = document.createElement("span");
-  wrap.className = "kc-select";
-  const select = document.createElement("select");
-  wrap.appendChild(select);
-  return { wrap, select };
-}
-
 export function toggleRow(
   key: BooleanSettingKey,
   label: string,
@@ -90,10 +81,13 @@ export function toggleRow(
   onExtra?: () => void,
   triggersRescan = true,
 ): HTMLElement {
-  const el = row("label");
+  const el = row();
   el.appendChild(rowText(label, description));
 
-  const toggle = document.createElement("span");
+  // The label wraps the switch alone, not the row. Every other row's control is
+  // the only hit target, and a row that highlights but does nothing is worse
+  // than one that never offered.
+  const toggle = document.createElement("label");
   toggle.className = "kc-switch";
   const box = document.createElement("input");
   box.type = "checkbox";
