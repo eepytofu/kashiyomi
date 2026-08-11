@@ -5,9 +5,12 @@ export const UI_ROOT_CLASS = "kashiyomi-ui";
 
 export const SHARED_CSS = `
 .kashiyomi-ui * { box-sizing: border-box; }
-.kashiyomi-ui .kc-card { border-radius: 10px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
+.kashiyomi-ui .kc-card {
+  border: 1px solid var(--kc-card-border, transparent); border-radius: 10px;
+  background: var(--kc-card-bg, rgba(255, 255, 255, 0.05)); overflow: hidden;
+}
 .kashiyomi-ui .kc-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 14px; }
-.kashiyomi-ui .kc-row + .kc-row { border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.kashiyomi-ui .kc-row + .kc-row { border-top: 1px solid var(--kc-divider, rgba(255, 255, 255, 0.06)); }
 /* No row is clickable: every row's control is its own hit target, which is what
    the rest of the panel already did and what NCM's own plugins do. A row-wide
    hover would advertise a target that is not there. */
@@ -26,10 +29,10 @@ export const SHARED_CSS = `
    and reverted: it was the only control in the panel not on the shared radius. */
 .kashiyomi-ui .kc-button {
   padding: 6px 14px; border: none;
-  border-radius: 8px; background: rgba(255, 255, 255, 0.1); color: inherit;
+  border-radius: 8px; background: var(--kc-button-bg, rgba(255, 255, 255, 0.1)); color: inherit;
   font-size: 12.5px; font-family: inherit; cursor: pointer;
 }
-.kashiyomi-ui .kc-button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+.kashiyomi-ui .kc-button:hover:not(:disabled) { background: var(--kc-button-hover, rgba(255, 255, 255, 0.16)); }
 .kashiyomi-ui .kc-button:disabled { opacity: 0.5; cursor: default; }
 .kashiyomi-ui .kc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: #999; }
 .kashiyomi-ui .kc-ready .kc-dot { background: #52c41a; }

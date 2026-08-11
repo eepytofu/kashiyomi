@@ -55,7 +55,7 @@ type TabKey = (typeof TABS)[number]["key"];
 /** Module-scoped, not a local. */
 let activeTab: TabKey = "japanese";
 
-function render(root: HTMLElement): void {
+function render(root: HTMLElement, restoreTab?: TabKey): void {
   // A rebuild detaches every node below, so anything still subscribed or still
   // ticking is writing into a document it has left. Four paths reach this
   // function, so a row that does not clean up leaks once per visit.
@@ -65,8 +65,12 @@ function render(root: HTMLElement): void {
   const style = document.createElement("style");
   style.textContent = PANEL_CSS;
   root.appendChild(style);
+  applyPanelTheme(root);
 
   root.appendChild(buildTabStrip(root));
+
+  const scroll = document.createElement("div");
+  scroll.className = "kc-scroll";
 
   const left = document.createElement("div");
   left.className = "kc-col";
@@ -182,9 +186,20 @@ function render(root: HTMLElement): void {
 
   buildAboutCard(right);
 
-  root.appendChild(left);
-  root.appendChild(right);
-  linkTabsToScroll(root);
+  scroll.appendChild(left);
+  scroll.appendChild(right);
+  root.appendChild(scroll);
+  linkTabsToScroll(root, restoreTab);
+}
+
+/** Use the rendered host surface, not a private NCM theme API. */
+function applyPanelTheme(root: HTMLElement): void {
+  const channels = getComputedStyle(document.body).backgroundColor.match(/[\d.]+/g);
+  const red = Number(channels?.[0] ?? 0);
+  const green = Number(channels?.[1] ?? 0);
+  const blue = Number(channels?.[2] ?? 0);
+  const luminance = (red * 299 + green * 587 + blue * 114) / 1000;
+  root.classList.toggle("kc-theme-light", luminance > 160);
 }
 
 /** A toggle plus the rows that only mean anything while it is on. */
@@ -275,12 +290,13 @@ function tabAnchor(key: TabKey, label: string): HTMLElement {
 }
 
 /** Keep the strip in step with the scroll, and scroll on click. */
-function linkTabsToScroll(root: HTMLElement): void {
+function linkTabsToScroll(root: HTMLElement, restoreTab?: TabKey): void {
   const tabs = [...root.querySelectorAll<HTMLElement>(".kc-tab")];
   const anchors = [...root.querySelectorAll<HTMLElement>("[data-kc-anchor]")];
   const strip = root.querySelector<HTMLElement>(".kc-tabs");
+  const scroller = root.querySelector<HTMLElement>(".kc-scroll");
   const first = anchors[0];
-  if (tabs.length === 0 || !first || !strip) return;
+  if (tabs.length === 0 || !first || !strip || !scroller) return;
 
   const light = (key: string): void => {
     for (const tab of tabs) {
@@ -291,48 +307,31 @@ function linkTabsToScroll(root: HTMLElement): void {
   /** The gap between the strip and a heading that has just been scrolled to. */
   const AIR = 8;
 
-  // The scrolling ancestor belongs to BetterNCM, so it is found rather than
-  let scroller: HTMLElement | null = null;
-
-  /** Teach the strip and the anchors how much room the strip really takes. */
-  const calibrate = (container: HTMLElement): void => {
-    const pad = Number.parseFloat(getComputedStyle(container).paddingTop) || 0;
-    if (pad > 0) {
-      strip.style.marginTop = `-${pad}px`;
-      strip.style.top = `-${pad}px`;
-    }
-    // Two clearances, because the two properties do not measure from the same
-    for (let el: HTMLElement | null = strip.parentElement; el; el = el.parentElement) {
-      const bg = getComputedStyle(el).backgroundColor;
-      if (bg && bg !== "transparent" && !bg.startsWith("rgba(0, 0, 0, 0")) {
-        strip.style.background = bg;
-        break;
-      }
-    }
-
-    const clearance = Math.round(strip.getBoundingClientRect().height) + AIR;
-    root.style.setProperty("--kc-strip-clearance", `${clearance}px`);
-    root.style.setProperty("--kc-side-top", `${Math.max(clearance - pad, 0)}px`);
+  const fitViewport = (): void => {
+    const left = root.getBoundingClientRect().left;
+    if (left <= 0) return;
+    const available = Math.max(320, Math.min(980, window.innerWidth - left - 16));
+    root.style.maxWidth = `${Math.round(available)}px`;
   };
+  window.addEventListener("resize", fitViewport);
+  onPanelTeardown(() => window.removeEventListener("resize", fitViewport));
 
-  const findScroller = (): HTMLElement | null => {
-    if (scroller) return scroller;
-    for (let el = strip.parentElement; el; el = el.parentElement) {
-      const style = getComputedStyle(el);
-      if (/(auto|scroll)/.test(style.overflowY) && el.scrollHeight > el.clientHeight + 4) {
-        scroller = el;
-        calibrate(el);
-        break;
-      }
-    }
-    return scroller;
+  const scrollTo = (key: string, behavior: ScrollBehavior): boolean => {
+    const target = anchors.find((anchor) => anchor.getAttribute("data-kc-anchor") === key);
+    if (!target) return false;
+    const destination = scroller.scrollTop
+      + target.getBoundingClientRect().top
+      - scroller.getBoundingClientRect().top
+      - AIR;
+    const top = Math.max(0, Math.min(destination, scroller.scrollHeight - scroller.clientHeight));
+    scroller.scrollTo({ top, behavior });
+    return true;
   };
 
   const atBottom = (): boolean => {
-    findScroller();
     // The 2px absorbs subpixel rounding at display scaling, where scrollTop and
     // clientHeight are fractional and never sum to exactly scrollHeight.
-    return scroller !== null && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
+    return scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
   };
 
   const current = (): string | null => {
@@ -342,7 +341,7 @@ function linkTabsToScroll(root: HTMLElement): void {
 
     // Where a clicked heading comes to rest counts as arrived, plus a pixel for
     // subpixel rounding. Anything stricter puts the click one section behind.
-    const line = strip.getBoundingClientRect().bottom + AIR + 1;
+    const line = scroller.getBoundingClientRect().top + AIR + 1;
     let key: string | null = first.getAttribute("data-kc-anchor");
     for (const anchor of anchors) {
       if (anchor.getBoundingClientRect().top > line) break;
@@ -359,6 +358,30 @@ function linkTabsToScroll(root: HTMLElement): void {
   // coalesced into one frame and the DOM is only touched when the tab differs.
   let queued = false;
   let waitingForLayout = 0;
+  let initial = true;
+  let painted = false;
+  let layoutObserver: MutationObserver | null = null;
+  const watchLayout = (): void => {
+    if (layoutObserver) return;
+    layoutObserver = new MutationObserver(sync);
+    layoutObserver.observe(document.body, { attributes: true, childList: true, subtree: true });
+    onPanelTeardown(() => layoutObserver?.disconnect());
+  };
+  let hostObserver: MutationObserver | null = null;
+  const watchHost = (): void => {
+    if (hostObserver) return;
+    const manager = root.closest(".bncm-mgr");
+    if (!manager) return;
+    hostObserver = new MutationObserver(() => {
+      if (root.getBoundingClientRect().height === 0) return;
+      applyPanelTheme(root);
+      sync();
+    });
+    for (const button of manager.querySelectorAll(".plugin-btn")) {
+      hostObserver.observe(button, { attributes: true, attributeFilter: ["class"] });
+    }
+    onPanelTeardown(() => hostObserver?.disconnect());
+  };
   const sync = (): void => {
     if (queued) return;
     queued = true;
@@ -367,33 +390,50 @@ function linkTabsToScroll(root: HTMLElement): void {
       // BetterNCM builds the panel detached and inserts it later, so every rect
       // is 0 until it lands. That reads as "every heading is above the line" and
       // lights the last tab, which is why opening settings showed Advanced.
-      if (strip.getBoundingClientRect().height === 0 && waitingForLayout++ < 120) {
-        sync();
+      fitViewport();
+      const waiting = (
+        strip.getBoundingClientRect().height === 0
+        || scroller.clientHeight === 0
+        || scroller.scrollHeight <= scroller.clientHeight + 4
+        || first.getBoundingClientRect().height === 0
+      );
+      if (waiting) {
+        watchLayout();
+        if (root.isConnected && waitingForLayout++ < 10) sync();
         return;
+      }
+      waitingForLayout = 0;
+      layoutObserver?.disconnect();
+      layoutObserver = null;
+      watchHost();
+      if (initial) {
+        initial = false;
+        if (restoreTab) scrollTo(restoreTab, "auto");
       }
       const key = current();
       if (pending) {
         if (key === pending || Date.now() - pendingAt > 1200) pending = null;
         else return;
       }
-      if (!key || key === activeTab) return;
+      if (!key) return;
+      if (key === activeTab && painted) return;
       activeTab = key as TabKey;
       light(key);
+      painted = true;
+      restoreTab = undefined;
     });
   };
 
-  document.addEventListener("scroll", sync, true);
-  onPanelTeardown(() => document.removeEventListener("scroll", sync, true));
+  scroller.addEventListener("scroll", sync);
+  onPanelTeardown(() => scroller.removeEventListener("scroll", sync));
   sync();
 
   for (const tab of tabs) {
     tab.onclick = () => {
       const key = tab.getAttribute("data-kc-tab");
-      const target = anchors.find((a) => a.getAttribute("data-kc-anchor") === key);
       // Scrolls rather than re-renders: the sections are all present, so there
       // is nothing to rebuild and rebuilding would lose the scroll position.
-      target?.scrollIntoView({ behavior: "smooth", block: "start" });
-      if (key) {
+      if (key && scrollTo(key, "smooth")) {
         pending = key;
         pendingAt = Date.now();
         activeTab = key as TabKey;
@@ -405,10 +445,7 @@ function linkTabsToScroll(root: HTMLElement): void {
 
 function buildTabStrip(root: HTMLElement): HTMLElement {
   const bar = document.createElement("div");
-  // kc-full spans both grid columns. Without it the strip takes the first
-  // cell and pushes the settings and side columns into the wrong ones, which
-  // put every card in the right-hand column.
-  bar.className = "kc-tabs kc-full";
+  bar.className = "kc-tabs";
 
   const list = document.createElement("div");
   list.className = "kc-tablist";
@@ -428,7 +465,7 @@ function buildTabStrip(root: HTMLElement): HTMLElement {
   reannotate.textContent = t("reannotate");
   reannotate.onclick = () => {
     rescan();
-    render(root);
+    render(root, activeTab);
   };
   rightSide.appendChild(reannotate);
   rightSide.appendChild(buildLangToggle(root));
@@ -453,7 +490,7 @@ function buildLangToggle(root: HTMLElement): HTMLElement {
     if (lang === current) button.className = "kc-active";
     button.onclick = () => {
       setPanelLang(lang);
-      render(root);
+      render(root, activeTab);
     };
     wrap.appendChild(button);
   }
