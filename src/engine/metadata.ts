@@ -19,6 +19,7 @@ const ROLE_MORPHEMES = new Set([
   "词", "詞", "曲", "编", "編", "写", "寫", "唱", "声", "聲", "音", "作", "填",
   "谱", "譜", "制", "製", "演", "奏", "混", "录", "錄", "调", "調", "校", "教",
   "绘", "繪", "画", "畫", "著", "效", "轨", "軌", "字", "鼓", "笛", "琴", "胡",
+  "钢", "鋼",
   // Modifiers that specify a role rather than name one. They never stand alone
   // as a label: at the 2/3 threshold 女 or 主 on its own leaves a two-character
   // label at 0.50 and it stays a lyric.
@@ -28,6 +29,10 @@ const ROLE_MORPHEMES = new Set([
   // Chinese, multi-character: no usable decomposition, or the parts are too
   // weak. 子 in 笛子 and 室 in 录音室 are not roles in any other label.
   "笛子", "吉他", "贝斯", "貝斯", "琵琶", "古筝", "古箏", "二胡", "唢呐", "尺八",
+  // 民谣 qualifies an instrument (民谣吉他) rather than naming one. It is here
+  // and not with the single-character modifiers because at two characters it
+  // would reach 1.00 alone, and those are chosen to stay under the threshold.
+  "民谣", "民謠",
   "古琴", "扬琴", "提琴", "弦乐", "弦樂", "键盘", "鍵盤", "乐器", "樂器", "乐队",
   "樂隊", "单簧管", "萨克斯", "打击乐", "合成器", "工作室",
   "母带", "母帶", "后期", "後期", "分轨", "缩混", "縮混", "插画", "插畫", "插图",
@@ -71,6 +76,20 @@ function roleCoverRatio(label: string): number {
     }
   }
   return best[chars.length]! / chars.length;
+}
+
+/**
+ * True when the character at `index` sits inside a role morpheme. 他 is a
+ * pronoun, which is why it marks a sentence, but it is also the second half of
+ * 吉他: without this, every guitar credit fails the shape test.
+ */
+function insideRoleMorpheme(chars: readonly string[], index: number): boolean {
+  for (let start = 0; start <= index; start++) {
+    for (let end = index + 1; end <= chars.length; end++) {
+      if (ROLE_MORPHEMES.has(chars.slice(start, end).join(""))) return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -147,10 +166,12 @@ export function hasCreditShape(line: string): boolean {
   if (!match) return false;
   const label = match[1] ?? "";
   if (hasKana(label)) return false;
-  for (const ch of label) {
-    if (SENTENCE_CHARS.has(ch)) return false;
+  const normalized = normalizeLabel(label);
+  const chars = [...normalized];
+  for (let i = 0; i < chars.length; i++) {
+    if (SENTENCE_CHARS.has(chars[i]!) && !insideRoleMorpheme(chars, i)) return false;
   }
-  return normalizeLabel(label).length <= CREDIT_SHAPE_MAX_LABEL;
+  return normalized.length <= CREDIT_SHAPE_MAX_LABEL;
 }
 
 /** "masteringengineer" is 17, and real roles do not run much past that. */
