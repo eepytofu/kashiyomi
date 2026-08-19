@@ -20,7 +20,7 @@ import { hasHan, hasKana } from "../engine/kana.ts";
 import { classifyLines, type ClassifiableLine } from "../engine/lineKinds.ts";
 import { prepareJapaneseLine, type PreparedJapaneseLine } from "../engine/lineText.ts";
 import { nativeAnalyze } from "./native.ts";
-import { dictionaryInventory } from "./dictionary.ts";
+import { dictionaryAvailable } from "./dictionary.ts";
 import { t } from "./i18n.ts";
 import { ensurePinyinDict } from "./pinyinDict.ts";
 import { ROW_CLASS, renderJapaneseLine, renderNoticeRow, renderPinyinRow } from "./render.ts";
@@ -234,7 +234,7 @@ function annotateJapanese(
   if (pendingAnalysis.length === 0) return;
 
   // Say it before asking the analyzer, because the analyzer cannot say it. The
-  if (!dictionaryInventory().installed) {
+  if (!dictionaryAvailable()) {
     for (const { line } of pendingAnalysis) {
       // Kanji repair still applies. It is a character-by-character glyph map
       const repaired = prepareJapaneseLine(line.original, {

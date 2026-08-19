@@ -42,6 +42,7 @@ function buildWorkspace() {
   cpSync(path.join(REPO, "src"), path.join(WORK, "src"), { recursive: true });
   cpSync(path.join(REPO, "tests"), path.join(WORK, "tests"), { recursive: true });
   copyFileSync(path.join(REPO, "package.json"), path.join(WORK, "package.json"));
+  copyFileSync(path.join(REPO, "dictionary-releases.json"), path.join(WORK, "dictionary-releases.json"));
   // A junction, so Windows does not need administrator rights and the several
   // hundred megabytes under node_modules are not copied per sweep.
   symlinkSync(path.join(REPO, "node_modules"), path.join(WORK, "node_modules"), "junction");

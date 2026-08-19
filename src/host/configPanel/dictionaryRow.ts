@@ -1,36 +1,36 @@
-// Compact entry point for the dictionary manager. Edition choice and progress
-// live in one dialog instead of being duplicated inside a narrow settings row.
-
-import { t } from "../i18n.ts";
-import { dictionaryInventory, onDictionaryChange } from "../dictionary.ts";
+import { dictionarySnapshot, onDictionaryChange } from "../dictionary.ts";
 import { openDictionarySetup } from "../setup/dialog.ts";
+import { t } from "../i18n.ts";
 import { onPanelTeardown } from "./lifecycle.ts";
 import { row, rowText } from "./rows.ts";
 
 export function dictionaryRow(): HTMLElement {
-  const el = row();
+  const element = row();
   const text = rowText(t("dictionary"), t("dictNotInstalled"));
   const description = text.querySelector(".kc-desc") ?? text.lastElementChild;
-  el.appendChild(text);
-
+  element.appendChild(text);
   const manage = document.createElement("button");
-  manage.className = "kc-button";
+  manage.className = "kc-button kc-dictionary-manage";
   manage.onclick = () => openDictionarySetup();
-  el.appendChild(manage);
+  element.appendChild(manage);
 
   const paint = (): void => {
-    const inventory = dictionaryInventory();
+    const snapshot = dictionarySnapshot();
+    const operation = snapshot.operation;
     if (description) {
-      const edition = inventory.edition === "full" ? t("dictEditionFull") : t("dictEditionCore");
-      description.textContent = inventory.installed
-        ? `${edition} · ${t("dictInstalledState")}`
-        : t("dictNotInstalled");
+      if (operation?.state === "running") {
+        const edition = operation.edition === "full" ? t("dictEditionFull") : t("dictEditionCore");
+        description.textContent = operation.edition ? `${edition} · ${operation.phase}` : operation.phase;
+      } else if (snapshot.active) {
+        const edition = snapshot.active === "full" ? t("dictEditionFull") : t("dictEditionCore");
+        description.textContent = `${edition} · ${t("dictEditionInUse")}`;
+      } else {
+        description.textContent = t("dictNotInstalled");
+      }
     }
-    manage.textContent = inventory.installed ? t("dictManage") : t("dictSetUp");
+    manage.textContent = snapshot.installed.length > 0 ? t("dictManage") : t("dictSetUp");
   };
-
   paint();
-  const unsubscribe = onDictionaryChange(paint);
-  onPanelTeardown(unsubscribe);
-  return el;
+  onPanelTeardown(onDictionaryChange(paint));
+  return element;
 }

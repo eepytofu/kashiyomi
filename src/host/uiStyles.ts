@@ -34,6 +34,7 @@ export const SHARED_CSS = `
 }
 .kashiyomi-ui .kc-button:hover:not(:disabled) { background: var(--kc-button-hover, rgba(255, 255, 255, 0.16)); }
 .kashiyomi-ui .kc-button:disabled { opacity: 0.5; cursor: default; }
+.kashiyomi-ui .kc-dictionary-manage { height: 28px; padding: 0 14px; border-radius: 14px; }
 .kashiyomi-ui .kc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: #999; }
 .kashiyomi-ui .kc-ready .kc-dot { background: #52c41a; }
 .kashiyomi-ui .kc-bad .kc-dot { background: #ff4d4f; }

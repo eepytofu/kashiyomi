@@ -1,6 +1,5 @@
 // Plugin settings persisted as one JSON blob in localStorage.
 
-import { migrateDictionarySettings } from "../engine/dictionaryState.ts";
 import type { DictionaryEdition } from "../engine/dictionarySource.ts";
 
 export type Settings = {
@@ -14,17 +13,8 @@ export type Settings = {
   /** Annotate production credit lines (作詞: …) as if they were lyrics. */
   annotateCredits: boolean;
   debug: boolean;
-  /** The active dictionary edition; Core is also the first-run default. */
-  dictEdition: DictionaryEdition;
-  /**
-   * The release on disk, e.g. "20260723", or undefined when nothing is
-   * installed or the file was placed there from outside the plugin.
-   */
-  dictVersion: string | undefined;
   /** Whether the first-run setup has been answered, and how. */
   dictSetupAnswered: boolean;
-  /** When the last update check got a real answer, epoch ms. */
-  dictCheckedAt: number | undefined;
   /** rt size as a percentage of the base lyric font. */
   furiganaSize: number;
   /** Show a line on Japanese lyrics when no dictionary is installed. */
@@ -82,10 +72,7 @@ const DEFAULTS: Settings = {
   readingHints: true,
   annotateCredits: false,
   debug: true,
-  dictEdition: "core",
-  dictVersion: undefined,
   dictSetupAnswered: false,
-  dictCheckedAt: undefined,
   furiganaSize: 50,
   lyricDictNotice: true,
   useJpFont: true,
@@ -107,18 +94,38 @@ const DEFAULTS: Settings = {
 };
 
 let current: Settings | undefined;
+let legacyPreference: DictionaryEdition = "core";
+
+function dictionaryPreference(raw: unknown): DictionaryEdition {
+  if (typeof raw !== "object" || raw === null) return "core";
+  const source = raw as Record<string, unknown>;
+  const value = source.dictEdition ?? source.dictPreferredEdition;
+  return value === "full" ? "full" : "core";
+}
+
+/** One-time migration hint for native recovery; never persisted as live state. */
+export function legacyDictionaryPreference(): DictionaryEdition {
+  getSettings();
+  return legacyPreference;
+}
 
 export function getSettings(): Settings {
   if (!current) {
     try {
       const raw = localStorage.getItem(KEY);
       const stored: unknown = raw ? JSON.parse(raw) : {};
-      // The dictionary fields go through a migration rather than a spread: they
+      legacyPreference = dictionaryPreference(stored);
       current = {
         ...DEFAULTS,
         ...(stored as Partial<Settings>),
-        ...migrateDictionarySettings(stored),
+        dictSetupAnswered:
+          typeof stored === "object" && stored !== null &&
+          (stored as Record<string, unknown>).dictSetupAnswered === true,
       };
+      const cleaned = current as unknown as Record<string, unknown>;
+      for (const obsolete of ["dictEdition", "dictPreferredEdition", "dictVersion", "dictVersions", "dictCheckedAt"]) {
+        delete cleaned[obsolete];
+      }
     } catch {
       current = { ...DEFAULTS };
     }

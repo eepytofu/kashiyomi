@@ -1,58 +1,62 @@
-// Styles for the setup dialog only.
+// Dictionary dialog aligned with NCM's own color tokens and pill controls.
 
 export const SETUP_CSS = `
-.kashiyomi-setup {
-  width: min(460px, calc(100vw - 32px));
-  max-height: calc(100vh - 96px);
-  overflow-y: auto;
-  border: none; border-radius: 10px; padding: 16px 18px 14px;
-  background: #232323; color: #f2f2f2;
-  font-size: 13.5px; line-height: 1.45;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+.kashiyomi-dictionary-dialog {
+  width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 64px);
+  margin: auto; overflow: auto; border: 0; border-radius: 12px; padding: 24px;
+  background: var(--colorFunction4); color: var(--colorBlack3);
+  font: 14px/1.45 inherit; box-shadow: 0 18px 54px rgba(0, 0, 0, .38);
 }
-.kashiyomi-setup::backdrop { background: rgba(0, 0, 0, 0.55); }
-.kashiyomi-setup .ks-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
-.kashiyomi-setup .ks-need { opacity: 0.72; margin-bottom: 10px; white-space: pre-line; }
-.kashiyomi-setup .ks-options { overflow: hidden; }
-/* The radio sits at the start rather than the far end, which is the one place
-   an option row differs from a settings row: a setting has its control on the
-   the control is what you are pointing at. */
-.kashiyomi-setup .ks-option { justify-content: flex-start; align-items: flex-start; gap: 10px; }
-/* Drawn by hand rather than with accent-color, which is Chromium 93 and does
-   nothing on CEF 91: the radios would have rendered default blue in a dark
-   pseudo-element. */
-.kashiyomi-setup .ks-option input {
-  -webkit-appearance: none; appearance: none;
-  flex: none; position: relative; margin: 1px 0 0;
-  width: 15px; height: 15px; border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.45); background: transparent;
-  cursor: pointer; transition: border-color 0.12s ease;
+.kashiyomi-dictionary-dialog::backdrop { background: rgba(0, 0, 0, .55); }
+.kashiyomi-dictionary-dialog .kd-title { margin: 0; font-size: 18px; line-height: 1.35; font-weight: 600; }
+.kashiyomi-dictionary-dialog .kd-intro { margin: 8px 0 14px; opacity: .68; }
+.kashiyomi-dictionary-dialog .kd-list { margin-top: 12px; }
+.kashiyomi-dictionary-dialog .kd-edition {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px;
+  padding: 15px 0; border-top: 1px solid var(--colorBlack11);
 }
-.kashiyomi-setup .ks-option input:checked { border-color: rgb(255, 58, 58); }
-.kashiyomi-setup .ks-option input:checked::after {
-  content: ""; position: absolute; top: 3px; left: 3px;
-  width: 6px; height: 6px; border-radius: 50%; background: rgb(255, 58, 58);
+.kashiyomi-dictionary-dialog .kd-edition:first-child { border-top: 0; }
+.kashiyomi-dictionary-dialog .kd-choice { display: flex; min-width: 0; gap: 12px; align-items: flex-start; cursor: pointer; }
+.kashiyomi-dictionary-dialog .kd-choice input {
+  -webkit-appearance: none; appearance: none; position: relative; flex: 0 0 auto;
+  width: 18px; height: 18px; margin: 2px 0 0; border: 1.5px solid currentColor;
+  border-radius: 50%; opacity: .55; background: transparent;
 }
-.kashiyomi-setup .ks-option-body { min-width: 0; flex: 1; }
-/* Which edition is installed, and which one the analyzer actually has open,
-   on the option rather than in a sentence under the list. */
-.kashiyomi-setup .ks-option-state { flex: none; font-size: 11.5px; opacity: 0.55; white-space: nowrap; }
-.kashiyomi-setup .ks-in-use { color: #8fd97a; opacity: 0.9; }
-/* No min-height: the row is removed once a download starts, and reserving its
-   height left a gap where a line used to be, which reads as something broken.
-   to Cancel and the status to progress, so it reads as a response. */
-.kashiyomi-setup .ks-space:empty { display: none; }
-.kashiyomi-setup .ks-space { font-size: 12px; opacity: 0.68; margin-top: 12px; }
-/* Reserves its line whether or not there is anything to say, so starting a
-   download does not shift every control below it. */
-.kashiyomi-setup .ks-status { font-size: 12.5px; margin-top: 6px; min-height: 18px; }
-.kashiyomi-setup .ks-bad { color: #ff8f8f; }
-.kashiyomi-setup .ks-ready { color: #8fd97a; }
-.kashiyomi-setup .ks-actions { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
-.kashiyomi-setup .ks-spacer { flex: 1; }
-.kashiyomi-setup .ks-primary { background: rgb(255, 58, 58); }
-.kashiyomi-setup .ks-primary:hover:not(:disabled) { background: rgb(255, 90, 90); }
-/* CEF 91 has :focus-visible but not :has() or inert, so the ring is the whole
-   keyboard affordance here. Buttons get theirs from the shared sheet. */
-.kashiyomi-setup input:focus-visible { outline: 2px solid rgba(255, 58, 58, 0.75); outline-offset: 2px; }
+.kashiyomi-dictionary-dialog .kd-choice input:checked { border-color: rgb(255, 58, 58); opacity: 1; }
+.kashiyomi-dictionary-dialog .kd-choice input:checked::after {
+  content: ""; position: absolute; inset: 4px; border-radius: 50%; background: rgb(255, 58, 58);
+}
+.kashiyomi-dictionary-dialog .kd-name { font-size: 15px; font-weight: 600; }
+.kashiyomi-dictionary-dialog .kd-desc, .kashiyomi-dictionary-dialog .kd-size,
+.kashiyomi-dictionary-dialog .kd-help { opacity: .68; }
+.kashiyomi-dictionary-dialog .kd-size { margin-top: 4px; font-size: 12px; }
+.kashiyomi-dictionary-dialog .kd-state { align-self: start; white-space: nowrap; font-size: 12px; opacity: .68; }
+.kashiyomi-dictionary-dialog .kd-state-active { color: rgb(255, 58, 58); opacity: 1; }
+.kashiyomi-dictionary-dialog .kd-row-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.kashiyomi-dictionary-dialog .kd-button {
+  min-width: 0; height: 28px; padding: 0 14px; border: 0; border-radius: 14px;
+  background: var(--colorBlack11); color: var(--colorBlack2); font: 13px/28px inherit; cursor: pointer;
+}
+.kashiyomi-dictionary-dialog .kd-button:hover:not(:disabled) { background: var(--colorBlack10); color: var(--colorBlack1); }
+.kashiyomi-dictionary-dialog .kd-button:disabled { opacity: .42; cursor: default; }
+.kashiyomi-dictionary-dialog .kd-primary { background: rgb(255, 58, 58); color: white; }
+.kashiyomi-dictionary-dialog .kd-primary:hover:not(:disabled) { background: rgb(255, 78, 78); }
+.kashiyomi-dictionary-dialog .kd-danger { color: var(--colorFunction1); }
+.kashiyomi-dictionary-dialog .kd-large { height: 40px; padding: 0 20px; border-radius: 20px; font-size: 14px; line-height: 40px; }
+.kashiyomi-dictionary-dialog .kd-actions { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+.kashiyomi-dictionary-dialog .kd-actions .kd-close { margin-left: auto; }
+.kashiyomi-dictionary-dialog .kd-progress { margin-top: 18px; }
+.kashiyomi-dictionary-dialog .kd-progress-head { display: flex; justify-content: space-between; gap: 16px; }
+.kashiyomi-dictionary-dialog .kd-track { height: 3px; margin-top: 10px; overflow: hidden; border-radius: 2px; background: var(--colorBlack10); }
+.kashiyomi-dictionary-dialog .kd-bar { height: 100%; min-width: 4px; background: rgb(255, 58, 58); transition: width .18s linear; }
+.kashiyomi-dictionary-dialog .kd-error { margin-top: 14px; color: var(--colorFunction1); }
+.kashiyomi-dictionary-dialog .kd-confirm { margin-top: 18px; }
+.kashiyomi-dictionary-dialog button:focus-visible,
+.kashiyomi-dictionary-dialog input:focus-visible { outline: 2px solid rgb(255, 58, 58); outline-offset: 2px; }
+@media (max-width: 560px) {
+  .kashiyomi-dictionary-dialog { width: calc(100vw - 20px); padding: 20px; }
+  .kashiyomi-dictionary-dialog .kd-edition { grid-template-columns: minmax(0, 1fr); }
+  .kashiyomi-dictionary-dialog .kd-state { grid-row: 1; justify-self: end; }
+  .kashiyomi-dictionary-dialog .kd-choice { padding-right: 80px; grid-row: 1 / span 2; }
+}
 `;

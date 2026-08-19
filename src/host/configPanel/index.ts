@@ -12,7 +12,7 @@ import {
 } from "../settings.ts";
 import { PANEL_CSS } from "./css.ts";
 import { UI_ROOT_CLASS, ensureSharedStyles } from "../uiStyles.ts";
-import { dictionaryInventory, onDictionaryChange } from "../dictionary.ts";
+import { dictionaryAvailable, onDictionaryChange } from "../dictionary.ts";
 import { dictionaryRow } from "./dictionaryRow.ts";
 import { onPanelTeardown, teardownPanel } from "./lifecycle.ts";
 import { buildPreviewCard } from "./preview.ts";
@@ -249,7 +249,7 @@ function gateOnDictionary(
   before: HTMLElement,
 ): void {
   const paint = (): void => {
-    const absent = !dictionaryInventory().installed;
+    const absent = !dictionaryAvailable();
     // Inserted and removed, never hidden. `.kc-row + .kc-row` draws the divider
     const inCard = notice.parentNode !== null;
     if (absent && !inCard) card.insertBefore(notice, before);
@@ -268,7 +268,7 @@ function gateOnDictionary(
 /** Keep a row in the card only while no dictionary is installed. */
 function followMissingDictionary(row: HTMLElement, card: HTMLElement): void {
   const paint = (): void => {
-    const absent = !dictionaryInventory().installed;
+    const absent = !dictionaryAvailable();
     const inCard = row.parentNode !== null;
     if (absent && !inCard) card.appendChild(row);
     else if (!absent && inCard) row.remove();

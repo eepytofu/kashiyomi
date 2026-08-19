@@ -24,6 +24,10 @@ test("han-only majority marks a document as chinese", () => {
   assert.equal(branch, "chinese");
 });
 
+test("an exact two-to-one han-only majority is chinese", () => {
+  assert.equal(resolveDocumentBranch(["春風", "山月", "かな"]), "chinese");
+});
+
 test("a small japanese island does not flip a chinese document", () => {
   const branch = resolveDocumentBranch([
     "我在每夜彻夜狂想",

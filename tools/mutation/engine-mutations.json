@@ -602,60 +602,18 @@
     "replace": "  if (following === \"\") return undefined;"
   },
   {
-    "id": "dictionary/accepts-sdist",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "an sdist stub is accepted as a source, routing the download back to plaintext http",
-    "find": "    if (file.packagetype !== \"bdist_wheel\") continue;",
-    "replace": "    if (false) continue;"
-  },
-  {
-    "id": "dictionary/mirror-picks-arbitrary-version",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "the mirror index takes whichever release is listed last instead of the newest",
-    "find": "    if (release && (best === undefined || release.version > best.version)) best = release;",
-    "replace": "    if (release) best = release;"
-  },
-  {
-    "id": "dictionary/installs-without-a-hash",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "a release with no usable checksum is accepted, so unverifiable bytes can install",
-    "find": "  if (typeof sha256 !== \"string\" || !/^[0-9a-f]{64}$/u.test(sha256)) return undefined;",
-    "replace": "  if (typeof sha256 !== \"string\") return undefined;"
-  },
-  {
-    "id": "dictionary/checksum-mismatch-installs",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "a corrupt or tampered download is installed anyway",
-    "find": "  return actualSha256.toLowerCase() === expected.sha256.toLowerCase();",
-    "replace": "  return true;"
-  },
-  {
     "id": "dictionary/free-space-ignores-extraction",
     "file": "src/engine/dictionarySource.ts",
-    "what": "only the archive is budgeted, so the disk fills during extraction after the bandwidth is spent",
-    "find": "  return archiveBytes + archiveBytes * EXTRACTED_RATIO + MARGIN;",
-    "replace": "  return archiveBytes + MARGIN;"
+    "what": "the extracted dictionary is omitted from the preflight disk budget",
+    "find": "  return archive + release.dictionaryBytes + 64 * 1024 * 1024;",
+    "replace": "  return archive + 64 * 1024 * 1024;"
   },
   {
-    "id": "dictionary/dead-end-offers-retry",
+    "id": "dictionary/manifest-allows-http",
     "file": "src/engine/dictionarySource.ts",
-    "what": "every failure offers a retry, including the one where retrying repeats the same two refusals",
-    "find": "  return reason !== \"no-source\";",
-    "replace": "  return true;"
-  },
-  {
-    "id": "dictionary/archive-is-not-sweepable",
-    "file": "src/engine/dictionaryLayout.ts",
-    "what": "a staged archive loses the .part suffix the startup sweeper matches on, stranding ~69 MB per killed download",
-    "find": "  return `sudachidict_core-${version}.whl.part`;",
-    "replace": "  return `sudachidict_core-${version}.whl`;"
-  },
-  {
-    "id": "dictionary/listing-trusts-partials",
-    "file": "src/engine/dictionaryLayout.ts",
-    "what": "a half-written download counts as installed, so the row reports a dictionary the analyzer cannot open",
-    "find": "  return names.some((name) => baseName(name) === DICTIONARY_FILE);",
-    "replace": "  return names.some((name) => baseName(name).startsWith(DICTIONARY_FILE));"
+    "what": "a runtime source can downgrade from HTTPS in the embedded manifest",
+    "find": "        typeof source.url !== \"string\" || !source.url.startsWith(\"https://\") ||",
+    "replace": "        typeof source.url !== \"string\" ||"
   },
   {
     "id": "pinyin/modal-ying-ignored",
@@ -938,94 +896,24 @@
     "replace": "    if (reading === undefined || token.readingKana !== \"\") return token;"
   },
   {
-    "id": "dictstate/empty-version-stored",
+    "id": "dictstate/accepts-idle-as-operation",
     "file": "src/engine/dictionaryState.ts",
-    "what": "an empty version string is stored, so the row dates a dictionary with nothing",
-    "find": "    dictVersion: typeof version === \"string\" && version !== \"\" ? version : undefined,",
-    "replace": "    dictVersion: typeof version === \"string\" ? version : undefined,"
+    "what": "the removed idle sentinel becomes a valid durable outcome again",
+    "find": "const OPERATION_STATES = [\"running\", \"succeeded\", \"failed\", \"cancelled\"] as const;",
+    "replace": "const OPERATION_STATES = [\"running\", \"succeeded\", \"failed\", \"cancelled\", \"idle\"] as const;"
   },
   {
-    "id": "rowstate/button-live-during-cooldown",
-    "file": "src/engine/dictionaryRowState.ts",
-    "what": "the retry button re-enables immediately after a failure, so a double click starts two installs",
-    "find": "    primary: { action: { kind: \"retry\" }, disabled: cooling },",
-    "replace": "    primary: { action: { kind: \"retry\" }, disabled: false },"
-  },
-  {
-    "id": "rowstate/space-quotes-download-size",
-    "file": "src/engine/dictionaryRowState.ts",
-    "what": "the space warning quotes the archive size instead of the free space an install needs",
-    "find": "  const needed = requiredFreeBytes(pinnedRelease().size);",
-    "replace": "  const needed = pinnedRelease().size;"
-  },
-  {
-    "id": "rowstate/no-source-offers-retry",
-    "file": "src/engine/dictionaryRowState.ts",
-    "what": "a dead-end failure offers a retry that repeats the same two refused requests",
-    "find": "  if (!isRetryable(job.reason)) {",
-    "replace": "  if (false) {"
-  },
-  {
-    "id": "rowstate/unknown-space-reads-as-full-disk",
-    "file": "src/engine/dictionaryRowState.ts",
-    "what": "a disk that could not be measured is treated as having no room, blocking a first install",
-    "find": "  if (freeBytes === undefined) return undefined;",
-    "replace": "  if (false) return undefined;"
-  },
-  {
-    "id": "rowstate/cancel-live-during-swap",
-    "file": "src/engine/dictionaryRowState.ts",
-    "what": "cancel stays offered through the swap and the load, where nothing can honour it",
-    "find": "      return job.phase === \"verifying\" || job.phase === \"extracting\"\n        ? cancellable(message)\n        : busy(message);",
-    "replace": "      return cancellable(message);"
-  },
-  {
-    "id": "rowstate/resolve-offers-cancel",
-    "file": "src/engine/dictionaryRowState.ts",
-    "what": "the ~1s update check offers a cancel button again, which only ever flickers",
-    "find": "      return input.now - job.at < CHECK_BUSY_AFTER_MS ? undefined : busy({ kind: \"checking\" });",
-    "replace": "      return input.now - job.at < CHECK_BUSY_AFTER_MS ? undefined : cancellable({ kind: \"checking\" });"
-  },
-  {
-    "id": "dictionary/mirror-swap-unguarded",
-    "file": "src/engine/dictionarySource.ts",
-    "what": "any url is rewritten onto the mirror host, including the vendor archive it does not carry",
-    "find": "  return url.startsWith(`${PYTHONHOSTED}/`)",
-    "replace": "  return true"
-  },
-  {
-    "id": "rowstate/unknown-version-reads-as-outdated",
-    "file": "src/engine/dictionaryRowState.ts",
-    "what": "a dictionary with no recorded version is reported as having an update, offering a download nobody can say is needed",
-    "find": "  return version !== undefined && latest !== undefined && version !== latest;",
-    "replace": "  return version !== latest;"
-  },
-  {
-    "id": "rowstate/bystander-reports-outcomes",
-    "file": "src/engine/dictionaryRowState.ts",
-    "what": "a surface that did not press anything still reports the outcome, so the settings row claims a check it never made",
-    "find": "  if (input.ownsJob === false) return undefined;",
-    "replace": "  if (false) return undefined;"
-  },
-  {
-    "id": "rowstate/check-interval-ignored",
-    "file": "src/engine/dictionaryRowState.ts",
-    "what": "a check that found nothing stops being reported, so the row never says it is current",
-    "find": "        upToDate: fresh,",
-    "replace": "        upToDate: false,"
-  },
-  {
-    "id": "rowstate/interval-blocks-a-real-update",
-    "file": "src/engine/dictionaryRowState.ts",
-    "what": "the interval also gates a check that found something newer, stranding the user in front of an update they cannot take",
-    "find": "    const fresh =\n      !updateAvailable &&\n      inventory.checkedAt !== undefined &&",
-    "replace": "    const fresh =\n      inventory.checkedAt !== undefined &&"
-  },
-  {
-    "id": "dictstate/check-timestamp-accepts-junk",
+    "id": "dictstate/accepts-duplicate-editions",
     "file": "src/engine/dictionaryState.ts",
-    "what": "NaN is stored as a check timestamp, so every comparison against the interval is false and the throttle silently stops working",
-    "find": "      typeof checkedAt === \"number\" && Number.isFinite(checkedAt) && checkedAt > 0",
-    "replace": "      typeof checkedAt === \"number\""
+    "what": "one edition can appear twice with contradictory active state",
+    "find": "    if (!edition(item.edition) || seen.has(item.edition) || !count(item.dictionaryBytes)",
+    "replace": "    if (!edition(item.edition) || false || !count(item.dictionaryBytes)"
+  },
+  {
+    "id": "dictstate/hides-update",
+    "file": "src/engine/dictionaryState.ts",
+    "what": "an installed stale dictionary is presented as current",
+    "find": "  if (found.updateAvailable) return \"update-available\";",
+    "replace": "  if (false) return \"update-available\";"
   }
 ]
