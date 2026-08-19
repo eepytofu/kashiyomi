@@ -8,11 +8,12 @@ A [BetterNCM](https://github.com/std-microblock/BetterNCM) plugin that adds furi
 
 ## Features
 
-- The Japanese dictionary (about 207 MB) is downloaded from inside the plugin on first run, and lives outside the plugin folder so a reinstall does not fetch it again.
+- First run offers the Core (about 217 MB installed) and Full (about 360 MB installed) Japanese dictionaries, with Core selected by default. One edition is kept outside the plugin folder so reinstalling the plugin does not fetch it again.
 - Furigana above kanji and romaji below Japanese lyrics, generated locally with [sudachi.rs](https://github.com/WorksApplications/sudachi.rs) and SudachiDict. Unknown readings are left unchanged.
 - Lyric-provided readings can override the dictionary. For example, `天(そら)` is displayed as `天` with `そら` as its furigana and romaji reading. Authored readings use a different color from inferred readings.
+- Local reading overrides can be added as `word=reading` entries for names or lyric-specific readings the dictionary cannot choose correctly.
 - Pinyin below Chinese lyrics, generated with [Pinyin Pro](https://github.com/zh-lx/pinyin-pro) and its complete dictionary. Tone marks and word grouping can be toggled separately.
-- Optional AI translation below the original lyrics. It supports Gemini and OpenAI-compatible `chat/completions` endpoints, with configurable models, target languages, base URLs, and extra instructions. Results are cached locally, and multiple API keys can be used for automatic fallback.
+- Optional AI translation below the original lyrics. It supports Gemini and OpenAI-compatible `chat/completions` endpoints, with configurable models, target languages, base URLs, and extra instructions. When enabled, the selected provider receives the song title, artist, original lyric lines, target language, and instructions; the API key authenticates that request. Settings, keys, and up to 500 cached translations stay in the local browser profile. Multiple keys can be used for automatic fallback.
 - Separate font stacks for Japanese and Chinese text to avoid incorrect glyph forms caused by [Han Unification](https://heistak.github.io/your-code-displays-japanese-wrong/). The Chinese font also applies to NCM's Chinese translation rows.
 
 ### QoL
@@ -54,7 +55,7 @@ cd ..
 npm run dev-install
 ```
 
-`npm run fetch-dict` downloads SudachiDict-core, about 207 MB, so a development build has one without going through the first-run download. Pass `full` for the larger edition, which the analyze CLI can be pointed at with `KASHIYOMI_DICT` for comparisons; the plugin itself only uses core. `npm run export-pinyin` prepares Pinyin Pro's complete dictionary, and `npm run export-jmdict` builds the JMdict reading table (3 MB) used to fill readings the analyzer cannot supply.
+`npm run fetch-dict` downloads SudachiDict Core, about 217 MB installed, so a development build has one without going through the first-run download. Pass `full` to fetch the roughly 360 MB Full edition. The plugin can install and switch between either edition while keeping only one active. `npm run export-pinyin` prepares Pinyin Pro's complete dictionary, and `npm run export-jmdict` builds the roughly 7 MB JMdict reading table used to fill readings the analyzer cannot supply.
 
 By default, `npm run dev-install` installs Kashiyomi to `C:\betterncm\plugins_dev\Kashiyomi`. To use another directory:
 
