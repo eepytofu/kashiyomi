@@ -8,7 +8,8 @@ A [BetterNCM](https://github.com/std-microblock/BetterNCM) plugin that adds furi
 
 ## Features
 
-- First run offers the Core (about 217 MB installed) and Full (about 360 MB installed) Japanese dictionaries, with Core selected by default. One edition is kept outside the plugin folder so reinstalling the plugin does not fetch it again.
+- First run offers the Core (about 217 MB installed) and Full (about 360 MB installed) Japanese dictionaries, with Core selected by default. Both editions can remain installed, but only one is active at a time; Kashiyomi settings can switch or remove either edition.
+- Dictionaries are not bundled with the plugin. They are downloaded at runtime and kept outside the plugin folder, so reinstalling Kashiyomi reuses them instead of downloading them again. Core tries the official WorksApplications CloudFront distribution, the Tsinghua PyPI mirror, then PyPI; Full tries CloudFront, then GitHub Releases. Updates only appear when a Kashiyomi release ships a new reviewed pin—there is no live “latest release” check.
 - Furigana above kanji and romaji below Japanese lyrics, generated locally with [sudachi.rs](https://github.com/WorksApplications/sudachi.rs) and SudachiDict. Unknown readings are left unchanged.
 - Lyric-provided readings can override the dictionary. For example, `天(そら)` is displayed as `天` with `そら` as its furigana and romaji reading. Authored readings use a different color from inferred readings.
 - Local reading overrides can be added as `word=reading` entries for names or lyric-specific readings the dictionary cannot choose correctly.
@@ -55,7 +56,7 @@ cd ..
 npm run dev-install
 ```
 
-`npm run fetch-dict` downloads SudachiDict Core, about 217 MB installed, so a development build has one without going through the first-run download. Pass `full` to fetch the roughly 360 MB Full edition. The plugin can install and switch between either edition while keeping only one active. `npm run export-pinyin` prepares Pinyin Pro's complete dictionary, and `npm run export-jmdict` builds the roughly 7 MB JMdict reading table used to fill readings the analyzer cannot supply.
+`npm run fetch-dict` downloads SudachiDict Core, about 217 MB installed, so a development build has one without going through the first-run download. Pass `full` to fetch the roughly 360 MB Full edition. Runtime installs use the embedded, reviewed release manifest described above; the development fetch is not part of the plugin package. `npm run export-pinyin` prepares Pinyin Pro's complete dictionary, and `npm run export-jmdict` builds the roughly 7 MB JMdict reading table used to fill readings the analyzer cannot supply.
 
 By default, `npm run dev-install` installs Kashiyomi to `C:\betterncm\plugins_dev\Kashiyomi`. To use another directory:
 
