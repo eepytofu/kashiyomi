@@ -6,7 +6,6 @@ import { resetAnalysisCache } from "../analysisCache.ts";
 import { resetTranslation } from "../translationLane.ts";
 import { t, type StringKey } from "../i18n.ts";
 import { applyStyles } from "../styles.ts";
-import { connectControl, uiButton } from "../uiPrimitives.ts";
 import {
   getSettings,
   MAX_FURIGANA_SIZE,
@@ -14,7 +13,6 @@ import {
   updateSettings,
   type Settings,
 } from "../settings.ts";
-import { onPanelTeardown } from "./lifecycle.ts";
 
 export type BooleanSettingKey = {
   [K in keyof Settings]-?: Settings[K] extends boolean ? K : never;
@@ -37,6 +35,10 @@ export function card(): HTMLElement {
   return el;
 }
 
+/**
+ * One row of a card. Toggles use a `<label>` so clicking the text flips the
+ * switch; every other row is an ordinary div.
+ */
 export function row(tag: "div" | "label" = "div"): HTMLElement {
   const el = document.createElement(tag);
   el.className = "kc-row";
@@ -76,16 +78,17 @@ export function toggleRow(
   onExtra?: () => void,
   triggersRescan = true,
 ): HTMLElement {
-  const el = row("label");
-  const text = rowText(label, description);
-  el.appendChild(text);
+  const el = row();
+  el.appendChild(rowText(label, description));
 
-  const toggle = document.createElement("span");
+  // The label wraps the switch alone, not the row. Every other row's control is
+  // the only hit target, and a row that highlights but does nothing is worse
+  // than one that never offered.
+  const toggle = document.createElement("label");
   toggle.className = "kc-switch";
   const box = document.createElement("input");
   box.type = "checkbox";
   box.checked = getSettings()[key];
-  connectControl(text, box);
   box.onchange = () => {
     updateSettings({ [key]: box.checked });
     // Reading-affecting settings invalidate cached analysis.
@@ -104,8 +107,7 @@ export function toggleRow(
 
 export function sizeRow(refreshPreview: () => void): HTMLElement {
   const el = row();
-  const text = rowText(t("furiganaSize"), t("furiganaSizeDesc"));
-  el.appendChild(text);
+  el.appendChild(rowText(t("furiganaSize"), t("furiganaSizeDesc")));
 
   const control = document.createElement("div");
   control.style.cssText = "display:flex;align-items:center;gap:10px;flex:none;";
@@ -116,7 +118,6 @@ export function sizeRow(refreshPreview: () => void): HTMLElement {
   slider.min = String(MIN_FURIGANA_SIZE);
   slider.max = String(MAX_FURIGANA_SIZE);
   slider.step = "5";
-  connectControl(text, slider);
   // A stored value below the floor would otherwise leave the readout showing a
   // size the stylesheet has already clamped away.
   slider.value = String(Math.max(MIN_FURIGANA_SIZE, getSettings().furiganaSize));
@@ -142,28 +143,24 @@ export function fontStackRow(
 ): HTMLElement {
   const el = row();
   el.style.flexWrap = "wrap";
-  const text = rowText(t(labelKey), t(descKey));
-  el.appendChild(text);
+  el.appendChild(rowText(t(labelKey), t(descKey)));
 
   const control = document.createElement("div");
   control.style.cssText = "display:flex;align-items:center;gap:8px;flex:1 1 100%;";
   const input = textInput(getSettings()[key]);
-  connectControl(text, input);
-  let saved = input.value;
-  const commit = () => {
-    if (input.value === saved) return;
-    saved = input.value;
+  input.onchange = () => {
     updateSettings({ [key]: input.value });
     applyStyles();
     refreshPreview();
   };
-  input.onchange = commit;
-  input.onblur = commit;
-  onPanelTeardown(commit);
-  const reset = uiButton(t("reset"));
+  const reset = document.createElement("button");
+  reset.className = "kc-button";
+  reset.textContent = t("reset");
   reset.onclick = () => {
     input.value = defaultValue;
-    commit();
+    updateSettings({ [key]: defaultValue });
+    applyStyles();
+    refreshPreview();
   };
   control.appendChild(input);
   control.appendChild(reset);
@@ -179,23 +176,15 @@ export function textRow(
 ): HTMLElement {
   const el = row();
   el.style.flexWrap = "wrap";
-  const text = rowText(t(labelKey), t(descKey));
-  el.appendChild(text);
+  el.appendChild(rowText(t(labelKey), t(descKey)));
   const input = textInput(getSettings()[key]);
-  connectControl(text, input);
   input.style.flex = "1 1 100%";
   if (options.placeholder) input.placeholder = options.placeholder;
   if (options.password) input.type = "password";
-  let saved = input.value;
-  const commit = () => {
-    if (input.value === saved) return;
-    saved = input.value;
+  input.onchange = () => {
     updateSettings({ [key]: input.value });
     resetTranslation();
   };
-  input.onchange = commit;
-  input.onblur = commit;
-  onPanelTeardown(commit);
   el.appendChild(input);
   return el;
 }
@@ -204,8 +193,7 @@ export function textRow(
 export function readingOverridesRow(): HTMLElement {
   const el = row();
   el.style.flexWrap = "wrap";
-  const text = rowText(t("readingOverrides"), t("readingOverridesDesc"));
-  el.appendChild(text);
+  el.appendChild(rowText(t("readingOverrides"), t("readingOverridesDesc")));
 
   const area = document.createElement("textarea");
   area.className = "kc-input";
@@ -214,18 +202,12 @@ export function readingOverridesRow(): HTMLElement {
   area.style.cssText += "flex:1 1 100%;resize:vertical;min-height:64px;";
   area.value = getSettings().readingOverrides;
   area.placeholder = "春風=はるかぜ";
-  connectControl(text, area);
-  let saved = area.value;
-  const commit = () => {
-    if (area.value === saved) return;
-    saved = area.value;
+  area.onblur = () => {
+    if (area.value === getSettings().readingOverrides) return;
     updateSettings({ readingOverrides: area.value });
     resetAnalysisCache();
     rescan();
   };
-  area.onchange = commit;
-  area.onblur = commit;
-  onPanelTeardown(commit);
   el.appendChild(area);
   return el;
 }

@@ -4,7 +4,7 @@
 export const UI_ROOT_CLASS = "kashiyomi-ui";
 
 export const SHARED_CSS = `
-.kashiyomi-ui {
+.kashiyomi-dictionary-dialog {
   --ky-accent: rgb(255, 58, 58);
   --ky-accent-hover: rgb(255, 78, 78);
   --ky-danger: rgb(255, 92, 92);
@@ -20,7 +20,7 @@ export const SHARED_CSS = `
   --ky-focus: rgba(255, 58, 58, .78);
   color: var(--ky-text);
 }
-.kashiyomi-ui.kui-light {
+.kashiyomi-dictionary-dialog.kui-light {
   --ky-text: rgba(24, 29, 39, .9);
   --ky-text-strong: rgb(24, 29, 39);
   --ky-muted: rgba(24, 29, 39, .58);
@@ -32,15 +32,28 @@ export const SHARED_CSS = `
 }
 .kashiyomi-ui * { box-sizing: border-box; }
 .kashiyomi-ui .kc-card {
-  border: 1px solid var(--ky-divider); border-radius: 9px;
-  background: var(--ky-surface); overflow: hidden;
+  border: 1px solid var(--kc-card-border, transparent); border-radius: 10px;
+  background: var(--kc-card-bg, rgba(255, 255, 255, 0.05)); overflow: hidden;
 }
-.kashiyomi-ui .kc-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 8px 14px; }
-.kashiyomi-ui .kc-row + .kc-row { border-top: 1px solid var(--ky-divider); }
-.kashiyomi-ui .kc-label { color: var(--ky-text-strong); font-size: 14px; font-weight: 500; line-height: 20px; }
-.kashiyomi-ui .kc-desc { color: var(--ky-muted); font-size: 12.5px; margin-top: 1px; line-height: 17px; }
+.kashiyomi-ui .kc-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 14px; }
+.kashiyomi-ui .kc-row + .kc-row { border-top: 1px solid var(--kc-divider, rgba(255, 255, 255, 0.06)); }
+.kashiyomi-ui .kc-label { font-size: 13.5px; font-weight: 500; line-height: 1.3; }
+.kashiyomi-ui .kc-desc { font-size: 12px; opacity: 0.68; margin-top: 2px; line-height: 1.35; }
 .kashiyomi-ui .kc-inert { opacity: 0.45; cursor: default; }
 .kashiyomi-ui .kc-inert .kc-switch { cursor: default; }
+.kashiyomi-ui .kc-button {
+  padding: 6px 14px; border: none;
+  border-radius: 8px; background: var(--kc-button-bg, rgba(255, 255, 255, 0.1)); color: inherit;
+  font-size: 12.5px; font-family: inherit; cursor: pointer;
+}
+.kashiyomi-ui .kc-button:hover:not(:disabled) { background: var(--kc-button-hover, rgba(255, 255, 255, 0.16)); }
+.kashiyomi-ui .kc-button:disabled { opacity: 0.5; cursor: default; }
+.kashiyomi-ui .kc-dictionary-manage { height: 28px; padding: 0 14px; border-radius: 14px; }
+.kashiyomi-ui .kc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: #999; }
+.kashiyomi-ui .kc-ready .kc-dot { background: #52c41a; }
+.kashiyomi-ui .kc-bad .kc-dot { background: #ff4d4f; }
+.kashiyomi-ui .kc-loading .kc-dot { background: #faad14; }
+.kashiyomi-ui .kc-button:focus-visible { outline: 2px solid rgba(255, 58, 58, 0.75); outline-offset: 2px; }
 .kashiyomi-ui .kui-button {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 0; height: 28px; padding: 0 12px;

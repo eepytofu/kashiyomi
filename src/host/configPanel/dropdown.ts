@@ -11,10 +11,8 @@ export type DropdownOption = {
 
 export type Dropdown = {
   readonly el: HTMLElement;
-  readonly trigger: HTMLButtonElement;
   /** Move the selection from outside, without firing `onChange`. */
   readonly setValue: (value: string) => void;
-  readonly dispose: () => void;
 };
 
 let nextId = 0;
@@ -37,7 +35,6 @@ export function dropdown(config: {
   trigger.className = "kc-select-trigger";
   trigger.setAttribute("aria-haspopup", "listbox");
   trigger.setAttribute("aria-expanded", "false");
-  trigger.setAttribute("aria-controls", id);
   if (config.label) trigger.setAttribute("aria-label", config.label);
 
   const text = document.createElement("span");
@@ -217,12 +214,10 @@ export function dropdown(config: {
 
   return {
     el,
-    trigger,
     setValue: (next: string) => {
       value = next;
       active = options.findIndex((o) => o.value === next);
       paint();
     },
-    dispose: close,
   };
 }

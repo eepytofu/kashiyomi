@@ -45,11 +45,8 @@ const keyCooldown = new Map<string, number>();
 let keyCursor = 0;
 
 class KeyExhausted extends Error {
-  readonly status: number;
-
-  constructor(status: number) {
+  constructor(readonly status: number) {
     super(`HTTP ${status}`);
-    this.status = status;
   }
 }
 
