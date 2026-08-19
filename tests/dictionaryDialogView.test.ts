@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { DictionarySnapshot } from "../src/engine/dictionaryState.ts";
-import { dictionaryDialogView } from "../src/host/setup/viewState.ts";
+import { dictionaryDialogView, dictionaryEditionAction } from "../src/host/setup/viewState.ts";
 
 const EMPTY: DictionarySnapshot = {
   configured: true,
@@ -68,4 +68,22 @@ test("removal view reports fallback or last-dictionary consequence", () => {
   assert.deepEqual(dictionaryDialogView(last, { firstRun: false, selected: "core", confirmRemove: "core" }), {
     kind: "remove", edition: "core", fallback: undefined, stopsAnnotation: true,
   });
+});
+
+test("management action matrix distinguishes install, use, update, and update-and-use", () => {
+  assert.equal(dictionaryEditionAction(EMPTY, "core"), "install-use");
+  assert.equal(dictionaryEditionAction(DUAL, "core"), undefined);
+  assert.equal(dictionaryEditionAction(DUAL, "full"), "use");
+
+  const activeOutdated: DictionarySnapshot = {
+    ...DUAL,
+    installed: DUAL.installed.map((entry) => entry.edition === "core" ? { ...entry, updateAvailable: true } : entry),
+  };
+  assert.equal(dictionaryEditionAction(activeOutdated, "core"), "update");
+
+  const inactiveOutdated: DictionarySnapshot = {
+    ...DUAL,
+    installed: DUAL.installed.map((entry) => entry.edition === "full" ? { ...entry, updateAvailable: true } : entry),
+  };
+  assert.equal(dictionaryEditionAction(inactiveOutdated, "full"), "update-use");
 });

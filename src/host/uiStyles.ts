@@ -4,42 +4,62 @@
 export const UI_ROOT_CLASS = "kashiyomi-ui";
 
 export const SHARED_CSS = `
+.kashiyomi-ui {
+  --ky-accent: rgb(255, 58, 58);
+  --ky-accent-hover: rgb(255, 78, 78);
+  --ky-danger: rgb(255, 92, 92);
+  --ky-text: var(--colorBlack2, rgba(255, 255, 255, .9));
+  --ky-text-strong: var(--colorBlack1, #fff);
+  --ky-muted: var(--colorBlack6, rgba(255, 255, 255, .5));
+  --ky-faint: var(--colorBlack8, rgba(255, 255, 255, .3));
+  --ky-divider: var(--colorBlack11, rgba(255, 255, 255, .06));
+  --ky-surface: var(--colorBlack11, rgba(255, 255, 255, .06));
+  --ky-control: transparent;
+  --ky-control-hover: var(--colorBlack11, rgba(255, 255, 255, .06));
+  --ky-control-border: var(--colorBlack8, rgba(255, 255, 255, .3));
+  --ky-focus: rgba(255, 58, 58, .78);
+  color: var(--ky-text);
+}
+.kashiyomi-ui.kui-light {
+  --ky-text: rgba(24, 29, 39, .9);
+  --ky-text-strong: rgb(24, 29, 39);
+  --ky-muted: rgba(24, 29, 39, .58);
+  --ky-faint: rgba(24, 29, 39, .32);
+  --ky-divider: rgba(40, 50, 72, .1);
+  --ky-surface: rgba(255, 255, 255, .7);
+  --ky-control-hover: rgba(40, 50, 72, .07);
+  --ky-control-border: rgba(40, 50, 72, .28);
+}
 .kashiyomi-ui * { box-sizing: border-box; }
 .kashiyomi-ui .kc-card {
-  border: 1px solid var(--kc-card-border, transparent); border-radius: 10px;
-  background: var(--kc-card-bg, rgba(255, 255, 255, 0.05)); overflow: hidden;
+  border: 1px solid var(--ky-divider); border-radius: 9px;
+  background: var(--ky-surface); overflow: hidden;
 }
-.kashiyomi-ui .kc-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 14px; }
-.kashiyomi-ui .kc-row + .kc-row { border-top: 1px solid var(--kc-divider, rgba(255, 255, 255, 0.06)); }
-/* No row is clickable: every row's control is its own hit target, which is what
-   the rest of the panel already did and what NCM's own plugins do. A row-wide
-   hover would advertise a target that is not there. */
-/* Weight separates label from description, not opacity. The two were 13.5px and
-   12px, a 1.125 ratio and near-identical, so the whole hierarchy rested on
-   label carrying its own weight, opacity is free to serve contrast alone. */
-.kashiyomi-ui .kc-label { font-size: 13.5px; font-weight: 500; line-height: 1.3; }
-.kashiyomi-ui .kc-desc { font-size: 12px; opacity: 0.68; margin-top: 2px; line-height: 1.35; }
-/* A control that cannot do anything yet, rather than one that is hidden. It
-   stays readable so the surface does not change shape when a dictionary
-   into a state that silently has no effect. */
+.kashiyomi-ui .kc-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 8px 14px; }
+.kashiyomi-ui .kc-row + .kc-row { border-top: 1px solid var(--ky-divider); }
+.kashiyomi-ui .kc-label { color: var(--ky-text-strong); font-size: 14px; font-weight: 500; line-height: 20px; }
+.kashiyomi-ui .kc-desc { color: var(--ky-muted); font-size: 12.5px; margin-top: 1px; line-height: 17px; }
 .kashiyomi-ui .kc-inert { opacity: 0.45; cursor: default; }
 .kashiyomi-ui .kc-inert .kc-switch { cursor: default; }
-/* Radius 8, matching every other surface here — card 10, select 8, input 8,
-   language toggle 8. Shipped once as NCM's own pill (radius = half the height)
-   and reverted: it was the only control in the panel not on the shared radius. */
-.kashiyomi-ui .kc-button {
-  padding: 6px 14px; border: none;
-  border-radius: 8px; background: var(--kc-button-bg, rgba(255, 255, 255, 0.1)); color: inherit;
-  font-size: 12.5px; font-family: inherit; cursor: pointer;
+.kashiyomi-ui .kui-button {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 0; height: 28px; padding: 0 12px;
+  border: 1px solid var(--ky-control-border); border-radius: 14px;
+  background: var(--ky-control); color: var(--ky-text-strong);
+  font-family: inherit; font-size: 13.5px; line-height: 26px; white-space: nowrap; cursor: pointer;
 }
-.kashiyomi-ui .kc-button:hover:not(:disabled) { background: var(--kc-button-hover, rgba(255, 255, 255, 0.16)); }
-.kashiyomi-ui .kc-button:disabled { opacity: 0.5; cursor: default; }
-.kashiyomi-ui .kc-dictionary-manage { height: 28px; padding: 0 14px; border-radius: 14px; }
-.kashiyomi-ui .kc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: #999; }
-.kashiyomi-ui .kc-ready .kc-dot { background: #52c41a; }
-.kashiyomi-ui .kc-bad .kc-dot { background: #ff4d4f; }
-.kashiyomi-ui .kc-loading .kc-dot { background: #faad14; }
-.kashiyomi-ui .kc-button:focus-visible { outline: 2px solid rgba(255, 58, 58, 0.75); outline-offset: 2px; }
+.kashiyomi-ui .kui-button:hover:not(:disabled) { background: var(--ky-control-hover); }
+.kashiyomi-ui .kui-button-primary { border-color: var(--ky-accent); background: var(--ky-accent); color: #fff; }
+.kashiyomi-ui .kui-button-primary:hover:not(:disabled) { border-color: var(--ky-accent-hover); background: var(--ky-accent-hover); }
+.kashiyomi-ui .kui-button-danger { border-color: transparent; color: var(--ky-danger); }
+.kashiyomi-ui .kui-button-quiet { border-color: transparent; background: var(--ky-surface); }
+.kashiyomi-ui .kui-button:disabled { opacity: .42; cursor: default; }
+.kashiyomi-ui .kui-button:focus-visible { outline: 2px solid var(--ky-focus); outline-offset: 2px; }
+.kashiyomi-ui .kui-live:empty { display: none; }
+.kashiyomi-ui .kui-sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
 `;
 
 /** Put the shared sheet in the document once. */

@@ -4,7 +4,9 @@ import { t, tSongsCached } from "../i18n.ts";
 import { getSettings, updateSettings, type Settings } from "../settings.ts";
 import { resetTranslation } from "../translationLane.ts";
 import { cachedTranslationCount, clearTranslationCache } from "../translator.ts";
+import { connectControl, liveRegion, uiButton } from "../uiPrimitives.ts";
 import { dropdown } from "./dropdown.ts";
+import { onPanelTeardown } from "./lifecycle.ts";
 import { row, rowText, textInput } from "./rows.ts";
 
 /**
@@ -12,7 +14,8 @@ import { row, rowText, textInput } from "./rows.ts";
  */
 export function providerRow(onProvider: (provider: Settings["aiProvider"]) => void): HTMLElement {
   const el = row();
-  el.appendChild(rowText(t("aiProvider"), t("aiProviderDesc")));
+  const text = rowText(t("aiProvider"), t("aiProviderDesc"));
+  el.appendChild(text);
   const control = dropdown({
     options: [
       { value: "openai", label: "OpenAI-compatible" },
@@ -27,6 +30,8 @@ export function providerRow(onProvider: (provider: Settings["aiProvider"]) => vo
       onProvider(provider);
     },
   });
+  connectControl(text, control.trigger);
+  onPanelTeardown(control.dispose);
   el.appendChild(control.el);
   return el;
 }
@@ -82,7 +87,8 @@ const COMMON_TARGET_LANGS: readonly { label: string; search: string }[] = [
 export function targetLangRow(): HTMLElement {
   const el = row();
   el.style.flexWrap = "wrap";
-  el.appendChild(rowText(t("aiTargetLang"), t("aiTargetLangDesc")));
+  const text = rowText(t("aiTargetLang"), t("aiTargetLangDesc"));
+  el.appendChild(text);
 
   const CUSTOM = "__custom__";
   const current = getSettings().aiTargetLang;
@@ -92,12 +98,19 @@ export function targetLangRow(): HTMLElement {
   input.style.flex = "1 1 100%";
   input.style.display = isListed ? "none" : "";
   input.placeholder = "Sundanese / Jawa / ...";
-  input.onchange = () => {
+  let saved = current;
+  const commitInput = () => {
     if (input.value.trim() !== "") {
-      updateSettings({ aiTargetLang: input.value.trim() });
+      const value = input.value.trim();
+      if (value === saved) return;
+      saved = value;
+      updateSettings({ aiTargetLang: value });
       resetTranslation();
     }
   };
+  input.onchange = commitInput;
+  input.onblur = commitInput;
+  onPanelTeardown(commitInput);
 
   const control = dropdown({
     options: [
@@ -113,10 +126,14 @@ export function targetLangRow(): HTMLElement {
         return;
       }
       input.style.display = "none";
+      saved = value;
       updateSettings({ aiTargetLang: value });
       resetTranslation();
     },
   });
+  connectControl(text, control.trigger);
+  connectControl(text, input);
+  onPanelTeardown(control.dispose);
 
   el.appendChild(control.el);
   el.appendChild(input);
@@ -126,7 +143,8 @@ export function targetLangRow(): HTMLElement {
 export function apiKeysRow(): HTMLElement {
   const el = row();
   el.style.flexWrap = "wrap";
-  el.appendChild(rowText(t("aiApiKey"), t("aiApiKeyDesc")));
+  const text = rowText(t("aiApiKey"), t("aiApiKeyDesc"));
+  el.appendChild(text);
 
   const area = document.createElement("textarea");
   area.className = "kc-input";
@@ -135,6 +153,7 @@ export function apiKeysRow(): HTMLElement {
   area.style.cssText += "flex:1 1 100%;resize:vertical;min-height:52px;";
   area.value = getSettings().aiApiKey;
   area.placeholder = "sk-...";
+  connectControl(text, area);
   // Keys are secrets: show them masked until the field is focused.
   // -webkit-text-security is not in the CSSStyleDeclaration typings but is
   // supported by the CEF build NCM ships.
@@ -143,11 +162,20 @@ export function apiKeysRow(): HTMLElement {
   };
   setMasked(true);
   area.onfocus = () => setMasked(false);
+  let saved = area.value;
+  const commit = () => {
+    if (area.value !== saved) {
+      saved = area.value;
+      updateSettings({ aiApiKey: area.value });
+      resetTranslation();
+    }
+  };
   area.onblur = () => {
-    updateSettings({ aiApiKey: area.value });
-    resetTranslation();
+    commit();
     setMasked(true);
   };
+  area.onchange = commit;
+  onPanelTeardown(commit);
   el.appendChild(area);
   return el;
 }
@@ -169,20 +197,18 @@ export function clearCacheRow(): HTMLElement {
   const text = rowText(t("aiClearCache"), cacheDesc(count));
   el.appendChild(text);
 
-  const button = document.createElement("button");
-  button.className = "kc-button";
-  button.textContent = t("clear");
+  const button = uiButton(t("clear"));
   button.disabled = count === 0;
-  button.style.opacity = count === 0 ? "0.5" : "";
+  const status = liveRegion("kui-sr-only");
   button.onclick = () => {
     clearTranslationCache();
     resetTranslation();
-    button.textContent = t("cleared");
     button.disabled = true;
-    button.style.opacity = "0.5";
     const desc = text.querySelector(".kc-desc");
     if (desc) desc.textContent = cacheDesc(0);
+    status.textContent = t("cleared");
   };
   el.appendChild(button);
+  el.appendChild(status);
   return el;
 }

@@ -1,62 +1,72 @@
-// Dictionary dialog aligned with NCM's own color tokens and pill controls.
+// Dictionary dialog: compact NCM geometry, semantic host-derived surfaces.
 
 export const SETUP_CSS = `
 .kashiyomi-dictionary-dialog {
-  width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 64px);
-  margin: auto; overflow: auto; border: 0; border-radius: 12px; padding: 24px;
-  background: var(--colorFunction4); color: var(--colorBlack3);
-  font: 14px/1.45 inherit; box-shadow: 0 18px 54px rgba(0, 0, 0, .38);
+  width: min(480px, calc(100vw - 32px)); max-height: calc(100vh - 48px);
+  margin: auto; overflow: auto; border: 1px solid var(--ky-divider); border-radius: 11px; padding: 18px 20px 20px;
+  background: var(--ky-dialog-bg); color: var(--ky-text); font-family: inherit; font-size: 13.5px; line-height: 1.45;
+  box-shadow: 0 18px 54px rgba(0, 0, 0, .38);
 }
-.kashiyomi-dictionary-dialog::backdrop { background: rgba(0, 0, 0, .55); }
-.kashiyomi-dictionary-dialog .kd-title { margin: 0; font-size: 18px; line-height: 1.35; font-weight: 600; }
-.kashiyomi-dictionary-dialog .kd-intro { margin: 8px 0 14px; opacity: .68; }
-.kashiyomi-dictionary-dialog .kd-list { margin-top: 12px; }
+.kashiyomi-dictionary-dialog::backdrop { background: rgba(0, 0, 0, .54); }
+.kashiyomi-dictionary-dialog [hidden] { display: none !important; }
+.kashiyomi-dictionary-dialog .kd-header { display: flex; align-items: center; min-height: 28px; gap: 12px; }
+.kashiyomi-dictionary-dialog .kd-title {
+  flex: 1; margin: 0; color: var(--ky-text-strong); font-size: 16px; line-height: 22px; font-weight: 600;
+}
+.kashiyomi-dictionary-dialog .kd-header-close {
+  width: 28px; padding: 0; border-color: transparent; background: transparent; font-size: 20px; font-weight: 300;
+}
+.kashiyomi-dictionary-dialog .kd-intro { margin: 6px 0 8px; color: var(--ky-muted); }
+.kashiyomi-dictionary-dialog .kd-list { min-width: 0; margin: 4px 0 0; padding: 0; border: 0; }
 .kashiyomi-dictionary-dialog .kd-edition {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px;
-  padding: 15px 0; border-top: 1px solid var(--colorBlack11);
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, auto); gap: 10px 14px;
+  align-items: center; padding: 12px 0; border-top: 1px solid var(--ky-divider);
 }
-.kashiyomi-dictionary-dialog .kd-edition:first-child { border-top: 0; }
-.kashiyomi-dictionary-dialog .kd-choice { display: flex; min-width: 0; gap: 12px; align-items: flex-start; cursor: pointer; }
+.kashiyomi-dictionary-dialog .kd-edition:first-of-type { border-top: 0; }
+.kashiyomi-dictionary-dialog .kd-choice { display: flex; min-width: 0; gap: 10px; align-items: flex-start; }
+.kashiyomi-dictionary-dialog .kd-selectable .kd-choice { cursor: pointer; }
 .kashiyomi-dictionary-dialog .kd-choice input {
   -webkit-appearance: none; appearance: none; position: relative; flex: 0 0 auto;
-  width: 18px; height: 18px; margin: 2px 0 0; border: 1.5px solid currentColor;
-  border-radius: 50%; opacity: .55; background: transparent;
+  width: 16px; height: 16px; margin: 2px 0 0; border: 1.5px solid var(--ky-faint);
+  border-radius: 50%; background: transparent;
 }
-.kashiyomi-dictionary-dialog .kd-choice input:checked { border-color: rgb(255, 58, 58); opacity: 1; }
+.kashiyomi-dictionary-dialog .kd-choice input:checked { border-color: var(--ky-accent); }
 .kashiyomi-dictionary-dialog .kd-choice input:checked::after {
-  content: ""; position: absolute; inset: 4px; border-radius: 50%; background: rgb(255, 58, 58);
+  content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--ky-accent);
 }
-.kashiyomi-dictionary-dialog .kd-name { font-size: 15px; font-weight: 600; }
-.kashiyomi-dictionary-dialog .kd-desc, .kashiyomi-dictionary-dialog .kd-size,
-.kashiyomi-dictionary-dialog .kd-help { opacity: .68; }
-.kashiyomi-dictionary-dialog .kd-size { margin-top: 4px; font-size: 12px; }
-.kashiyomi-dictionary-dialog .kd-state { align-self: start; white-space: nowrap; font-size: 12px; opacity: .68; }
-.kashiyomi-dictionary-dialog .kd-state-active { color: rgb(255, 58, 58); opacity: 1; }
-.kashiyomi-dictionary-dialog .kd-row-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
-.kashiyomi-dictionary-dialog .kd-button {
-  min-width: 0; height: 28px; padding: 0 14px; border: 0; border-radius: 14px;
-  background: var(--colorBlack11); color: var(--colorBlack2); font: 13px/28px inherit; cursor: pointer;
-}
-.kashiyomi-dictionary-dialog .kd-button:hover:not(:disabled) { background: var(--colorBlack10); color: var(--colorBlack1); }
-.kashiyomi-dictionary-dialog .kd-button:disabled { opacity: .42; cursor: default; }
-.kashiyomi-dictionary-dialog .kd-primary { background: rgb(255, 58, 58); color: white; }
-.kashiyomi-dictionary-dialog .kd-primary:hover:not(:disabled) { background: rgb(255, 78, 78); }
-.kashiyomi-dictionary-dialog .kd-danger { color: var(--colorFunction1); }
-.kashiyomi-dictionary-dialog .kd-large { height: 40px; padding: 0 20px; border-radius: 20px; font-size: 14px; line-height: 40px; }
-.kashiyomi-dictionary-dialog .kd-actions { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
-.kashiyomi-dictionary-dialog .kd-actions .kd-close { margin-left: auto; }
-.kashiyomi-dictionary-dialog .kd-progress { margin-top: 18px; }
-.kashiyomi-dictionary-dialog .kd-progress-head { display: flex; justify-content: space-between; gap: 16px; }
-.kashiyomi-dictionary-dialog .kd-track { height: 3px; margin-top: 10px; overflow: hidden; border-radius: 2px; background: var(--colorBlack10); }
-.kashiyomi-dictionary-dialog .kd-bar { height: 100%; min-width: 4px; background: rgb(255, 58, 58); transition: width .18s linear; }
-.kashiyomi-dictionary-dialog .kd-error { margin-top: 14px; color: var(--colorFunction1); }
-.kashiyomi-dictionary-dialog .kd-confirm { margin-top: 18px; }
+.kashiyomi-dictionary-dialog .kd-details, .kashiyomi-dictionary-dialog .kd-name,
+.kashiyomi-dictionary-dialog .kd-desc, .kashiyomi-dictionary-dialog .kd-size { display: block; }
+.kashiyomi-dictionary-dialog .kd-name { color: var(--ky-text-strong); font-size: 14px; line-height: 20px; font-weight: 600; }
+.kashiyomi-dictionary-dialog .kd-desc { margin-top: 1px; color: var(--ky-muted); font-size: 12.5px; line-height: 17px; }
+.kashiyomi-dictionary-dialog .kd-size { margin-top: 3px; color: var(--ky-faint); font-size: 12px; line-height: 17px; }
+.kashiyomi-dictionary-dialog .kd-side { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; }
+.kashiyomi-dictionary-dialog .kd-state { color: var(--ky-muted); font-size: 12px; line-height: 17px; white-space: nowrap; }
+.kashiyomi-dictionary-dialog .kd-state-active { color: var(--ky-accent); }
+.kashiyomi-dictionary-dialog .kd-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.kashiyomi-dictionary-dialog .kd-confirm { padding: 14px 0 2px; }
+.kashiyomi-dictionary-dialog .kd-confirm p { margin: 0; }
+.kashiyomi-dictionary-dialog .kd-confirm-summary { color: var(--ky-text-strong); font-weight: 500; }
+.kashiyomi-dictionary-dialog .kd-help { margin-top: 6px !important; color: var(--ky-muted); }
+.kashiyomi-dictionary-dialog .kd-progress { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ky-divider); }
+.kashiyomi-dictionary-dialog .kd-progress-heading { color: var(--ky-text-strong); font-weight: 500; }
+.kashiyomi-dictionary-dialog .kd-progress-head { display: flex; justify-content: space-between; gap: 16px; margin-top: 5px; color: var(--ky-muted); font-size: 12px; }
+.kashiyomi-dictionary-dialog .kd-track { height: 3px; margin-top: 7px; overflow: hidden; border-radius: 2px; background: var(--ky-divider); }
+.kashiyomi-dictionary-dialog .kd-bar { height: 100%; min-width: 3px; background: var(--ky-accent); transition: width .18s linear; }
+.kashiyomi-dictionary-dialog .kd-bar-indeterminate { animation: kd-progress 1.2s ease-in-out infinite alternate; }
+.kashiyomi-dictionary-dialog .kd-feedback { margin-top: 10px; color: var(--ky-muted); }
+.kashiyomi-dictionary-dialog .kd-feedback-error { color: var(--ky-danger); }
+.kashiyomi-dictionary-dialog .kd-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.kashiyomi-dictionary-dialog .kd-footer-action { height: 32px; padding: 0 16px; border-radius: 16px; }
 .kashiyomi-dictionary-dialog button:focus-visible,
-.kashiyomi-dictionary-dialog input:focus-visible { outline: 2px solid rgb(255, 58, 58); outline-offset: 2px; }
-@media (max-width: 560px) {
-  .kashiyomi-dictionary-dialog { width: calc(100vw - 20px); padding: 20px; }
-  .kashiyomi-dictionary-dialog .kd-edition { grid-template-columns: minmax(0, 1fr); }
-  .kashiyomi-dictionary-dialog .kd-state { grid-row: 1; justify-self: end; }
-  .kashiyomi-dictionary-dialog .kd-choice { padding-right: 80px; grid-row: 1 / span 2; }
+.kashiyomi-dictionary-dialog input:focus-visible { outline: 2px solid var(--ky-focus); outline-offset: 2px; }
+@keyframes kd-progress { from { transform: translateX(0); } to { transform: translateX(450%); } }
+@media (max-width: 520px) {
+  .kashiyomi-dictionary-dialog { width: calc(100vw - 20px); padding: 16px; }
+  .kashiyomi-dictionary-dialog .kd-edition { grid-template-columns: minmax(0, 1fr); gap: 7px; }
+  .kashiyomi-dictionary-dialog .kd-side { flex-direction: row; align-items: center; justify-content: space-between; }
+  .kashiyomi-dictionary-dialog .kd-row-actions { margin-left: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kashiyomi-dictionary-dialog .kd-bar { transition: none; animation: none; }
 }
 `;

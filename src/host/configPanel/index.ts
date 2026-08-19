@@ -12,6 +12,7 @@ import {
 } from "../settings.ts";
 import { PANEL_CSS } from "./css.ts";
 import { UI_ROOT_CLASS, ensureSharedStyles } from "../uiStyles.ts";
+import { applyUiTheme, liveRegion, uiButton } from "../uiPrimitives.ts";
 import { dictionaryAvailable, onDictionaryChange } from "../dictionary.ts";
 import { dictionaryRow } from "./dictionaryRow.ts";
 import { onPanelTeardown, teardownPanel } from "./lifecycle.ts";
@@ -65,7 +66,7 @@ function render(root: HTMLElement, restoreTab?: TabKey): void {
   const style = document.createElement("style");
   style.textContent = PANEL_CSS;
   root.appendChild(style);
-  applyPanelTheme(root);
+  applyUiTheme(root);
 
   root.appendChild(buildTabStrip(root));
 
@@ -192,16 +193,6 @@ function render(root: HTMLElement, restoreTab?: TabKey): void {
   linkTabsToScroll(root, restoreTab);
 }
 
-/** Use the rendered host surface, not a private NCM theme API. */
-function applyPanelTheme(root: HTMLElement): void {
-  const channels = getComputedStyle(document.body).backgroundColor.match(/[\d.]+/g);
-  const red = Number(channels?.[0] ?? 0);
-  const green = Number(channels?.[1] ?? 0);
-  const blue = Number(channels?.[2] ?? 0);
-  const luminance = (red * 299 + green * 587 + blue * 114) / 1000;
-  root.classList.toggle("kc-theme-light", luminance > 160);
-}
-
 /** A toggle plus the rows that only mean anything while it is on. */
 function revealWhile(
   card: HTMLElement,
@@ -300,7 +291,9 @@ function linkTabsToScroll(root: HTMLElement, restoreTab?: TabKey): void {
 
   const light = (key: string): void => {
     for (const tab of tabs) {
-      tab.classList.toggle("kc-tab-on", tab.getAttribute("data-kc-tab") === key);
+      const active = tab.getAttribute("data-kc-tab") === key;
+      tab.classList.toggle("kc-tab-on", active);
+      tab.setAttribute("aria-current", active ? "location" : "false");
     }
   };
 
@@ -374,7 +367,7 @@ function linkTabsToScroll(root: HTMLElement, restoreTab?: TabKey): void {
     if (!manager) return;
     hostObserver = new MutationObserver(() => {
       if (root.getBoundingClientRect().height === 0) return;
-      applyPanelTheme(root);
+      applyUiTheme(root);
       sync();
     });
     for (const button of manager.querySelectorAll(".plugin-btn")) {
@@ -451,6 +444,7 @@ function buildTabStrip(root: HTMLElement): HTMLElement {
   list.className = "kc-tablist";
   for (const tab of TABS) {
     const button = document.createElement("button");
+    button.type = "button";
     button.className = tab.key === activeTab ? "kc-tab kc-tab-on" : "kc-tab";
     button.textContent = t(tab.title);
     button.setAttribute("data-kc-tab", tab.key);
@@ -460,14 +454,20 @@ function buildTabStrip(root: HTMLElement): HTMLElement {
 
   const rightSide = document.createElement("div");
   rightSide.className = "kc-status-right";
-  const reannotate = document.createElement("button");
-  reannotate.className = "kc-button";
-  reannotate.textContent = t("reannotate");
+  const reannotate = uiButton(t("reannotate"));
+  const feedback = liveRegion("kui-sr-only");
+  let feedbackTimer: number | undefined;
   reannotate.onclick = () => {
     rescan();
-    render(root, activeTab);
+    feedback.textContent = t("annotationsRefreshed");
+    if (feedbackTimer !== undefined) window.clearTimeout(feedbackTimer);
+    feedbackTimer = window.setTimeout(() => { feedback.textContent = ""; }, 1800);
   };
+  onPanelTeardown(() => {
+    if (feedbackTimer !== undefined) window.clearTimeout(feedbackTimer);
+  });
   rightSide.appendChild(reannotate);
+  rightSide.appendChild(feedback);
   rightSide.appendChild(buildLangToggle(root));
   bar.appendChild(rightSide);
   return bar;
@@ -479,6 +479,8 @@ function buildLangToggle(root: HTMLElement): HTMLElement {
   wrap.className = "kc-lang";
   // Sitting in the status bar with no label, this control does not say what it
   wrap.title = t("panelLanguageDesc");
+  wrap.setAttribute("role", "group");
+  wrap.setAttribute("aria-label", t("panelLanguage"));
   const current = panelLang();
   const options: [PanelLang, string][] = [
     ["en", "EN"],
@@ -486,11 +488,17 @@ function buildLangToggle(root: HTMLElement): HTMLElement {
   ];
   for (const [lang, label] of options) {
     const button = document.createElement("button");
+    button.type = "button";
     button.textContent = label;
-    if (lang === current) button.className = "kc-active";
+    button.setAttribute("data-kc-lang", lang);
+    const active = lang === current;
+    if (active) button.className = "kc-active";
+    button.setAttribute("aria-pressed", String(active));
     button.onclick = () => {
+      if (lang === panelLang()) return;
       setPanelLang(lang);
       render(root, activeTab);
+      root.querySelector<HTMLElement>(`[data-kc-lang="${lang}"]`)?.focus();
     };
     wrap.appendChild(button);
   }
@@ -510,7 +518,8 @@ function buildAboutCard(column: HTMLElement): void {
   // Both links are required for listing: the store asks for the source and a
   // way to report a bug, each reachable from inside the plugin's own settings.
   const link = (label: string, url: string) => {
-    const el = document.createElement("span");
+    const el = document.createElement("button");
+    el.type = "button";
     el.className = "kc-link";
     el.textContent = label;
     el.onclick = () => {
@@ -527,7 +536,7 @@ function buildAboutCard(column: HTMLElement): void {
 
   const logPath = document.createElement("div");
   logPath.className = "kc-muted";
-  logPath.textContent = `${t("aboutLog")}: C:\\betterncm\\kashiyomi.log`;
+  logPath.textContent = `${t("aboutLog")}: kashiyomi.log`;
   box.appendChild(logPath);
 
   column.appendChild(box);

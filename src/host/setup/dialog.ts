@@ -7,7 +7,7 @@ import {
   editionViewState,
   installedEdition,
   type DictionaryErrorCode,
-  type DictionaryOperation,
+  type DictionarySnapshot,
 } from "../../engine/dictionaryState.ts";
 import {
   activateDictionary,
@@ -17,49 +17,83 @@ import {
   onDictionaryChange,
   removeDictionary,
 } from "../dictionary.ts";
-import { panelLang, t } from "../i18n.ts";
+import {
+  t,
+  tDictionaryError,
+  tDictionaryOperation,
+  tDictionaryPhase,
+  tf,
+} from "../i18n.ts";
 import { getSettings, updateSettings } from "../settings.ts";
-import { UI_ROOT_CLASS } from "../uiStyles.ts";
+import { applyUiTheme, liveRegion, uiButton, uiId } from "../uiPrimitives.ts";
+import { ensureSharedStyles, UI_ROOT_CLASS } from "../uiStyles.ts";
 import { SETUP_CSS } from "./styles.ts";
-import { dictionaryDialogView } from "./viewState.ts";
+import {
+  dictionaryDialogView,
+  dictionaryEditionAction,
+  type DictionaryEditionAction,
+  type DictionaryUiError,
+} from "./viewState.ts";
 
-let openDialog: HTMLDialogElement | undefined;
-
-type Copy = {
-  intro: string; download: string; installed: string; inUse: string; notInstalled: string;
-  installedState: string; update: string; installUse: string; use: string; remove: string;
-  later: string; close: string; cancel: string; removing: string; removeTitle: string;
-  fallback: (name: string) => string; last: string; frees: (size: string) => string;
-  install: (name: string) => string; phases: Record<DictionaryOperation["phase"], string>;
-  cancelled: string; errors: Record<DictionaryErrorCode, string>;
+type CommandResult<T> = { readonly ok: true; readonly value: T } | {
+  readonly ok: false;
+  readonly errorCode: DictionaryErrorCode;
 };
 
-function copy(): Copy {
-  if (panelLang() === "zh") return {
-    intro: "Core 为默认推荐。词典不会随插件打包，可稍后安装。",
-    download: "下载", installed: "安装后", inUse: "使用中", notInstalled: "未安装",
-    installedState: "已安装", update: "有可用更新", installUse: "安装并使用", use: "使用",
-    remove: "移除…", later: "暂时跳过", close: "关闭", cancel: "取消", removing: "确认移除",
-    removeTitle: "移除词典？", fallback: (name) => `移除后将自动改用 ${name}。`,
-    last: "这是最后一个词典。移除后，日语歌词注音将停止。", frees: (size) => `将释放约 ${size}。`,
-    install: (name) => `安装 ${name}`, cancelled: "操作已取消。",
-    phases: { starting: "准备中", connecting: "正在连接", downloading: "正在下载", extracting: "正在解压", validating: "正在校验", activating: "正在启用", cleaning: "正在清理" },
-    errors: { notConfigured: "词典服务尚未就绪。", busy: "已有词典操作正在进行。", notInstalled: "该词典未安装。", diskSpace: "磁盘空间不足。", offline: "无法连接下载源。", http: "下载源返回错误。", archiveSize: "下载文件大小不符。", archiveHash: "下载文件校验失败。", archiveInvalid: "无法读取下载文件。", dictionarySize: "词典大小不符。", dictionaryHash: "词典校验失败。", dictionaryMissing: "压缩包中缺少词典。", loadFailed: "分析器无法加载该词典。", deleteFailed: "无法删除词典；安装记录保持不变。", manifest: "无法保存词典状态。", io: "磁盘操作失败。", unsupported: "此系统不支持原生下载。" },
-  };
-  return {
-    intro: "Core is recommended by default. Dictionaries are downloaded at runtime and can be installed later.",
-    download: "Download", installed: "Installed", inUse: "In use", notInstalled: "Not installed",
-    installedState: "Installed", update: "Update available", installUse: "Install and use", use: "Use",
-    remove: "Remove…", later: "Later", close: "Close", cancel: "Cancel", removing: "Remove",
-    removeTitle: "Remove dictionary?", fallback: (name) => `${name} will be activated before this edition is removed.`,
-    last: "This is the last dictionary. Japanese lyric annotation will stop after removal.", frees: (size) => `This will free about ${size}.`,
-    install: (name) => `Install ${name}`, cancelled: "The operation was cancelled.",
-    phases: { starting: "Starting", connecting: "Connecting", downloading: "Downloading", extracting: "Extracting", validating: "Validating", activating: "Activating", cleaning: "Cleaning" },
-    errors: { notConfigured: "The dictionary service is not ready.", busy: "Another dictionary operation is already running.", notInstalled: "That dictionary is not installed.", diskSpace: "There is not enough disk space.", offline: "No download source could be reached.", http: "A download source returned an error.", archiveSize: "The download size did not match.", archiveHash: "The download failed verification.", archiveInvalid: "The downloaded archive could not be read.", dictionarySize: "The extracted dictionary size did not match.", dictionaryHash: "The extracted dictionary failed verification.", dictionaryMissing: "The archive did not contain the pinned dictionary.", loadFailed: "The analyzer could not load that dictionary.", deleteFailed: "The dictionary could not be deleted; its installed entry was retained.", manifest: "Dictionary state could not be saved.", io: "A disk operation failed.", unsupported: "Native download is unsupported on this system." },
-  };
+const DICTIONARY_ERRORS: ReadonlySet<string> = new Set([
+  "notConfigured", "busy", "notInstalled", "diskSpace", "offline", "http",
+  "archiveSize", "archiveHash", "archiveInvalid", "dictionarySize", "dictionaryHash",
+  "dictionaryMissing", "loadFailed", "deleteFailed", "manifest", "io", "unsupported",
+]);
+
+function dictionaryCommand<T>(result: { readonly ok: true; readonly value: T } | {
+  readonly ok: false;
+  readonly errorCode: string;
+}): CommandResult<T> {
+  if (result.ok) return result;
+  return { ok: false, errorCode: DICTIONARY_ERRORS.has(result.errorCode) ? result.errorCode as DictionaryErrorCode : "io" };
 }
 
+export type DictionaryDialogDependencies = {
+  readonly snapshot: () => DictionarySnapshot;
+  readonly subscribe: (listener: () => void) => () => void;
+  readonly install: (edition: DictionaryEdition) => CommandResult<number>;
+  readonly activate: (edition: DictionaryEdition) => CommandResult<number>;
+  readonly remove: (edition: DictionaryEdition) => CommandResult<number>;
+  readonly cancel: (operationId: number) => CommandResult<boolean>;
+  readonly setupAnswered: () => boolean;
+  readonly acknowledgeSetup: () => void;
+};
+
+type EditionNodes = {
+  readonly row: HTMLElement;
+  readonly radio: HTMLInputElement;
+  readonly state: HTMLElement;
+  readonly primary: HTMLButtonElement;
+  readonly remove: HTMLButtonElement;
+};
+
+export type DictionaryDialogController = {
+  readonly dialog: HTMLDialogElement;
+  readonly refresh: () => void;
+  readonly destroy: () => void;
+};
+
+const REAL_DEPENDENCIES: DictionaryDialogDependencies = {
+  snapshot: dictionarySnapshot,
+  subscribe: onDictionaryChange,
+  install: (edition) => dictionaryCommand(installDictionary(edition)),
+  activate: (edition) => dictionaryCommand(activateDictionary(edition)),
+  remove: (edition) => dictionaryCommand(removeDictionary(edition)),
+  cancel: (operationId) => dictionaryCommand(cancelDictionary(operationId)),
+  setupAnswered: () => getSettings().dictSetupAnswered,
+  acknowledgeSetup: () => updateSettings({ dictSetupAnswered: true }),
+};
+
+let openController: DictionaryDialogController | undefined;
+
 function ensureStyles(): void {
+  ensureSharedStyles();
   if (document.getElementById("kashiyomi-dictionary-css")) return;
   const style = document.createElement("style");
   style.id = "kashiyomi-dictionary-css";
@@ -72,226 +106,384 @@ function bytes(value: number): string {
   return `${mib >= 100 ? Math.round(mib) : mib.toFixed(1)} MB`;
 }
 
-function button(label: string, className = ""): HTMLButtonElement {
-  const element = document.createElement("button");
-  element.className = `kd-button ${className}`.trim();
-  element.textContent = label;
-  return element;
+function editionName(edition: DictionaryEdition): string {
+  return t(edition === "core" ? "dictEditionCore" : "dictEditionFull");
 }
 
-export function openDictionarySetup(options: { firstRun?: boolean } = {}): void {
-  if (openDialog?.isConnected) {
-    if (!openDialog.open) openDialog.showModal();
-    openDialog.focus();
-    return;
-  }
+function primaryCopy(action: DictionaryEditionAction): string {
+  if (action === "install-use") return t("dictActionInstallUse");
+  if (action === "update-use") return t("dictActionUpdateUse");
+  if (action === "update") return t("dictActionUpdate");
+  return t("dictActionUse");
+}
+
+function setHidden(element: HTMLElement, hidden: boolean): void {
+  element.hidden = hidden;
+}
+
+function focusable(dialog: HTMLDialogElement): HTMLElement[] {
+  return Array.from(dialog.querySelectorAll<HTMLElement>(
+    "button:not([disabled]):not([hidden]), input:not([disabled]):not([hidden]), [tabindex]:not([tabindex='-1']):not([hidden])",
+  )).filter((element) => !element.closest<HTMLElement>("[hidden]"));
+}
+
+/** Build the dialog once. Native polling calls refresh without replacing its controls. */
+export function createDictionaryDialog(
+  options: { readonly firstRun?: boolean } = {},
+  dependencies: DictionaryDialogDependencies = REAL_DEPENDENCIES,
+): DictionaryDialogController {
   ensureStyles();
   const firstRun = options.firstRun === true;
-  let selected: DictionaryEdition = dictionarySnapshot().active ?? "core";
+  let selected: DictionaryEdition = dependencies.snapshot().active ?? "core";
   let confirmRemove: DictionaryEdition | undefined;
-  let commandError: DictionaryErrorCode | undefined;
+  let commandError: DictionaryUiError | undefined;
+  let pendingOperationId: number | undefined;
+  let acceptedOperationId: number | undefined;
+  let cancellingOperationId: number | undefined;
+  let restoreAfterRemove: HTMLElement | undefined;
+
   const dialog = document.createElement("dialog");
   dialog.className = `kashiyomi-dictionary-dialog ${UI_ROOT_CLASS}`;
-  openDialog = dialog;
+  applyUiTheme(dialog);
 
-  const render = (): void => {
-    const text = copy();
-    const snapshot = dictionarySnapshot();
+  const titleId = uiId("dictionary-title");
+  const introId = uiId("dictionary-description");
+  dialog.setAttribute("aria-labelledby", titleId);
+  dialog.setAttribute("aria-describedby", introId);
+
+  const header = document.createElement("header");
+  header.className = "kd-header";
+  const title = document.createElement("h2");
+  title.id = titleId;
+  title.className = "kd-title";
+  title.tabIndex = -1;
+  header.appendChild(title);
+  const headerClose = uiButton("×", { variant: "quiet", className: "kd-header-close", ariaLabel: t("dictActionClose") });
+  headerClose.onclick = () => dialog.close();
+  header.appendChild(headerClose);
+  dialog.appendChild(header);
+
+  const intro = document.createElement("p");
+  intro.id = introId;
+  intro.className = "kd-intro";
+  dialog.appendChild(intro);
+
+  const list = document.createElement("fieldset");
+  list.className = "kd-list";
+  const legend = document.createElement("legend");
+  legend.className = "kui-sr-only";
+  legend.textContent = t("dictionary");
+  list.appendChild(legend);
+  const editions = new Map<DictionaryEdition, EditionNodes>();
+
+  for (const edition of DICTIONARY_EDITIONS) {
+    const release = pinnedRelease(edition);
+    const row = document.createElement("div");
+    row.className = "kd-edition";
+    row.dataset.edition = edition;
+
+    const choice = document.createElement("label");
+    choice.className = "kd-choice";
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "kashiyomi-dictionary-edition";
+    radio.value = edition;
+    radio.onchange = () => {
+      selected = edition;
+      commandError = undefined;
+      refresh();
+    };
+    choice.appendChild(radio);
+    const details = document.createElement("span");
+    details.className = "kd-details";
+    const name = document.createElement("span");
+    name.className = "kd-name";
+    name.textContent = editionName(edition);
+    details.appendChild(name);
+    const description = document.createElement("span");
+    description.className = "kd-desc";
+    description.textContent = t(edition === "core" ? "dictEditionCoreDesc" : "dictEditionFullDesc");
+    details.appendChild(description);
+    const sizes = document.createElement("span");
+    sizes.className = "kd-size";
+    sizes.textContent = `${t("dictDownloadSize")} ${bytes(release.sources[0]!.archiveBytes)} · ${t("dictDiskSize")} ${bytes(release.dictionaryBytes)}`;
+    details.appendChild(sizes);
+    choice.appendChild(details);
+    row.appendChild(choice);
+
+    const side = document.createElement("div");
+    side.className = "kd-side";
+    const state = document.createElement("span");
+    state.className = "kd-state";
+    side.appendChild(state);
+    const actions = document.createElement("div");
+    actions.className = "kd-row-actions";
+    const primary = uiButton("", { variant: "primary" });
+    actions.appendChild(primary);
+    const remove = uiButton("", { variant: "danger" });
+    remove.onclick = () => {
+      confirmRemove = edition;
+      commandError = undefined;
+      restoreAfterRemove = remove;
+      refresh();
+      window.setTimeout(() => footerSecondary.focus(), 0);
+    };
+    actions.appendChild(remove);
+    side.appendChild(actions);
+    row.appendChild(side);
+    list.appendChild(row);
+    editions.set(edition, { row, radio, state, primary, remove });
+  }
+  dialog.appendChild(list);
+
+  const removeView = document.createElement("section");
+  removeView.className = "kd-confirm";
+  const removeSummary = document.createElement("p");
+  removeSummary.className = "kd-confirm-summary";
+  removeView.appendChild(removeSummary);
+  const removeConsequence = document.createElement("p");
+  removeConsequence.className = "kd-help";
+  removeView.appendChild(removeConsequence);
+  dialog.appendChild(removeView);
+
+  const progress = document.createElement("section");
+  progress.className = "kd-progress";
+  const progressHeading = document.createElement("div");
+  progressHeading.className = "kd-progress-heading";
+  progress.appendChild(progressHeading);
+  const progressHead = document.createElement("div");
+  progressHead.className = "kd-progress-head";
+  const phase = document.createElement("span");
+  const percent = document.createElement("span");
+  progressHead.append(phase, percent);
+  progress.appendChild(progressHead);
+  const track = document.createElement("div");
+  track.className = "kd-track";
+  track.setAttribute("role", "progressbar");
+  const bar = document.createElement("div");
+  bar.className = "kd-bar";
+  track.appendChild(bar);
+  progress.appendChild(track);
+  dialog.appendChild(progress);
+
+  const feedback = liveRegion("kd-feedback");
+  dialog.appendChild(feedback);
+
+  const footer = document.createElement("footer");
+  footer.className = "kd-footer";
+  const footerPrimary = uiButton("", { variant: "primary", className: "kd-footer-action" });
+  const footerCancelOperation = uiButton("", { className: "kd-footer-action" });
+  const footerSecondary = uiButton("", { className: "kd-footer-action" });
+  footer.append(footerPrimary, footerCancelOperation, footerSecondary);
+  dialog.appendChild(footer);
+
+  function accept(result: CommandResult<number>, acknowledge: boolean): void {
+    if (!result.ok) {
+      commandError = result.errorCode;
+      pendingOperationId = undefined;
+      refresh();
+      return;
+    }
+    pendingOperationId = result.value;
+    acceptedOperationId = result.value;
+    commandError = undefined;
+    if (acknowledge) dependencies.acknowledgeSetup();
+    refresh();
+  }
+
+  function runEditionAction(edition: DictionaryEdition, action: DictionaryEditionAction, acknowledge: boolean): void {
+    if (action === "use") accept(dependencies.activate(edition), acknowledge);
+    else accept(dependencies.install(edition), acknowledge);
+  }
+
+  function leaveFirstRun(): void {
+    if (firstRun && !dependencies.setupAnswered()) dependencies.acknowledgeSetup();
+    dialog.close();
+  }
+
+  function refresh(): void {
+    applyUiTheme(dialog);
+    const snapshot = dependencies.snapshot();
+    if (pendingOperationId !== undefined && snapshot.operation?.id === pendingOperationId) pendingOperationId = undefined;
+    if (cancellingOperationId !== undefined && snapshot.operation?.id === cancellingOperationId && snapshot.operation.state !== "running") {
+      cancellingOperationId = undefined;
+    }
+    if (snapshot.operation?.state === "succeeded") commandError = undefined;
     const view = dictionaryDialogView(snapshot, { firstRun, selected, confirmRemove, commandError });
-    dialog.textContent = "";
-    const title = document.createElement("h2");
-    title.className = "kd-title";
-    title.textContent = confirmRemove ? text.removeTitle : firstRun ? "Kashiyomi（歌詞読み）" : t("dictionary");
-    dialog.appendChild(title);
+    const running = snapshot.operation?.state === "running";
+    const busy = running || pendingOperationId !== undefined;
+
+    title.textContent = view.kind === "remove"
+      ? t("dictRemoveTitle")
+      : firstRun ? t("dictDialogSetupTitle") : t("dictionary");
+    intro.textContent = firstRun ? t("dictDialogIntro") : "";
+    setHidden(intro, !firstRun || view.kind === "remove");
+    setHidden(headerClose, firstRun || view.kind === "remove");
+    setHidden(list, view.kind === "remove");
+    setHidden(removeView, view.kind !== "remove");
+
+    for (const edition of DICTIONARY_EDITIONS) {
+      const nodes = editions.get(edition)!;
+      const state = editionViewState(snapshot, edition);
+      nodes.radio.hidden = !firstRun;
+      nodes.radio.checked = selected === edition;
+      nodes.radio.disabled = busy;
+      nodes.row.classList.toggle("kd-selectable", firstRun);
+      nodes.state.classList.toggle("kd-state-active", state === "in-use");
+      nodes.state.textContent = state === "in-use" ? t("dictStatusInUse")
+        : state === "installed" ? t("dictStatusInstalled")
+          : state === "update-available" ? t("dictStatusUpdate") : t("dictStatusMissing");
+
+      const action = dictionaryEditionAction(snapshot, edition);
+      setHidden(nodes.primary, firstRun || action === undefined);
+      if (action) {
+        nodes.primary.textContent = primaryCopy(action);
+        nodes.primary.disabled = busy;
+        nodes.primary.onclick = () => runEditionAction(edition, action, false);
+      }
+      const installed = installedEdition(snapshot, edition);
+      setHidden(nodes.remove, firstRun || !installed);
+      nodes.remove.textContent = t("dictActionRemove");
+      nodes.remove.disabled = busy;
+    }
 
     if (view.kind === "remove") {
       const installed = installedEdition(snapshot, view.edition);
-      const fallback = view.fallback;
-      const body = document.createElement("div");
-      body.className = "kd-confirm";
-      const name = confirmRemove === "core" ? t("dictEditionCore") : t("dictEditionFull");
-      const explanation = document.createElement("div");
-      explanation.textContent = `${name} · ${installed ? text.frees(bytes(installed.dictionaryBytes)) : ""}`;
-      body.appendChild(explanation);
-      if (fallback || view.stopsAnnotation) {
-        const help = document.createElement("div");
-        help.className = "kd-help";
-        help.textContent = fallback
-          ? text.fallback(fallback === "core" ? t("dictEditionCore") : t("dictEditionFull"))
-          : text.last;
-        body.appendChild(help);
-      }
-      dialog.appendChild(body);
-      const actions = document.createElement("div");
-      actions.className = "kd-actions";
-      const remove = button(text.removing, "kd-primary kd-large");
-      remove.onclick = () => {
-        const result = removeDictionary(confirmRemove!);
-        if (!result.ok) commandError = result.errorCode as DictionaryErrorCode;
-        else confirmRemove = undefined;
-        render();
-      };
-      actions.appendChild(remove);
-      const back = button(text.cancel, "kd-large kd-close");
-      back.onclick = () => { confirmRemove = undefined; render(); };
-      actions.appendChild(back);
-      dialog.appendChild(actions);
-      return;
+      removeSummary.textContent = `${editionName(view.edition)} · ${tf("dictRemoveFrees", { size: bytes(installed?.dictionaryBytes ?? 0) })}`;
+      removeConsequence.textContent = view.fallback
+        ? tf("dictRemoveFallback", { edition: editionName(view.fallback) })
+        : view.stopsAnnotation ? t("dictRemoveLast") : "";
     }
 
-    if (firstRun) {
-      const intro = document.createElement("div");
-      intro.className = "kd-intro";
-      intro.textContent = text.intro;
-      dialog.appendChild(intro);
-    }
-
-    const list = document.createElement("div");
-    list.className = "kd-list";
-    const running = snapshot.operation?.state === "running";
-    for (const edition of DICTIONARY_EDITIONS) {
-      const release = pinnedRelease(edition);
-      const installed = installedEdition(snapshot, edition);
-      const state = editionViewState(snapshot, edition);
-      const row = document.createElement("div");
-      row.className = "kd-edition";
-      const choice = document.createElement(firstRun ? "label" : "div");
-      choice.className = "kd-choice";
-      if (firstRun) {
-        const radio = document.createElement("input");
-        radio.type = "radio";
-        radio.name = "kashiyomi-dictionary-edition";
-        radio.checked = selected === edition;
-        radio.disabled = running;
-        radio.onchange = () => { selected = edition; commandError = undefined; render(); };
-        choice.appendChild(radio);
-      }
-      const details = document.createElement("div");
-      const name = document.createElement("div");
-      name.className = "kd-name";
-      name.textContent = edition === "core" ? t("dictEditionCore") : t("dictEditionFull");
-      details.appendChild(name);
-      const description = document.createElement("div");
-      description.className = "kd-desc";
-      description.textContent = edition === "core" ? t("dictEditionCoreDesc") : t("dictEditionFullDesc");
-      details.appendChild(description);
-      const sizes = document.createElement("div");
-      sizes.className = "kd-size";
-      sizes.textContent = `${text.download} ${bytes(release.sources[0]!.archiveBytes)} · ${text.installed} ${bytes(release.dictionaryBytes)}`;
-      details.appendChild(sizes);
-      choice.appendChild(details);
-      row.appendChild(choice);
-      const status = document.createElement("div");
-      status.className = `kd-state ${state === "in-use" ? "kd-state-active" : ""}`;
-      status.textContent = state === "in-use" ? text.inUse : state === "installed" ? text.installedState : state === "update-available" ? text.update : text.notInstalled;
-      row.appendChild(status);
-      if (!firstRun) {
-        const actions = document.createElement("div");
-        actions.className = "kd-row-actions";
-        if (!installed || installed.updateAvailable) {
-          const install = button(text.installUse, "kd-primary");
-          install.disabled = running;
-          install.onclick = () => {
-            const result = installDictionary(edition);
-            if (!result.ok) commandError = result.errorCode as DictionaryErrorCode;
-            render();
-          };
-          actions.appendChild(install);
-        } else if (snapshot.active !== edition) {
-          const use = button(text.use, "kd-primary");
-          use.disabled = running;
-          use.onclick = () => {
-            const result = activateDictionary(edition);
-            if (!result.ok) commandError = result.errorCode as DictionaryErrorCode;
-            render();
-          };
-          actions.appendChild(use);
-        }
-        if (installed) {
-          const remove = button(text.remove, "kd-danger");
-          remove.disabled = running;
-          remove.onclick = () => { confirmRemove = edition; commandError = undefined; render(); };
-          actions.appendChild(remove);
-        }
-        row.appendChild(actions);
-      }
-      list.appendChild(row);
-    }
-    dialog.appendChild(list);
-
-    const operation = snapshot.operation;
+    setHidden(progress, view.kind !== "progress");
     if (view.kind === "progress") {
-      const runningOperation = view.operation;
-      const progress = document.createElement("div");
-      progress.className = "kd-progress";
-      const head = document.createElement("div");
-      head.className = "kd-progress-head";
-      const phase = document.createElement("span");
-      phase.textContent = text.phases[runningOperation.phase];
-      head.appendChild(phase);
-      const ratio = runningOperation.total > 0 ? Math.min(1, runningOperation.done / runningOperation.total) : 0;
-      const percent = document.createElement("span");
-      percent.textContent = runningOperation.total > 0 ? `${Math.round(ratio * 100)}%` : "";
-      head.appendChild(percent);
-      progress.appendChild(head);
-      const track = document.createElement("div");
-      track.className = "kd-track";
-      const bar = document.createElement("div");
-      bar.className = "kd-bar";
-      bar.style.width = runningOperation.total > 0 ? `${ratio * 100}%` : "18%";
-      track.appendChild(bar);
-      progress.appendChild(track);
-      dialog.appendChild(progress);
-    } else if (view.kind === "failure") {
-      const error = document.createElement("div");
-      error.className = "kd-error";
-      error.textContent = text.errors[view.errorCode];
-      dialog.appendChild(error);
-    } else if (view.kind === "cancelled") {
-      const cancelled = document.createElement("div");
-      cancelled.className = "kd-error";
-      cancelled.textContent = text.cancelled;
-      dialog.appendChild(cancelled);
+      const operation = view.operation;
+      progressHeading.textContent = tDictionaryOperation(operation.kind, operation.edition ? editionName(operation.edition) : undefined);
+      phase.textContent = tDictionaryPhase(operation.phase);
+      const ratio = operation.total > 0 ? Math.min(1, operation.done / operation.total) : 0;
+      percent.textContent = operation.total > 0 ? `${Math.round(ratio * 100)}%` : "";
+      track.setAttribute("aria-valuemin", "0");
+      track.setAttribute("aria-valuemax", String(operation.total || 1));
+      track.setAttribute("aria-valuenow", String(operation.done));
+      track.setAttribute("aria-valuetext", `${tDictionaryPhase(operation.phase)}${percent.textContent ? ` · ${percent.textContent}` : ""}`);
+      bar.classList.toggle("kd-bar-indeterminate", operation.total === 0);
+      bar.style.width = operation.total > 0 ? `${ratio * 100}%` : "18%";
     }
 
-    const actions = document.createElement("div");
-    actions.className = "kd-actions";
-    if (view.kind === "first-run" && view.canInstallSelected) {
-      const name = selected === "core" ? t("dictEditionCore") : t("dictEditionFull");
-      const install = button(text.install(name), "kd-primary kd-large");
-      install.disabled = running === true;
-      install.onclick = () => {
-        updateSettings({ dictSetupAnswered: true });
-        const result = installDictionary(selected);
-        if (!result.ok) commandError = result.errorCode as DictionaryErrorCode;
-        render();
+    if (commandError) feedback.textContent = tDictionaryError(commandError);
+    else if (view.kind === "failure") feedback.textContent = tDictionaryError(view.errorCode);
+    else if (view.kind === "cancelled") feedback.textContent = t("dictOperationCancelled");
+    else if (acceptedOperationId !== undefined && snapshot.operation?.id === acceptedOperationId && snapshot.operation.state === "succeeded") {
+      feedback.textContent = snapshot.operation.edition
+        ? tf(snapshot.operation.kind === "remove" ? "dictRemoved" : "dictReady", { edition: editionName(snapshot.operation.edition) }) : "";
+    } else feedback.textContent = "";
+    feedback.classList.toggle("kd-feedback-error", commandError !== undefined || view.kind === "failure");
+
+    setHidden(footerPrimary, true);
+    setHidden(footerCancelOperation, true);
+    setHidden(footerSecondary, true);
+
+    if (view.kind === "remove") {
+      setHidden(footerPrimary, false);
+      footerPrimary.textContent = t("dictRemoveConfirm");
+      footerPrimary.disabled = busy;
+      footerPrimary.onclick = () => {
+        const result = dependencies.remove(view.edition);
+        if (result.ok) confirmRemove = undefined;
+        accept(result, false);
       };
-      actions.appendChild(install);
+      setHidden(footerSecondary, false);
+      footerSecondary.textContent = t("dictActionCancel");
+      footerSecondary.onclick = () => {
+        confirmRemove = undefined;
+        refresh();
+        window.setTimeout(() => restoreAfterRemove?.focus(), 0);
+      };
+    } else {
+      const selectedAction = dictionaryEditionAction(snapshot, selected);
+      if (firstRun && selectedAction && !running) {
+        setHidden(footerPrimary, false);
+        footerPrimary.textContent = selectedAction === "use"
+          ? t("dictActionUse") : tf("dictInstallSelected", { edition: editionName(selected) });
+        footerPrimary.disabled = busy;
+        footerPrimary.onclick = () => runEditionAction(selected, selectedAction, true);
+      }
+      if (view.kind === "progress" && view.operation.cancellable) {
+        setHidden(footerCancelOperation, false);
+        const cancelling = cancellingOperationId === view.operation.id;
+        footerCancelOperation.textContent = cancelling ? t("dictActionCancelling") : t("dictActionCancel");
+        footerCancelOperation.disabled = cancelling;
+        footerCancelOperation.onclick = () => {
+          const result = dependencies.cancel(view.operation.id);
+          if (!result.ok) commandError = result.errorCode;
+          else if (!result.value) commandError = "cancelUnavailable";
+          else cancellingOperationId = view.operation.id;
+          refresh();
+        };
+      }
+      if (firstRun || view.kind === "progress" || view.kind === "failure" || view.kind === "cancelled") {
+        setHidden(footerSecondary, false);
+        footerSecondary.textContent = firstRun && !dependencies.setupAnswered() ? t("dictActionLater") : t("dictActionClose");
+        footerSecondary.onclick = leaveFirstRun;
+      }
     }
-    if (operation?.state === "running" && operation.cancellable) {
-      const cancel = button(text.cancel, firstRun ? "kd-large" : "");
-      cancel.onclick = () => { cancelDictionary(operation.id); render(); };
-      actions.appendChild(cancel);
-    }
-    const close = button(firstRun && !getSettings().dictSetupAnswered ? text.later : text.close, `${firstRun ? "kd-large " : ""}kd-close`);
-    close.onclick = () => {
-      if (firstRun && !getSettings().dictSetupAnswered) updateSettings({ dictSetupAnswered: true });
-      dialog.close();
-    };
-    actions.appendChild(close);
-    dialog.appendChild(actions);
-  };
+    setHidden(footer, !Array.from(footer.children).some((child) => !(child as HTMLElement).hidden));
+  }
 
-  const unsubscribe = onDictionaryChange(render);
-  dialog.addEventListener("cancel", () => {
-    if (firstRun && !getSettings().dictSetupAnswered) updateSettings({ dictSetupAnswered: true });
-  });
-  dialog.addEventListener("close", () => {
+  const unsubscribe = dependencies.subscribe(refresh);
+  let destroyed = false;
+  function destroy(): void {
+    if (destroyed) return;
+    destroyed = true;
     unsubscribe();
     dialog.remove();
-    if (openDialog === dialog) openDialog = undefined;
+  }
+
+  dialog.addEventListener("cancel", (event) => {
+    if (confirmRemove) {
+      event.preventDefault();
+      confirmRemove = undefined;
+      refresh();
+      window.setTimeout(() => restoreAfterRemove?.focus(), 0);
+      return;
+    }
+    if (firstRun && !dependencies.setupAnswered()) dependencies.acknowledgeSetup();
   });
-  document.body.appendChild(dialog);
-  render();
-  dialog.showModal();
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") return;
+    const items = focusable(dialog);
+    if (items.length === 0) return;
+    const first = items[0]!;
+    const last = items[items.length - 1]!;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+
+  refresh();
+  return { dialog, refresh, destroy };
+}
+
+export function openDictionarySetup(options: { readonly firstRun?: boolean } = {}): void {
+  if (openController?.dialog.isConnected) {
+    if (!openController.dialog.open) openController.dialog.showModal();
+    openController.dialog.focus();
+    return;
+  }
+  const opener = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+  const controller = createDictionaryDialog(options);
+  openController = controller;
+  document.body.appendChild(controller.dialog);
+  controller.dialog.addEventListener("close", () => {
+    controller.destroy();
+    if (openController === controller) openController = undefined;
+    opener?.focus();
+  }, { once: true });
+  controller.dialog.showModal();
+  const initial = controller.dialog.querySelector<HTMLElement>("input:checked:not([hidden]), button:not([hidden])");
+  window.setTimeout(() => initial?.focus(), 0);
 }
