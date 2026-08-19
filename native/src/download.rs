@@ -1,17 +1,24 @@
 //! WinHTTP dictionary transport. The renderer never sees archive bytes.
 
+#[cfg(windows)]
 use std::fs::File;
+#[cfg(windows)]
 use std::io::{BufWriter, Write};
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
+#[cfg(windows)]
+use std::sync::atomic::Ordering;
 
+#[cfg(windows)]
 use sha2::{Digest, Sha256};
 
 use crate::releases::ArchiveSource;
 
+#[cfg(windows)]
 const CHUNK: usize = 1 << 20;
 
 #[derive(Debug)]
+#[cfg_attr(not(windows), allow(dead_code))]
 pub enum DownloadError {
     Cancelled,
     Network(String),
@@ -214,11 +221,13 @@ fn last_network_error(action: &str) -> DownloadError {
     DownloadError::Network(format!("{action}: {}", std::io::Error::last_os_error()))
 }
 
+#[cfg(any(windows, test))]
 struct ParsedUrl<'a> {
     host: &'a str,
     path: &'a str,
 }
 
+#[cfg(any(windows, test))]
 impl<'a> ParsedUrl<'a> {
     fn parse(url: &'a str) -> Result<Self, String> {
         let rest = url
