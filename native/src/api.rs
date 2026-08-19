@@ -1,187 +1,127 @@
 //! JSON command routing for `kashiyomi.dispatch`.
 //!
-//! Request:  `{"cmd": "init" | "install" | "dictStatus" | "cancelInstall" | "freeSpace" | "sweepPartials" | "status" | "analyze", ...}`
-//! Response: `{"status": "ok", "data": ...}` or `{"status": "error", "message": "..."}`
+//! Browser callers may choose an edition or cancel an operation, but they
+//! never supply a URL or a target dictionary path. Release pins and all
+//! network/filesystem transactions remain native-owned.
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 
-use crate::{analyzer, install, job};
+use crate::analyzer;
+use crate::dictionary::{self, ErrorCode};
+use crate::releases::Edition;
 
 #[derive(Deserialize)]
-#[serde(tag = "cmd", rename_all = "camelCase")]
+#[serde(tag = "cmd", rename_all = "camelCase", deny_unknown_fields)]
 enum Command {
     #[serde(rename_all = "camelCase")]
-    Init {
-        dict_path: String,
+    ConfigureDictionary {
+        data_dir: String,
         resource_dir: String,
+        legacy_preference: Edition,
     },
-    /// Verify a downloaded archive, put the dictionary in place, and load it.
-    ///
-    /// The host does the fetching; this does the part that must not touch the
-    /// JS heap — and, deliberately, **the whole tail in one call**. Unloading,
-    /// renaming and loading were split across the FFI boundary, which is how
-    /// they ended up in the wrong order: the host cannot unload, because the
-    /// analyzer's state is behind its own mutex, so the rename always ran
-    /// against a still-mapped file.
+    DictionaryStatus,
+    DictionaryInstall {
+        edition: Edition,
+    },
+    DictionaryActivate {
+        edition: Edition,
+    },
+    DictionaryRemove {
+        edition: Edition,
+    },
     #[serde(rename_all = "camelCase")]
-    Install {
-        archive: String,
-        sha256: String,
-        member: String,
-        target: String,
-        resource_dir: String,
-        /// A dictionary this one replaces, deleted only once the new one loads.
-        #[serde(default)]
-        superseded: Option<String>,
+    DictionaryCancel {
+        operation_id: u64,
     },
-    /// Bytes free on the volume holding a directory, for checking before a
-    /// download rather than after the bandwidth is spent.
-    FreeSpace {
-        directory: String,
-    },
-    /// Delete `.part` files abandoned by an interrupted download.
-    SweepPartials {
-        directory: String,
-    },
-    Status,
-    /// Analyzer state and install progress in one call, for polling while an
-    /// install runs on its worker thread.
-    DictStatus,
-    /// Ask a running install to stop. Refused once the swap has begun.
-    CancelInstall,
     Analyze {
         lines: Vec<String>,
     },
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct StatusData {
-    state: &'static str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<String>,
-}
-
-fn ok(data: serde_json::Value) -> String {
+fn ok(data: impl serde::Serialize) -> String {
     json!({ "status": "ok", "data": data }).to_string()
 }
 
-fn error(message: impl Into<String>) -> String {
-    json!({ "status": "error", "message": message.into() }).to_string()
+fn error(code: &str) -> String {
+    json!({ "status": "error", "errorCode": code }).to_string()
 }
 
-/// The install job as JSON. `kind` is what the host branches on; the other
-/// fields are present only where they mean something.
-fn job_data() -> serde_json::Value {
-    match job::snapshot() {
-        job::Job::Idle => json!({ "kind": "idle" }),
-        job::Job::Running { phase, done, total } => json!({
-            "kind": "running",
-            "phase": phase.as_str(),
-            "done": done,
-            "total": total,
-        }),
-        job::Job::Done { bytes, started } => json!({
-            "kind": "done",
-            "bytes": bytes,
-            "started": started,
-        }),
-        job::Job::Failed { message } => json!({ "kind": "failed", "message": message }),
-        job::Job::Cancelled => json!({ "kind": "cancelled" }),
-    }
+fn manager_error(code: ErrorCode) -> String {
+    let value = serde_json::to_value(code).unwrap_or_else(|_| json!("io"));
+    error(value.as_str().unwrap_or("io"))
 }
 
-fn status_data() -> StatusData {
+fn analyzer_status() -> serde_json::Value {
     match analyzer::state() {
-        analyzer::StateView::Uninitialized => StatusData { state: "uninitialized", error: None },
-        analyzer::StateView::Loading => StatusData { state: "loading", error: None },
-        analyzer::StateView::Ready => StatusData { state: "ready", error: None },
-        analyzer::StateView::Failed(message) => {
-            StatusData { state: "failed", error: Some(message) }
-        }
+        analyzer::StateView::Uninitialized => json!({ "state": "uninitialized" }),
+        analyzer::StateView::Loading => json!({ "state": "loading" }),
+        analyzer::StateView::Ready => json!({ "state": "ready" }),
+        analyzer::StateView::Failed(_) => json!({ "state": "failed" }),
     }
+}
+
+fn dictionary_status() -> serde_json::Value {
+    json!({
+        "dictionary": dictionary::status(),
+        "analyzer": analyzer_status(),
+    })
 }
 
 pub fn handle(raw: &str) -> String {
     let command: Command = match serde_json::from_str(raw) {
         Ok(command) => command,
-        Err(parse_error) => return error(format!("bad command: {parse_error}")),
+        Err(_) => return error("badCommand"),
     };
     match command {
-        Command::Init { dict_path, resource_dir } => {
-            analyzer::begin_init(dict_path, resource_dir);
-            ok(json!(status_data()))
-        }
-        Command::Install {
-            archive,
-            sha256,
-            member,
-            target,
+        Command::ConfigureDictionary {
+            data_dir,
             resource_dir,
-            superseded,
-        } => {
-            // Returns as soon as the worker is running. Hashing 69 to 121 MB and
-            // extracting 207 MB used to happen on the renderer thread, which is
-            // the thread NCM draws with, so the whole app stopped for the
-            // duration with nothing on screen explaining it.
-            if !job::begin() {
-                return ok(json!({ "started": false, "busy": true }));
-            }
-            std::thread::spawn(move || {
-                let outcome = install::verify_and_install(
-                    &archive,
-                    &sha256,
-                    &member,
-                    &target,
-                    &|| {
-                        analyzer::unload();
-                    },
-                    &|phase, done, total| job::progress(phase, done, total),
-                    &job::is_cancelled,
-                );
-                match outcome {
-                    Err(install::InstallError::Cancelled) => job::finish_cancelled(),
-                    Ok(installed) => {
-                        // The dictionary is unloaded at this point *because* the
-                        // rename required it, so loading again is not optional:
-                        // returning without it would leave the analyzer closed.
-                        job::progress(job::Phase::Loading, 0, 0);
-                        let started =
-                            analyzer::begin_reload_replacing(target, resource_dir, superseded);
-                        job::finish_ok(installed.bytes, started);
-                    }
-                    Err(install::InstallError::Failed(message)) => job::finish_err(message),
-                }
-            });
-            ok(json!({ "started": true }))
-        }
-        // `accepted: false` means the worker is past the swap, not that the
-        // command failed. The row keeps its Cancel visible and disabled through
-        // those phases, so this should not normally be reachable from the UI.
-        Command::CancelInstall => ok(json!({ "accepted": job::request_cancel() })),
-        // One poll for everything the host needs while an install runs: how the
-        // worker is getting on, and whether the analyzer has come back up
-        // afterwards. Deliberately does *not* report which editions are on disk.
-        // That answer depends on the `system_<edition>.dic` naming, which
-        // `engine/dictionaryLayout.ts` exists to be the only holder of, and
-        // duplicating it here would recreate the defect that module was written
-        // to end.
-        Command::DictStatus => ok(json!({
-            "analyzer": status_data(),
-            "job": job_data(),
-        })),
-        Command::FreeSpace { directory } => {
-            ok(json!({ "bytes": install::free_space(&directory) }))
-        }
-        Command::SweepPartials { directory } => {
-            ok(json!({ "removed": install::sweep_partials(&directory) }))
-        }
-        Command::Status => ok(json!(status_data())),
-        Command::Analyze { lines } => match analyzer::analyze_lines(&lines) {
-            Ok(tokens) => ok(json!({ "state": "ready", "lines": tokens })),
-            Err(analyzer::AnalyzeError::NotReady) => ok(json!(status_data())),
-            Err(analyzer::AnalyzeError::Tokenize(message)) => error(message),
+            legacy_preference,
+        } => match dictionary::configure(data_dir, resource_dir, legacy_preference) {
+            Ok(_) => ok(dictionary_status()),
+            Err(code) => manager_error(code),
         },
+        Command::DictionaryStatus => ok(dictionary_status()),
+        Command::DictionaryInstall { edition } => match dictionary::install(edition) {
+            Ok(operation_id) => ok(json!({ "operationId": operation_id })),
+            Err(code) => manager_error(code),
+        },
+        Command::DictionaryActivate { edition } => match dictionary::activate(edition) {
+            Ok(operation_id) => ok(json!({ "operationId": operation_id })),
+            Err(code) => manager_error(code),
+        },
+        Command::DictionaryRemove { edition } => match dictionary::remove(edition) {
+            Ok(operation_id) => ok(json!({ "operationId": operation_id })),
+            Err(code) => manager_error(code),
+        },
+        Command::DictionaryCancel { operation_id } => {
+            ok(json!({ "accepted": dictionary::cancel(operation_id) }))
+        }
+        Command::Analyze { lines } => match analyzer::analyze_lines(&lines) {
+            Ok(lines) => ok(json!({ "state": "ready", "lines": lines })),
+            Err(analyzer::AnalyzeError::NotReady) => ok(analyzer_status()),
+            Err(analyzer::AnalyzeError::Tokenize(_)) => error("analysisFailed"),
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_browser_supplied_install_paths() {
+        let response = handle(
+            r#"{"cmd":"dictionaryInstall","edition":"core","url":"https://example.com","target":"x"}"#,
+        );
+        assert!(response.contains("badCommand"));
+    }
+
+    #[test]
+    fn status_is_available_before_configuration() {
+        let response = handle(r#"{"cmd":"dictionaryStatus"}"#);
+        assert!(response.contains("\"configured\":false"));
+        assert!(response.contains("\"analyzer\""));
     }
 }

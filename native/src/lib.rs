@@ -11,9 +11,11 @@
 
 pub mod analyzer;
 mod api;
-pub mod install;
-pub mod job;
+mod dictionary;
+mod download;
 pub mod pos;
+mod releases;
+mod storage;
 pub mod text;
 
 use std::ffi::{c_char, c_int, c_void, CStr, CString};
@@ -76,7 +78,11 @@ unsafe fn read_string_arg(args: *mut *mut c_void, index: usize) -> Option<String
     if ptr.is_null() {
         return None;
     }
-    Some(unsafe { CStr::from_ptr(ptr.cast::<c_char>()).to_string_lossy().into_owned() })
+    Some(unsafe {
+        CStr::from_ptr(ptr.cast::<c_char>())
+            .to_string_lossy()
+            .into_owned()
+    })
 }
 
 /// # Safety

@@ -1,12 +1,11 @@
 //! Sudachi tokenizer lifecycle and line analysis.
 //!
-//! The full dictionary is ~360MB, so loading happens on a background thread;
-//! `analyze_lines` reports NotReady until it finishes. Tokenization itself is
-//! cheap and runs synchronously on the caller's thread.
+//! Candidate dictionaries are built by the dictionary transaction worker while
+//! the current analyzer keeps serving. The final swap takes the write lock only
+//! after the candidate has been proven loadable.
 
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, OnceLock};
-use std::thread;
+use std::sync::{Arc, OnceLock, RwLock};
 
 use serde::Serialize;
 use sudachi::analysis::stateless_tokenizer::StatelessTokenizer;
@@ -54,13 +53,13 @@ pub struct Token {
     pub raw_pos: Vec<String>,
 }
 
-fn state_cell() -> &'static Mutex<State> {
-    static STATE: OnceLock<Mutex<State>> = OnceLock::new();
-    STATE.get_or_init(|| Mutex::new(State::Uninitialized))
+fn state_cell() -> &'static RwLock<State> {
+    static STATE: OnceLock<RwLock<State>> = OnceLock::new();
+    STATE.get_or_init(|| RwLock::new(State::Uninitialized))
 }
 
 pub fn state() -> StateView {
-    match &*state_cell().lock().expect("analyzer state lock") {
+    match &*state_cell().read().expect("analyzer state lock") {
         State::Uninitialized => StateView::Uninitialized,
         State::Loading => StateView::Loading,
         State::Ready(_) => StateView::Ready,
@@ -68,104 +67,39 @@ pub fn state() -> StateView {
     }
 }
 
-pub fn begin_init(dict_path: String, resource_dir: String) {
-    {
-        let mut guard = state_cell().lock().expect("analyzer state lock");
-        match &*guard {
-            State::Loading | State::Ready(_) => return,
-            State::Uninitialized | State::Failed(_) => *guard = State::Loading,
-        }
-    }
-    spawn_load(dict_path, resource_dir, None);
-}
-
-/// Close the loaded dictionary, releasing the file so it can be replaced.
-///
-/// `sudachi.rs` holds the `.dic` as a memory map (`dic/storage.rs`, `File(Mmap)`)
-/// and Windows refuses to rename over a mapped file. Dropping the `Ready` state
-/// drops the last `Arc` and with it the mapping — which is the *only* way the
-/// handle is released, and why this cannot be done from the host: the state is
-/// behind this module's mutex.
-///
-/// Returns whether a dictionary was actually unloaded, so a caller can tell a
-/// replacement from a first install.
-///
-/// A concurrent `analyze_lines` holds its own `Arc` clone for the duration of
-/// the call, so the mapping outlives this by exactly that long. Both run on the
-/// renderer's single thread today; if that stops being true, the rename after
-/// this is the thing that will start failing.
-pub fn unload() -> bool {
-    let mut guard = state_cell().lock().expect("analyzer state lock");
-    let was_loaded = matches!(&*guard, State::Ready(_));
-    *guard = State::Uninitialized;
-    was_loaded
-}
-
-/// Replace a dictionary already in memory, for switching edition or updating.
-///
-/// `begin_init` returns early once a dictionary is loaded, which is right for
-/// an idempotent startup call and useless for changing dictionaries — calling
-/// it again with a different path silently does nothing. This is the only way
-/// to swap without restarting NCM, and no restart is needed: the DLL is loaded
-/// once at startup, but the `.dic` it reads is not.
-///
-/// Two things it does deliberately:
-///
-///   - **Refuses while a load is already running**, rather than racing it. Two
-///     threads replacing the same state is how a half-loaded dictionary would
-///     happen, and the caller can simply try again when the state settles.
-///   - **Drops the old dictionary before spawning.** That releases the Windows
-///     file handle, and without that the previous `.dic` cannot be deleted or
-///     overwritten — which is exactly what an in-place update has to do.
-///
-/// Returns false when it declined, so the caller can tell "busy" from "started".
-/// Delete `superseded` only once the new dictionary is up.
-///
-/// Switching edition leaves the old `.dic` behind — 207 MB of a dictionary
-/// nothing will open again, on a disk the user was just asked to clear space on.
-/// Deleting it **only after a successful load** is the point: if the new one
-/// fails, the old file is the only working dictionary on the machine, and it
-/// has to still be there.
-pub fn begin_reload_replacing(
-    dict_path: String,
-    resource_dir: String,
-    superseded: Option<String>,
-) -> bool {
-    {
-        let mut guard = state_cell().lock().expect("analyzer state lock");
-        if matches!(&*guard, State::Loading) {
-            return false;
-        }
+/// Mark initial recovery as loading without hiding a dictionary already serving.
+pub fn mark_loading() {
+    let mut guard = state_cell().write().expect("analyzer state lock");
+    if !matches!(&*guard, State::Ready(_)) {
         *guard = State::Loading;
     }
-    spawn_load(dict_path, resource_dir, superseded);
-    true
 }
 
-fn spawn_load(dict_path: String, resource_dir: String, superseded: Option<String>) {
-    thread::Builder::new()
-        .name("kashiyomi-dict-load".into())
-        .spawn(move || {
-            let result = load_dictionary(&dict_path, &resource_dir);
-            let loaded = result.is_ok();
-            {
-                let mut guard = state_cell().lock().expect("analyzer state lock");
-                *guard = match result {
-                    Ok(dictionary) => State::Ready(Arc::new(dictionary)),
-                    Err(message) => State::Failed(message),
-                };
-            }
-            if loaded {
-                if let Some(old) = superseded {
-                    // Best effort, and only now: the replacement is open and
-                    // working, so this file is genuinely spare.
-                    if old != dict_path {
-                        let _ = std::fs::remove_file(&old);
-                    }
-                }
-            }
-        })
-        .expect("spawn dictionary loader thread");
+pub fn mark_failed(message: String) {
+    let mut guard = state_cell().write().expect("analyzer state lock");
+    if !matches!(&*guard, State::Ready(_)) {
+        *guard = State::Failed(message);
+    }
+}
+
+/// Build a candidate while the current dictionary remains available.
+pub fn load_candidate(
+    dict_path: &str,
+    resource_dir: &str,
+) -> Result<Arc<JapaneseDictionary>, String> {
+    load_dictionary(dict_path, resource_dir).map(Arc::new)
+}
+
+/// Atomically replace the serving dictionary after the candidate loaded.
+/// Readers hold the read lock for tokenization, so this write waits until no
+/// analysis still maps the old file. Once it returns, the old file can be
+/// deleted on Windows without racing an outstanding analyzer clone.
+pub fn activate(candidate: Arc<JapaneseDictionary>) {
+    *state_cell().write().expect("analyzer state lock") = State::Ready(candidate);
+}
+
+pub fn deactivate() {
+    *state_cell().write().expect("analyzer state lock") = State::Uninitialized;
 }
 
 fn load_dictionary(dict_path: &str, resource_dir: &str) -> Result<JapaneseDictionary, String> {
@@ -178,15 +112,11 @@ fn load_dictionary(dict_path: &str, resource_dir: &str) -> Result<JapaneseDictio
     JapaneseDictionary::from_cfg(&config).map_err(|e| format!("dictionary load: {e}"))
 }
 
-fn ready_dictionary() -> Option<Arc<JapaneseDictionary>> {
-    match &*state_cell().lock().expect("analyzer state lock") {
-        State::Ready(dictionary) => Some(Arc::clone(dictionary)),
-        _ => None,
-    }
-}
-
 pub fn analyze_lines(lines: &[String]) -> Result<Vec<Vec<Token>>, AnalyzeError> {
-    let dictionary = ready_dictionary().ok_or(AnalyzeError::NotReady)?;
+    let guard = state_cell().read().expect("analyzer state lock");
+    let State::Ready(dictionary) = &*guard else {
+        return Err(AnalyzeError::NotReady);
+    };
     let tokenizer = StatelessTokenizer::new(dictionary.as_ref());
     // One pathological line (too long, tokenizer error) must not take the
     // whole batch down; it just gets no tokens, and the frontend leaves that
@@ -285,7 +215,6 @@ fn is_kana_only(text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
 
     /// Requires assets/dict/system_core.dic (npm run fetch-dict).
     /// Run with: cargo test -- --ignored
@@ -295,21 +224,17 @@ mod tests {
         let root = env!("CARGO_MANIFEST_DIR");
         let dict = format!("{root}/../assets/dict/system_core.dic");
         let resources = format!("{root}/../assets/sudachi");
-        assert!(std::path::Path::new(&dict).exists(), "dictionary missing: {dict}");
+        assert!(
+            std::path::Path::new(&dict).exists(),
+            "dictionary missing: {dict}"
+        );
 
-        begin_init(dict, resources);
-        for _ in 0..1200 {
-            match state() {
-                StateView::Ready => break,
-                StateView::Failed(message) => panic!("dictionary load failed: {message}"),
-                _ => thread::sleep(Duration::from_millis(100)),
-            }
-        }
-        assert!(matches!(state(), StateView::Ready), "dictionary did not load in time");
+        let candidate = load_candidate(&dict, &resources).expect("dictionary load failed");
+        activate(candidate);
 
         let line = "灯篭の灯に照らされてゆく".to_string();
-        let lines = analyze_lines(std::slice::from_ref(&line))
-            .unwrap_or_else(|_| panic!("analyze failed"));
+        let lines =
+            analyze_lines(std::slice::from_ref(&line)).unwrap_or_else(|_| panic!("analyze failed"));
         let tokens = &lines[0];
         assert!(!tokens.is_empty());
 
@@ -327,11 +252,20 @@ mod tests {
 
         let readings: Vec<&str> = tokens.iter().map(|t| t.reading_kana.as_str()).collect();
         let joined = readings.join("|");
-        assert!(joined.contains("トウロウ"), "灯篭 reading missing: {joined}");
+        assert!(
+            joined.contains("トウロウ"),
+            "灯篭 reading missing: {joined}"
+        );
         assert!(joined.contains("テラ"), "照らさ reading missing: {joined}");
 
         // The particles must be POS-tagged so romaji can special-case them.
-        let particle_count = tokens.iter().filter(|t| t.part_of_speech == "particle").count();
-        assert!(particle_count >= 2, "expected の and に as particles: {joined}");
+        let particle_count = tokens
+            .iter()
+            .filter(|t| t.part_of_speech == "particle")
+            .count();
+        assert!(
+            particle_count >= 2,
+            "expected の and に as particles: {joined}"
+        );
     }
 }

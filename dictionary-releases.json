@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "editions": {
+    "core": {
+      "version": "20260723",
+      "dictionaryBytes": 217466039,
+      "dictionarySha256": "53fa281d11eef3769712fe1c3c892117338f9892bee6daf4dad51daa5281bb6f",
+      "sources": [
+        {
+          "url": "https://d2ej7fkh96fzlu.cloudfront.net/sudachidict/sudachi-dictionary-20260723-core.zip",
+          "archiveBytes": 72276502,
+          "archiveSha256": "b6e835f63440f97474c2da45d80950f73746e632e40bbfc168b4041729135e1f",
+          "member": "sudachi-dictionary-20260723/system_core.dic"
+        },
+        {
+          "url": "https://pypi.tuna.tsinghua.edu.cn/packages/46/fe/68a146fced55319af40d25a4fe19b94c3a988406ce4674a8b2f0237fbc9f/sudachidict_core-20260723-py3-none-any.whl",
+          "archiveBytes": 72275897,
+          "archiveSha256": "b3869ce6b12b4bfa09575dc19030703bb669ab41bac12a74cafcbb28c6be2498",
+          "member": "sudachidict_core/resources/system.dic"
+        },
+        {
+          "url": "https://files.pythonhosted.org/packages/46/fe/68a146fced55319af40d25a4fe19b94c3a988406ce4674a8b2f0237fbc9f/sudachidict_core-20260723-py3-none-any.whl",
+          "archiveBytes": 72275897,
+          "archiveSha256": "b3869ce6b12b4bfa09575dc19030703bb669ab41bac12a74cafcbb28c6be2498",
+          "member": "sudachidict_core/resources/system.dic"
+        }
+      ]
+    },
+    "full": {
+      "version": "20260723",
+      "dictionaryBytes": 359685569,
+      "dictionarySha256": "8f57318aa7e983da7eff1a9c10b733221e6428622faaee78526e0e33f30734de",
+      "sources": [
+        {
+          "url": "https://d2ej7fkh96fzlu.cloudfront.net/sudachidict/sudachi-dictionary-20260723-full.zip",
+          "archiveBytes": 126615116,
+          "archiveSha256": "fc87525a4c7639ea46d81a3e4e3976853240ec07e3db3991190c920a02efe107",
+          "member": "sudachi-dictionary-20260723/system_full.dic"
+        },
+        {
+          "url": "https://github.com/WorksApplications/SudachiDict/releases/download/v20260723/sudachidict_full-20260723-py3-none-any.whl",
+          "archiveBytes": 126614513,
+          "archiveSha256": "c0abc12bb4aaab8042a8fb8cf4d6ce0dd78b97f099cecf932665e22688ab5ed9",
+          "member": "sudachidict_full/resources/system.dic"
+        }
+      ]
+    }
+  }
+}

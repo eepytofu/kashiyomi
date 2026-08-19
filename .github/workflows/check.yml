@@ -42,4 +42,18 @@ jobs:
         with:
           workspaces: native
       - run: cargo test --manifest-path native/Cargo.toml
-      - run: cargo clippy --manifest-path native/Cargo.toml --all-targets
+      - run: cargo clippy --manifest-path native/Cargo.toml --all-targets -- -D warnings
+
+  windows-native:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+      # Builds the actual DLL and exercises WinHTTP, atomic replacement, and
+      # Windows path bindings at compile/test time on every PR.
+      - run: cargo build --release --manifest-path native/Cargo.toml
+      - run: cargo test --manifest-path native/Cargo.toml
+      - run: cargo clippy --manifest-path native/Cargo.toml --all-targets -- -D warnings

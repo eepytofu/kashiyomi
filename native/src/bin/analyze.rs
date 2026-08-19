@@ -6,11 +6,8 @@
 //!
 //! Add --json to print the exact payload the frontend receives.
 
+use kashiyomi_backend::analyzer::{activate, analyze_lines, load_candidate};
 use std::io::{self, Read};
-use std::thread;
-use std::time::Duration;
-
-use kashiyomi_backend::analyzer::{analyze_lines, begin_init, state, StateView};
 
 fn main() {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
@@ -20,7 +17,11 @@ fn main() {
     let lines: Vec<String> = if args.is_empty() {
         let mut buffer = String::new();
         io::stdin().read_to_string(&mut buffer).expect("read stdin");
-        buffer.lines().map(str::to_string).filter(|l| !l.trim().is_empty()).collect()
+        buffer
+            .lines()
+            .map(str::to_string)
+            .filter(|l| !l.trim().is_empty())
+            .collect()
     } else {
         args
     };
@@ -40,17 +41,11 @@ fn main() {
         eprintln!("dictionary missing: {dict}\nrun: npm run fetch-dict");
         std::process::exit(1);
     }
-    begin_init(dict, resources);
-    for _ in 0..1200 {
-        match state() {
-            StateView::Ready => break,
-            StateView::Failed(message) => {
-                eprintln!("dictionary load failed: {message}");
-                std::process::exit(1);
-            }
-            _ => thread::sleep(Duration::from_millis(100)),
-        }
-    }
+    let candidate = load_candidate(&dict, &resources).unwrap_or_else(|message| {
+        eprintln!("dictionary load failed: {message}");
+        std::process::exit(1);
+    });
+    activate(candidate);
 
     let analyzed = match analyze_lines(&lines) {
         Ok(analyzed) => analyzed,
@@ -61,7 +56,10 @@ fn main() {
     };
 
     if json {
-        println!("{}", serde_json::to_string_pretty(&analyzed).expect("serialize"));
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&analyzed).expect("serialize")
+        );
         return;
     }
 

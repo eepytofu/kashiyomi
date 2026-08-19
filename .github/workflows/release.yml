@@ -45,6 +45,7 @@ jobs:
       # rule is about.
       - run: cargo build --release --manifest-path native/Cargo.toml
       - run: cargo test --manifest-path native/Cargo.toml
+      - run: cargo clippy --manifest-path native/Cargo.toml --all-targets -- -D warnings
 
       # The manifest names backend.dll; Cargo names the cdylib after the crate.
       - shell: pwsh

@@ -52,13 +52,42 @@ mod tests {
 
     #[test]
     fn maps_common_categories() {
-        assert_eq!(map_pos(&pos(&["名詞", "普通名詞", "一般", "*", "*", "*"])).0, "noun");
-        assert_eq!(map_pos(&pos(&["代名詞", "*", "*", "*", "*", "*"])).0, "pronoun");
-        assert_eq!(map_pos(&pos(&["動詞", "一般", "*", "*", "五段-ラ行", "終止形-一般"])).0, "verb");
-        assert_eq!(map_pos(&pos(&["助動詞", "*", "*", "*", "*", "*"])).0, "auxiliaryVerb");
-        assert_eq!(map_pos(&pos(&["助詞", "格助詞", "*", "*", "*", "*"])).0, "particle");
-        assert_eq!(map_pos(&pos(&["接尾辞", "名詞的", "*", "*", "*", "*"])).0, "suffix");
-        assert_eq!(map_pos(&pos(&["形容詞", "一般", "*", "*", "*", "*"])).0, "other");
+        assert_eq!(
+            map_pos(&pos(&["名詞", "普通名詞", "一般", "*", "*", "*"])).0,
+            "noun"
+        );
+        assert_eq!(
+            map_pos(&pos(&["代名詞", "*", "*", "*", "*", "*"])).0,
+            "pronoun"
+        );
+        assert_eq!(
+            map_pos(&pos(&[
+                "動詞",
+                "一般",
+                "*",
+                "*",
+                "五段-ラ行",
+                "終止形-一般"
+            ]))
+            .0,
+            "verb"
+        );
+        assert_eq!(
+            map_pos(&pos(&["助動詞", "*", "*", "*", "*", "*"])).0,
+            "auxiliaryVerb"
+        );
+        assert_eq!(
+            map_pos(&pos(&["助詞", "格助詞", "*", "*", "*", "*"])).0,
+            "particle"
+        );
+        assert_eq!(
+            map_pos(&pos(&["接尾辞", "名詞的", "*", "*", "*", "*"])).0,
+            "suffix"
+        );
+        assert_eq!(
+            map_pos(&pos(&["形容詞", "一般", "*", "*", "*", "*"])).0,
+            "other"
+        );
     }
 
     #[test]
