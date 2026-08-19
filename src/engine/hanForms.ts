@@ -2,7 +2,10 @@
 // simplified Chinese or traditional Chinese glyph forms, and which forms a
 // line uses is evidence about its language. Pure; no host imports.
 
-import * as OpenCC from "opencc-js";
+// The full preset also bundles every reverse and regional conversion. Kashiyomi
+// only ever converts from simplified Chinese, so the cn2t build preserves the
+// same phrase-aware cn→t and cn→jp behavior with roughly half the input data.
+import * as OpenCC from "opencc-js/cn2t";
 
 let toJapaneseForms: ((text: string) => string) | undefined;
 let toTraditionalForms: ((text: string) => string) | undefined;

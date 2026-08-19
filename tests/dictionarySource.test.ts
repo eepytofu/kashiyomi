@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
-  DICTIONARY_MEMBER,
+  dictionaryMember,
   downloadUrls,
   isRetryable,
   mayInstall,
@@ -51,7 +51,7 @@ const SIMPLE_CORE = {
 };
 
 test("pypi metadata yields a verifiable release", () => {
-  const release = parsePypiRelease(PYPI_CORE);
+  const release = parsePypiRelease("core", PYPI_CORE);
   assert.equal(release?.version, "20260723");
   assert.equal(release?.size, 72275897);
   assert.match(release?.url ?? "", /\.whl$/u);
@@ -61,16 +61,16 @@ test("an sdist is never accepted as a source", () => {
   // An sdist is a ~9 KB stub that downloads the real archive at install time
   // from a plaintext host with no checksum, so its digest vouches for nothing.
   const sdistOnly = { info: { version: "20260723" }, urls: [PYPI_CORE.urls[1]] };
-  assert.equal(parsePypiRelease(sdistOnly), undefined);
+  assert.equal(parsePypiRelease("core", sdistOnly), undefined);
 });
 
 test("the mirror index picks the newest release, not the last listed", () => {
-  const release = parseSimpleIndexRelease(SIMPLE_CORE);
+  const release = parseSimpleIndexRelease("core", SIMPLE_CORE);
   assert.equal(release?.version, "20260723");
   // Reversing the file order must not change the answer: the index gives no
   // ordering guarantee, so position must not be load-bearing.
   const reversed = { files: [...SIMPLE_CORE.files].reverse() };
-  assert.equal(parseSimpleIndexRelease(reversed)?.version, "20260723");
+  assert.equal(parseSimpleIndexRelease("core", reversed)?.version, "20260723");
 });
 
 // The index lists every package a mirror carries. Matching loosely would let a
@@ -83,13 +83,13 @@ test("the mirror index ignores files that are not the core wheel", () => {
       { ...SIMPLE_CORE.files[0]!, filename: "sudachidict_core-20260723.tar.gz" },
     ],
   };
-  assert.equal(parseSimpleIndexRelease(others), undefined);
+  assert.equal(parseSimpleIndexRelease("core", others), undefined);
 });
 
 test("a release missing anything needed to verify it is rejected", () => {
   const base = PYPI_CORE.urls[0]!;
   const missing = (patch: Record<string, unknown>) =>
-    parsePypiRelease({ info: { version: "20260723" }, urls: [{ ...base, ...patch }] });
+    parsePypiRelease("core", { info: { version: "20260723" }, urls: [{ ...base, ...patch }] });
   assert.equal(missing({ digests: {} }), undefined, "no hash");
   assert.equal(missing({ digests: { sha256: "not-hex" } }), undefined, "malformed hash");
   assert.equal(missing({ size: 0 }), undefined, "zero size");
@@ -100,13 +100,13 @@ test("garbage responses do not throw", () => {
   // Every one of these is a real possibility when a captive portal or a proxy
   // answers instead of the registry.
   for (const body of [undefined, null, "", 42, [], {}, { files: "nope" }, { urls: {} }]) {
-    assert.equal(parsePypiRelease(body), undefined);
-    assert.equal(parseSimpleIndexRelease(body), undefined);
+    assert.equal(parsePypiRelease("core", body), undefined);
+    assert.equal(parseSimpleIndexRelease("core", body), undefined);
   }
 });
 
 test("sources are ordered by preference, with the mirror second", () => {
-  const sources = metadataSources();
+  const sources = metadataSources("core");
   assert.deepEqual(
     sources.map((s) => s.kind),
     ["pypi", "simple"],
@@ -121,7 +121,7 @@ test("sources are ordered by preference, with the mirror second", () => {
 // index. The third-party relay that once carried `full` is gone with it, and
 // nothing here may reintroduce a host outside that set.
 test("no source is a third party", () => {
-  for (const source of metadataSources()) {
+  for (const source of metadataSources("core")) {
     assert.match(source.url, /^https:\/\/(pypi\.org|pypi\.tuna\.tsinghua\.edu\.cn)\//u, source.url);
   }
 });
@@ -136,6 +136,7 @@ test("free space is checked for archive plus extraction, not just the download",
 
 test("a checksum mismatch can never be installed", () => {
   const release: DictionaryRelease = {
+    edition: "core",
     version: "20260723",
     url: "https://example/x.whl",
     sha256: "b".repeat(64),
@@ -164,7 +165,8 @@ test("only a dead end is unretryable", () => {
 // A wheel is a ZIP, so the native extractor treats it like any archive and only
 // the member path is specific to the packaging.
 test("the dictionary sits at a known path inside the wheel", () => {
-  assert.equal(DICTIONARY_MEMBER, "sudachidict_core/resources/system.dic");
+  assert.equal(dictionaryMember("core"), "sudachidict_core/resources/system.dic");
+  assert.equal(dictionaryMember("full"), "sudachidict_full/resources/system.dic");
 });
 
 // D21: the metadata fell back across sources from the start; the archive never
@@ -185,6 +187,7 @@ test("a url that is not pythonhosted has no mirror to swap to", () => {
 });
 
 const WHEEL_RELEASE: DictionaryRelease = {
+  edition: "core",
   version: "20260723",
   url: "https://files.pythonhosted.org/packages/46/fe/68a1/sudachidict_core-20260723-py3-none-any.whl",
   sha256: "b".repeat(64),
@@ -196,6 +199,10 @@ test("a wheel download tries pythonhosted, then the mirror", () => {
     WHEEL_RELEASE.url,
     "https://pypi.tuna.tsinghua.edu.cn/packages/46/fe/68a1/sudachidict_core-20260723-py3-none-any.whl",
   ]);
+});
+
+test("full uses the reviewed build pin instead of unverifiable runtime metadata", () => {
+  assert.deepEqual(metadataSources("full"), []);
 });
 
 // Falling through on failure rather than on a guess about where the user is:

@@ -31,7 +31,11 @@ if (!process.argv.includes("--force")) {
 }
 
 const release = await (await fetch(RELEASES, {
-  headers: { accept: "application/vnd.github+json" },
+  headers: {
+    accept: "application/vnd.github+json",
+    "user-agent": "kashiyomi-export-jmdict",
+    ...(process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}),
+  },
 })).json();
 // The English build carries the same entry set as jmdict-all at a third the
 // size; only the glosses differ, and no gloss is read here. `-common-` is a

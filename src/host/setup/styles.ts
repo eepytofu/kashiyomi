@@ -2,17 +2,18 @@
 
 export const SETUP_CSS = `
 .kashiyomi-setup {
-  width: min(520px, calc(100vw - 48px));
+  width: min(460px, calc(100vw - 32px));
   max-height: calc(100vh - 96px);
   overflow-y: auto;
-  border: none; border-radius: 10px; padding: 20px 22px 16px;
+  border: none; border-radius: 10px; padding: 16px 18px 14px;
   background: #232323; color: #f2f2f2;
   font-size: 13.5px; line-height: 1.45;
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
 }
 .kashiyomi-setup::backdrop { background: rgba(0, 0, 0, 0.55); }
-.kashiyomi-setup .ks-title { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
-.kashiyomi-setup .ks-need { opacity: 0.78; margin-bottom: 14px; white-space: pre-line; }
+.kashiyomi-setup .ks-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.kashiyomi-setup .ks-need { opacity: 0.72; margin-bottom: 10px; white-space: pre-line; }
+.kashiyomi-setup .ks-options { overflow: hidden; }
 /* The radio sits at the start rather than the far end, which is the one place
    an option row differs from a settings row: a setting has its control on the
    the control is what you are pointing at. */

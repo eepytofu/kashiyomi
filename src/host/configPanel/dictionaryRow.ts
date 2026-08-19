@@ -1,134 +1,36 @@
-// The dictionary's line in the settings panel: what is installed, and the
-// button that does something about it.
+// Compact entry point for the dictionary manager. Edition choice and progress
+// live in one dialog instead of being duplicated inside a narrow settings row.
 
 import { t } from "../i18n.ts";
-import {
-  cancelDictionaryDownload,
-  checkForNewerRelease,
-  dictionaryInventory,
-  dictionaryJob,
-  onDictionaryChange,
-} from "../dictionary.ts";
-import { startDictionaryInstall } from "../dictionaryInstall.ts";
-import { dictionaryRowState } from "../../engine/dictionaryRowState.ts";
-import { actionLabel, describe } from "../dictionaryText.ts";
-import { currentAssetPaths } from "../annotator.ts";
-import { nativeFreeSpace, nativeState } from "../native.ts";
+import { dictionaryInventory, onDictionaryChange } from "../dictionary.ts";
+import { openDictionarySetup } from "../setup/dialog.ts";
 import { onPanelTeardown } from "./lifecycle.ts";
 import { row, rowText } from "./rows.ts";
-
-function readFreeSpace(): number | undefined {
-  const dir = currentAssetPaths()?.dictDir;
-  return dir === undefined ? undefined : nativeFreeSpace(dir);
-}
-
-function analyzerSegment(): "loading" | "failed" | undefined {
-  const state = nativeState().state;
-  if (state === "loading") return "loading";
-  return state === "failed" || state === "unavailable" ? "failed" : undefined;
-}
 
 export function dictionaryRow(): HTMLElement {
   const el = row();
   const text = rowText(t("dictionary"), t("dictNotInstalled"));
   const description = text.querySelector(".kc-desc") ?? text.lastElementChild;
-  // No status dot. The analyzer bar directly above already carries one, and a
-  // second dot on a downloadable asset says nothing a reader can act on: the
-  // description underneath already reads "installed" or "not installed".
   el.appendChild(text);
 
-  // One button, and it never moves. It used to have a Cancel beside it, which
-  const primary = document.createElement("button");
-  primary.className = "kc-button";
-  el.appendChild(primary);
-
-  // Asked once, then again after an install, rather than on every repaint: it
-  // is a native call and progress repaints several times a second.
-  let freeBytes = readFreeSpace();
-
-  const view = (): ReturnType<typeof dictionaryRowState> =>
-    dictionaryRowState({
-      inventory: dictionaryInventory(),
-      job: dictionaryJob(),
-      now: Date.now(),
-      freeBytes,
-      // This row is where the button is, so it reports its own outcomes.
-      ownsJob: true,
-      // Asked fresh on every paint, never stored. This replaced a status bar
-      analyzer: analyzerSegment(),
-    });
+  const manage = document.createElement("button");
+  manage.className = "kc-button";
+  manage.onclick = () => openDictionarySetup();
+  el.appendChild(manage);
 
   const paint = (): void => {
-    if (freeBytes === undefined) freeBytes = readFreeSpace();
-    const current = view();
-
-    if (description) description.textContent = describe(current.message);
-    primary.textContent = actionLabel(current.primary.action);
-    primary.disabled = current.primary.disabled;
-
-    if (current.settling) startPolling();
-    scheduleSettle(current.settlesAt);
-  };
-
-  // A wait too long to poll through: one timer, cancelled and re-armed on every
-  // paint so it can never outlive the state that asked for it.
-  let settleTimer: number | undefined;
-  const scheduleSettle = (at: number | undefined): void => {
-    if (settleTimer !== undefined) {
-      window.clearTimeout(settleTimer);
-      settleTimer = undefined;
+    const inventory = dictionaryInventory();
+    if (description) {
+      const edition = inventory.edition === "full" ? t("dictEditionFull") : t("dictEditionCore");
+      description.textContent = inventory.installed
+        ? `${edition} · ${t("dictInstalledState")}`
+        : t("dictNotInstalled");
     }
-    if (at === undefined) return;
-    settleTimer = window.setTimeout(paint, Math.max(at - Date.now(), 0) + 50);
-  };
-
-  // A cooldown expiring and a progress figure advancing both change the view
-  // without anything calling the row, so `settling` is what asks to be
-  // repainted on a timer rather than only on a state change.
-  let poll: number | undefined;
-  const stopPolling = (): void => {
-    if (poll === undefined) return;
-    window.clearInterval(poll);
-    poll = undefined;
-  };
-  const startPolling = (): void => {
-    if (poll !== undefined) return;
-    poll = window.setInterval(() => {
-      const settling = view().settling;
-      paint();
-      if (!settling) stopPolling();
-    }, 300);
-  };
-
-  primary.onclick = () => {
-    // Read the action rather than tracking a mode: the button is whatever the
-    // view says it is at the moment of the press, so the two can never disagree
-    // about what it was showing.
-    if (view().primary.action.kind === "cancel") {
-      cancelDictionaryDownload();
-      return;
-    }
-    startPolling();
-    void startDictionaryInstall().then(() => {
-      // The disk has changed by roughly 207 MB, so the cached answer is stale
-      // exactly when it next matters.
-      freeBytes = readFreeSpace();
-      paint();
-    });
+    manage.textContent = inventory.installed ? t("dictManage") : t("dictSetUp");
   };
 
   paint();
-  // Follow the status wherever it is changed from, including the first-run
-  // dialog, and surrender the subscription when the panel is rebuilt.
   const unsubscribe = onDictionaryChange(paint);
-  onPanelTeardown(() => {
-    unsubscribe();
-    stopPolling();
-    scheduleSettle(undefined);
-  });
-
-  // Check for a newer release as the panel opens, rather than waiting for a
-  if (dictionaryInventory().installed) void checkForNewerRelease();
-
+  onPanelTeardown(unsubscribe);
   return el;
 }

@@ -1,24 +1,46 @@
 // Where the dictionary lives on disk.
 
-/** The installed dictionary. */
-export const DICTIONARY_FILE = "system_core.dic";
+import { DICTIONARY_EDITIONS, type DictionaryEdition } from "./dictionarySource.ts";
 
-export function dictionaryPath(directory: string): string {
-  return `${stripTrailingSlash(directory)}/${DICTIONARY_FILE}`;
+export function dictionaryFileName(edition: DictionaryEdition): string {
+  return `system_${edition}.dic`;
 }
 
-/** Whether a directory listing contains the dictionary. */
-export function hasDictionary(names: readonly string[]): boolean {
-  return names.some((name) => baseName(name) === DICTIONARY_FILE);
+export function dictionaryPath(directory: string, edition: DictionaryEdition): string {
+  return `${stripTrailingSlash(directory)}/${dictionaryFileName(edition)}`;
+}
+
+export function editionFromFileName(name: string): DictionaryEdition | undefined {
+  const base = baseName(name);
+  return DICTIONARY_EDITIONS.find((edition) => dictionaryFileName(edition) === base);
+}
+
+/** Editions physically present, in stable default-first order. */
+export function installedEditionsFrom(names: readonly string[]): readonly DictionaryEdition[] {
+  const present = new Set(names.map(editionFromFileName).filter(Boolean));
+  return DICTIONARY_EDITIONS.filter((edition) => present.has(edition));
+}
+
+/** Prefer the recorded active edition, but always load a usable file if one exists. */
+export function chooseBootEdition(
+  active: DictionaryEdition,
+  installed: readonly DictionaryEdition[],
+): DictionaryEdition | undefined {
+  if (installed.includes(active)) return active;
+  return DICTIONARY_EDITIONS.find((edition) => installed.includes(edition));
 }
 
 /** Where a download is staged. */
-export function archiveFileName(version: string): string {
-  return `sudachidict_core-${version}.whl.part`;
+export function archiveFileName(edition: DictionaryEdition, version: string): string {
+  return `sudachidict_${edition}-${version}.whl.part`;
 }
 
-export function archivePath(directory: string, version: string): string {
-  return `${stripTrailingSlash(directory)}/${archiveFileName(version)}`;
+export function archivePath(
+  directory: string,
+  edition: DictionaryEdition,
+  version: string,
+): string {
+  return `${stripTrailingSlash(directory)}/${archiveFileName(edition, version)}`;
 }
 
 function baseName(name: string): string {

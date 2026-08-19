@@ -1,6 +1,9 @@
-// The first-run dictionary dialog: say what is missing, offer to fetch it.
+// Compact dictionary setup and management dialog.
 
-import { t, tCloseIn } from "../i18n.ts";
+import { dictionaryRowState } from "../../engine/dictionaryRowState.ts";
+import { pinnedRelease } from "../../engine/dictionaryPins.ts";
+import { requiredFreeBytes, type DictionaryEdition } from "../../engine/dictionarySource.ts";
+import { currentAssetPaths } from "../annotator.ts";
 import {
   cancelDictionaryDownload,
   dictionaryInventory,
@@ -8,16 +11,14 @@ import {
   onDictionaryChange,
 } from "../dictionary.ts";
 import { startDictionaryInstall } from "../dictionaryInstall.ts";
-import { dictionaryRowState } from "../../engine/dictionaryRowState.ts";
-import { pinnedRelease } from "../../engine/dictionaryPins.ts";
-import { requiredFreeBytes } from "../../engine/dictionarySource.ts";
 import { describe, mb, size } from "../dictionaryText.ts";
-import { currentAssetPaths } from "../annotator.ts";
+import { t } from "../i18n.ts";
 import { nativeFreeSpace } from "../native.ts";
 import { getSettings, updateSettings } from "../settings.ts";
-import { SETUP_CSS } from "./styles.ts";
 import { UI_ROOT_CLASS, ensureSharedStyles } from "../uiStyles.ts";
+import { SETUP_CSS } from "./styles.ts";
 
+const OFFERED: readonly DictionaryEdition[] = ["core", "full"];
 let open: HTMLDialogElement | undefined;
 
 function ensureStyles(): void {
@@ -34,34 +35,86 @@ function readFreeSpace(): number | undefined {
   return dir === undefined ? undefined : nativeFreeSpace(dir);
 }
 
+function isWorking(): boolean {
+  const kind = dictionaryJob().kind;
+  return kind === "resolving" || kind === "downloading" || kind === "installing";
+}
+
+function cancellable(): boolean {
+  const job = dictionaryJob();
+  if (job.kind === "downloading") return true;
+  return job.kind === "installing" && (job.phase === "verifying" || job.phase === "extracting");
+}
+
 /** Show the dialog, or bring an existing one forward. */
-export function openDictionarySetup(): void {
+export function openDictionarySetup(options: { firstRun?: boolean } = {}): void {
   if (open?.isConnected) {
     open.showModal();
     return;
   }
   ensureStyles();
+  const firstRun = options.firstRun === true;
 
   const dialog = document.createElement("dialog");
   dialog.className = `kashiyomi-setup ${UI_ROOT_CLASS}`;
   open = dialog;
 
-  // The plugin's name, because this is the first thing it ever says and the
-  // person reading it has just installed something.
   const title = document.createElement("div");
   title.className = "ks-title";
-  title.textContent = "Kashiyomi（歌詞読み）";
+  title.textContent = firstRun ? "Kashiyomi（歌詞読み）" : t("dictionary");
   dialog.appendChild(title);
 
-  const what = document.createElement("div");
-  what.className = "ks-need";
-  what.textContent = t("setupWhatItIs");
-  dialog.appendChild(what);
+  if (firstRun) {
+    const need = document.createElement("div");
+    need.className = "ks-need";
+    need.textContent = t("setupNeedsDictionary");
+    dialog.appendChild(need);
+  }
 
-  const need = document.createElement("div");
-  need.className = "ks-need";
-  need.textContent = t("setupNeedsDictionary");
-  dialog.appendChild(need);
+  const list = document.createElement("div");
+  list.className = "kc-card ks-options";
+  dialog.appendChild(list);
+
+  let selected: DictionaryEdition = dictionaryInventory().edition ?? "core";
+  let completedHere = false;
+  const radios = new Map<DictionaryEdition, HTMLInputElement>();
+  const states = new Map<DictionaryEdition, HTMLElement>();
+
+  for (const edition of OFFERED) {
+    const label = document.createElement("label");
+    label.className = "kc-row ks-option";
+
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "kashiyomi-dictionary-edition";
+    radio.value = edition;
+    radio.onchange = () => {
+      selected = edition;
+      completedHere = false;
+      paint();
+    };
+    radios.set(edition, radio);
+    label.appendChild(radio);
+
+    const body = document.createElement("div");
+    body.className = "ks-option-body";
+    const heading = document.createElement("div");
+    heading.className = "kc-label";
+    heading.textContent = edition === "core" ? t("dictEditionCore") : t("dictEditionFull");
+    body.appendChild(heading);
+    const note = document.createElement("div");
+    note.className = "kc-desc";
+    note.textContent =
+      edition === "core" ? t("dictEditionCoreDesc") : t("dictEditionFullDesc");
+    body.appendChild(note);
+    label.appendChild(body);
+
+    const state = document.createElement("span");
+    state.className = "ks-option-state";
+    states.set(edition, state);
+    label.appendChild(state);
+    list.appendChild(label);
+  }
 
   const space = document.createElement("div");
   space.className = "ks-space";
@@ -83,51 +136,45 @@ export function openDictionarySetup(): void {
   spacer.className = "ks-spacer";
   actions.appendChild(spacer);
 
-  // One dismissal. A second button offering "don't ask again" said nothing the
-  // first did not already do, because nothing re-raises this dialog either way.
   const close = document.createElement("button");
   close.className = "kc-button";
-  close.textContent = t("setupLater");
-  close.onclick = () => {
-    updateSettings({ dictSetupAnswered: true });
-    dialog.close();
-  };
+  close.textContent =
+    firstRun && !dictionaryInventory().installed ? t("setupLater") : t("setupClose");
+  close.onclick = () => dialog.close();
   actions.appendChild(close);
 
   let freeBytes = readFreeSpace();
 
-  /** Which of the wizard's three states applies. */
-  const state = (): "needed" | "working" | "done" => {
-    const job = dictionaryJob();
-    if (job.kind === "resolving" || job.kind === "downloading" || job.kind === "installing") {
-      return "working";
-    }
-    return dictionaryInventory().installed ? "done" : "needed";
-  };
-
-  /** Whether the running job is at a point that can still be abandoned. */
-  const cancellable = (): boolean => {
-    const job = dictionaryJob();
-    if (job.kind === "downloading") return true;
-    return job.kind === "installing" && (job.phase === "verifying" || job.phase === "extracting");
-  };
-
   const paint = (): void => {
     if (freeBytes === undefined) freeBytes = readFreeSpace();
-    const now = state();
+    const inventory = dictionaryInventory();
+    const working = isWorking();
+    const active = inventory.edition;
 
-    // Only before anything starts. It answers "will this fit", which is settled
+    for (const edition of OFFERED) {
+      const radio = radios.get(edition);
+      if (radio) {
+        radio.checked = edition === selected;
+        radio.disabled = working;
+        radio.parentElement?.classList.toggle("kc-inert", working);
+      }
+      const state = states.get(edition);
+      if (state) {
+        state.textContent = edition === active ? t("dictEditionInUse") : "";
+        state.classList.toggle("ks-in-use", edition === active);
+      }
+    }
+
+    const needed = requiredFreeBytes(pinnedRelease(selected).size);
     space.textContent =
-      now === "needed" && freeBytes !== undefined
-        ? t("setupSpace")
-            .replace("{needed}", mb(requiredFreeBytes(pinnedRelease().size)))
-            .replace("{free}", size(freeBytes))
-        : "";
+      working || freeBytes === undefined
+        ? ""
+        : t("setupSpace").replace("{needed}", mb(needed)).replace("{free}", size(freeBytes));
 
-    if (now === "working") {
+    if (working) {
       status.textContent = describe(
         dictionaryRowState({
-          inventory: dictionaryInventory(),
+          inventory,
           job: dictionaryJob(),
           now: Date.now(),
           freeBytes,
@@ -141,46 +188,30 @@ export function openDictionarySetup(): void {
       return;
     }
 
-    if (now === "done") {
+    if (completedHere && active === selected) {
       status.textContent = t("setupInstalled");
       status.className = "ks-status ks-ready";
-      // The task is finished, so the button finishes it. No update step: this
-      // flow does not have one, and the settings row is where updating lives.
+      primary.textContent = t("setupDone");
       primary.disabled = false;
-      close.style.display = "none";
-      startCountdown();
+      close.textContent = t("setupClose");
       return;
     }
 
-    status.textContent = describe({ kind: "absent", version: pinnedRelease().version });
-    status.className = "ks-status ks-bad";
-    primary.textContent = t("dictInstall");
-    primary.disabled = false;
-    close.style.display = "";
-  };
-
-  /** Close by itself once the dictionary is in, counting down on the button. */
-  const CLOSE_AFTER_SECONDS = 5;
-  let countdown: number | undefined;
-  let remaining = CLOSE_AFTER_SECONDS;
-  const stopCountdown = (): void => {
-    if (countdown === undefined) return;
-    window.clearInterval(countdown);
-    countdown = undefined;
-  };
-  const startCountdown = (): void => {
-    if (countdown !== undefined) return;
-    primary.textContent = tCloseIn(remaining);
-    countdown = window.setInterval(() => {
-      remaining -= 1;
-      if (remaining <= 0) {
-        stopCountdown();
-        updateSettings({ dictSetupAnswered: true });
-        dialog.close();
-        return;
-      }
-      primary.textContent = tCloseIn(remaining);
-    }, 1000);
+    const heading = selected === "core" ? t("dictEditionCore") : t("dictEditionFull");
+    status.textContent =
+      active === selected
+        ? `${heading} · ${t("dictInstalledState")}`
+        : inventory.installed
+          ? `${heading} · ${t("dictNotInstalled")}`
+          : describe({ kind: "absent", version: pinnedRelease(selected).version });
+    status.className = `ks-status ${active === selected ? "ks-ready" : ""}`;
+    primary.textContent =
+      active === selected
+        ? t("dictUpdate")
+        : inventory.installed
+          ? t("dictSwitch")
+          : t("dictInstall");
+    primary.disabled = freeBytes !== undefined && freeBytes < needed;
   };
 
   let poll: number | undefined;
@@ -192,27 +223,25 @@ export function openDictionarySetup(): void {
   const startPolling = (): void => {
     if (poll !== undefined) return;
     poll = window.setInterval(() => {
-      const working = state() === "working";
+      const working = isWorking();
       paint();
       if (!working) stopPolling();
     }, 300);
   };
 
   primary.onclick = () => {
-    // Three states, three meanings: stop the transfer, finish the wizard, or
-    // start the download.
-    if (state() === "working") {
+    if (isWorking()) {
       if (cancellable()) cancelDictionaryDownload();
       return;
     }
-    if (state() === "done") {
-      updateSettings({ dictSetupAnswered: true });
+    if (completedHere && dictionaryInventory().edition === selected) {
       dialog.close();
       return;
     }
     startPolling();
-    void startDictionaryInstall().then(() => {
+    void startDictionaryInstall(selected).then(() => {
       freeBytes = readFreeSpace();
+      completedHere = dictionaryInventory().edition === selected;
       paint();
     });
   };
@@ -221,11 +250,9 @@ export function openDictionarySetup(): void {
   dialog.addEventListener("close", () => {
     unsubscribe();
     stopPolling();
-    stopCountdown();
-    // Marked as answered however it was dismissed. Reaching this dialog and
-    // walking away is still an answer, and re-raising it every launch after
-    // that would be nagging.
-    if (!getSettings().dictSetupAnswered) updateSettings({ dictSetupAnswered: true });
+    if (firstRun && !getSettings().dictSetupAnswered) {
+      updateSettings({ dictSetupAnswered: true });
+    }
     dialog.remove();
     if (open === dialog) open = undefined;
   });

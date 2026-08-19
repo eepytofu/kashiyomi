@@ -119,11 +119,7 @@ pub fn unload() -> bool {
 ///     overwritten — which is exactly what an in-place update has to do.
 ///
 /// Returns false when it declined, so the caller can tell "busy" from "started".
-pub fn begin_reload(dict_path: String, resource_dir: String) -> bool {
-    begin_reload_replacing(dict_path, resource_dir, None)
-}
-
-/// As `begin_reload`, and delete `superseded` once the new dictionary is up.
+/// Delete `superseded` only once the new dictionary is up.
 ///
 /// Switching edition leaves the old `.dic` behind — 207 MB of a dictionary
 /// nothing will open again, on a disk the user was just asked to clear space on.

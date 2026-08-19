@@ -20,6 +20,7 @@ function view(over: Partial<RowInput> = {}): RowView {
   return dictionaryRowState({
     inventory: {
       installed: false,
+      edition: undefined,
       version: undefined,
       latest: undefined,
       checkedAt: undefined,
@@ -37,6 +38,7 @@ const installed = (
   checkedAt?: number,
 ): RowInput["inventory"] => ({
   installed: true,
+  edition: "core",
   version,
   latest,
   checkedAt,
@@ -359,6 +361,7 @@ test("a dictionary on disk that failed to load still reports as installed", () =
   const v = view({
     inventory: {
       installed: true,
+      edition: "core",
       version: "20260723",
       latest: undefined,
       checkedAt: undefined,
@@ -376,6 +379,7 @@ test("a failure keeps reporting itself after the cooldown, with retry now live",
   const v = view({
     inventory: {
       installed: true,
+      edition: "core",
       version: "20260723",
       latest: undefined,
       checkedAt: undefined,

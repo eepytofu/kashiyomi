@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { migrateDictionarySettings } from "../src/engine/dictionaryState.ts";
+import { migrateDictionarySettings, supersededEdition } from "../src/engine/dictionaryState.ts";
 
 // Not a migration, and there are no legacy-shape tests here on purpose: nothing
 // is released, so nothing needs backward compatibility (hard rule 10). What is
@@ -10,6 +10,7 @@ import { migrateDictionarySettings } from "../src/engine/dictionaryState.ts";
 
 test("a fresh install gets the defaults", () => {
   assert.deepEqual(migrateDictionarySettings({}), {
+    dictEdition: "core",
     dictVersion: undefined,
     dictSetupAnswered: false,
     dictCheckedAt: undefined,
@@ -31,7 +32,7 @@ test("junk falls back to the defaults instead of throwing", () => {
   for (const junk of [null, undefined, 0, "", "nonsense", [], true]) {
     assert.deepEqual(
       migrateDictionarySettings(junk),
-      { dictVersion: undefined, dictSetupAnswered: false, dictCheckedAt: undefined },
+      { dictEdition: "core", dictVersion: undefined, dictSetupAnswered: false, dictCheckedAt: undefined },
       JSON.stringify(junk),
     );
   }
@@ -71,17 +72,24 @@ test("a missing answer is unanswered, which is what raises the dialog", () => {
 
 // Extra keys are what a hand-edited blob and an older build both leave behind.
 // Reading around them is the whole tolerance this function provides.
-test("unknown keys are ignored rather than carried", () => {
+test("the previous multi-edition settings migrate without re-downloading", () => {
   const settings = migrateDictionarySettings({
-    dictVersion: "20260723",
     dictPreferredEdition: "full",
-    dictVersions: { core: "20260101" },
+    dictVersions: { core: "20260101", full: "20260723" },
   });
   assert.deepEqual(settings, {
+    dictEdition: "full",
     dictVersion: "20260723",
     dictSetupAnswered: false,
     dictCheckedAt: undefined,
   });
+});
+
+test("the recorded edition is validated and legacy installs default to core", () => {
+  assert.equal(migrateDictionarySettings({ dictEdition: "full" }).dictEdition, "full");
+  for (const bad of ["small", "tiny", 1, null, {}, []]) {
+    assert.equal(migrateDictionarySettings({ dictEdition: bad }).dictEdition, "core");
+  }
 });
 
 // The check timestamp gates a twelve-hour throttle, so a value that is not a
@@ -100,4 +108,11 @@ test("a check timestamp that is not a usable number is not stored", () => {
 
 test("a real check timestamp is read back", () => {
   assert.equal(migrateDictionarySettings({ dictCheckedAt: 1786110647239 }).dictCheckedAt, 1786110647239);
+});
+
+test("only a switch supersedes the active dictionary", () => {
+  assert.equal(supersededEdition("core", "full"), "core");
+  assert.equal(supersededEdition("full", "core"), "full");
+  assert.equal(supersededEdition("core", "core"), undefined);
+  assert.equal(supersededEdition(undefined, "full"), undefined);
 });

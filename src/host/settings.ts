@@ -1,6 +1,7 @@
 // Plugin settings persisted as one JSON blob in localStorage.
 
 import { migrateDictionarySettings } from "../engine/dictionaryState.ts";
+import type { DictionaryEdition } from "../engine/dictionarySource.ts";
 
 export type Settings = {
   furigana: boolean;
@@ -13,6 +14,8 @@ export type Settings = {
   /** Annotate production credit lines (作詞: …) as if they were lyrics. */
   annotateCredits: boolean;
   debug: boolean;
+  /** The active dictionary edition; Core is also the first-run default. */
+  dictEdition: DictionaryEdition;
   /**
    * The release on disk, e.g. "20260723", or undefined when nothing is
    * installed or the file was placed there from outside the plugin.
@@ -79,6 +82,7 @@ const DEFAULTS: Settings = {
   readingHints: true,
   annotateCredits: false,
   debug: true,
+  dictEdition: "core",
   dictVersion: undefined,
   dictSetupAnswered: false,
   dictCheckedAt: undefined,

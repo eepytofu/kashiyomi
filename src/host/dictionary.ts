@@ -1,18 +1,25 @@
 // Downloading, verifying and installing the Sudachi dictionary.
 
 import {
-  DICTIONARY_MEMBER,
   SIMPLE_INDEX_ACCEPT,
+  dictionaryMember,
   downloadUrls,
   metadataSources,
   parsePypiRelease,
   parseSimpleIndexRelease,
   requiredFreeBytes,
   type DictionaryFailure,
+  type DictionaryEdition,
   type DictionaryRelease,
 } from "../engine/dictionarySource.ts";
-import { archivePath, dictionaryPath, hasDictionary } from "../engine/dictionaryLayout.ts";
+import {
+  archivePath,
+  chooseBootEdition,
+  dictionaryPath,
+  installedEditionsFrom,
+} from "../engine/dictionaryLayout.ts";
 import type { DictionaryInventory, DictionaryJob } from "../engine/dictionaryState.ts";
+import { supersededEdition } from "../engine/dictionaryState.ts";
 import { pinnedRelease } from "../engine/dictionaryPins.ts";
 import { CHECK_INTERVAL_MS } from "../engine/dictionaryRowState.ts";
 import { log } from "./log.ts";
@@ -21,12 +28,14 @@ import {
   nativeCancelInstall,
   nativeDictStatus,
   nativeFreeSpace,
+  nativeInit,
   nativeStartInstall,
   nativeSweepPartials,
 } from "./native.ts";
 
 let inventory: DictionaryInventory = {
   installed: false,
+  edition: undefined,
   version: undefined,
   latest: undefined,
   checkedAt: undefined,
@@ -82,15 +91,22 @@ function setProgress(next: DictionaryJob): void {
 }
 
 /** Publish what the disk holds. */
-export function reportInventory(installed: boolean): void {
-  if (!installed && getSettings().dictVersion !== undefined) {
+export function reportInventory(edition: DictionaryEdition | undefined): void {
+  const settings = getSettings();
+  if (edition === undefined && settings.dictVersion !== undefined) {
     updateSettings({ dictVersion: undefined });
+  } else if (edition !== undefined && settings.dictEdition !== edition) {
+    // A manually placed file or a fallback after manual deletion has no known
+    // release. Record what will actually be opened without borrowing the old
+    // edition's version string.
+    updateSettings({ dictEdition: edition, dictVersion: undefined });
   }
   // `latest` survives a disk re-read: it records what a *check* found, which a
   // directory listing knows nothing about.
   inventory = {
-    installed,
-    version: installed ? getSettings().dictVersion : undefined,
+    installed: edition !== undefined,
+    edition,
+    version: edition !== undefined ? getSettings().dictVersion : undefined,
     latest: inventory.latest,
     // Read from settings rather than carried, so a boot picks up a check made
     // in an earlier session and the throttle survives an NCM restart.
@@ -100,19 +116,22 @@ export function reportInventory(installed: boolean): void {
 }
 
 /** Whether the dictionary is on disk, asked of the disk. */
-export async function dictionaryOnDisk(dictDir: string): Promise<boolean> {
+export async function dictionaryEditionOnDisk(
+  dictDir: string,
+  active: DictionaryEdition = getSettings().dictEdition,
+): Promise<DictionaryEdition | undefined> {
   try {
-    return hasDictionary(await betterncm.fs.readDir(dictDir));
+    return chooseBootEdition(active, installedEditionsFrom(await betterncm.fs.readDir(dictDir)));
   } catch {
     // A missing data directory on a fresh install is the normal path here, not
     // an error: nothing is installed, which is what `false` says.
-    return false;
+    return undefined;
   }
 }
 
 /** Re-read the directory and publish what is actually there. */
-async function refreshInventory(dictDir: string): Promise<void> {
-  reportInventory(await dictionaryOnDisk(dictDir));
+async function refreshInventory(dictDir: string, active: DictionaryEdition): Promise<void> {
+  reportInventory(await dictionaryEditionOnDisk(dictDir, active));
 }
 
 /** Whether a check ran recently enough that another one cannot learn anything. */
@@ -131,7 +150,8 @@ export function recordCheck(): void {
 /** Check for a newer release without anyone pressing anything. */
 export async function checkForNewerRelease(): Promise<void> {
   if (inFlight || job.kind !== "idle" || checkedRecently()) return;
-  const { release, checked } = await resolveRelease();
+  const edition = inventory.edition ?? getSettings().dictEdition;
+  const { release, checked } = await resolveRelease(edition);
   if (checked) {
     inventory = { ...inventory, latest: release.version };
     recordCheck();
@@ -184,14 +204,23 @@ export type ResolvedRelease = {
 };
 
 /** Resolve the newest release, trying each source in turn. */
-export async function resolveRelease(): Promise<ResolvedRelease> {
+export async function resolveRelease(edition: DictionaryEdition): Promise<ResolvedRelease> {
   // The attempt's abort signal starts here, not at the download: an update
   // check against a source that is timing out is exactly when someone reaches
   // for Cancel, and there was nothing to press it against.
   abort = new AbortController();
   setJob({ kind: "resolving", at: Date.now() });
 
-  for (const source of metadataSources()) {
+  const sources = metadataSources(edition);
+  // Full is updated with Kashiyomi's reviewed build pin. This avoids learning
+  // an install hash from a runtime source while still making a newer plugin
+  // release immediately able to update an older Full dictionary.
+  if (sources.length === 0) {
+    setJob({ kind: "idle" });
+    return { release: pinnedRelease(edition), checked: true };
+  }
+
+  for (const source of sources) {
     try {
       const response = await fetch(source.url, {
         headers: source.kind === "simple" ? { accept: SIMPLE_INDEX_ACCEPT } : {},
@@ -200,14 +229,16 @@ export async function resolveRelease(): Promise<ResolvedRelease> {
       if (!response.ok) continue;
       const body: unknown = await response.json();
       const release =
-        source.kind === "simple" ? parseSimpleIndexRelease(body) : parsePypiRelease(body);
+        source.kind === "simple"
+          ? parseSimpleIndexRelease(edition, body)
+          : parsePypiRelease(edition, body);
       if (release) return { release, checked: true };
     } catch (err) {
       // A cancel must end the whole attempt, not advance to the next source.
       // Falling through would have Cancel walk the list one press at a time.
       if (err instanceof Error && err.name === "AbortError") {
         fail("cancelled");
-        return { release: pinnedRelease(), checked: false };
+        return { release: pinnedRelease(edition), checked: false };
       }
       log.debug(`dictionary metadata source failed: ${source.url}`, err);
     }
@@ -216,7 +247,7 @@ export async function resolveRelease(): Promise<ResolvedRelease> {
   // pin carries its own URL, so a blocked upstream no longer means no
   // dictionary at all.
   setJob({ kind: "idle" });
-  return { release: pinnedRelease(), checked: false };
+  return { release: pinnedRelease(edition), checked: false };
 }
 
 export type DownloadPlan = {
@@ -226,14 +257,24 @@ export type DownloadPlan = {
   readonly targetPath: string;
   /** The directory both live in, so callers stop slicing it back out of a path. */
   readonly directory: string;
+  /** Active dictionary removed by native code only after this one loads. */
+  readonly supersededPath: string | undefined;
 };
 
-export function planDownload(release: DictionaryRelease, dictionaryDir: string): DownloadPlan {
+export function planDownload(
+  release: DictionaryRelease,
+  dictionaryDir: string,
+  active: DictionaryEdition | undefined,
+): DownloadPlan {
   return {
     release,
-    archivePath: archivePath(dictionaryDir, release.version),
-    targetPath: dictionaryPath(dictionaryDir),
+    archivePath: archivePath(dictionaryDir, release.edition, release.version),
+    targetPath: dictionaryPath(dictionaryDir, release.edition),
     directory: dictionaryDir,
+    supersededPath: (() => {
+      const superseded = supersededEdition(active, release.edition);
+      return superseded === undefined ? undefined : dictionaryPath(dictionaryDir, superseded);
+    })(),
   };
 }
 
@@ -276,9 +317,10 @@ export async function downloadDictionary(
     const started = nativeStartInstall(
       plan.archivePath,
       plan.release.sha256,
-      DICTIONARY_MEMBER,
+      dictionaryMember(plan.release.edition),
       plan.targetPath,
       resourceDir,
+      plan.supersededPath,
     );
     if (!started.ok) {
       log.info(`dictionary install failed: ${started.error}`);
@@ -299,13 +341,25 @@ export async function downloadDictionary(
       return fail(/checksum/u.test(installed.error) ? "checksum" : "extract");
     }
 
-    // Recorded before the load is judged, not after. The bytes are verified and
-    updateSettings({ dictVersion: plan.release.version });
-    await refreshInventory(plan.directory);
-    // `started` is the analyzer's answer about this install, and it is still
-    // acted on — it just is not stored, because a boolean captured once goes
-    // stale the moment the background load finishes.
     if (!installed.started) return fail("load");
+    const loaded = await awaitAnalyzer();
+    if (!loaded) {
+      // A switch unloads the active edition before opening the replacement.
+      // Native deliberately keeps the old file until the new one succeeds; put
+      // that file back in service now, not only after the next NCM restart.
+      if (plan.supersededPath !== undefined) {
+        nativeInit(plan.supersededPath, resourceDir);
+        await awaitAnalyzer();
+      }
+      return fail("load");
+    }
+    // Commit settings only once the replacement is actually serving analysis.
+    // Until this point the old edition remains the authoritative working copy.
+    updateSettings({
+      dictEdition: plan.release.edition,
+      dictVersion: plan.release.version,
+    });
+    await refreshInventory(plan.directory, plan.release.edition);
     return setJob({ kind: "idle" });
   } finally {
     inFlight = false;
@@ -348,6 +402,20 @@ async function awaitInstall(): Promise<InstallOutcome> {
     // the result, which only one caller can do because `inFlight` guards this
     // whole function. Treat it as done rather than looping forever.
     return { ok: true, started: true };
+  }
+}
+
+/** Wait for the background Sudachi load that follows the native file swap. */
+async function awaitAnalyzer(): Promise<boolean> {
+  for (;;) {
+    const status = nativeDictStatus();
+    if (!status) return false;
+    if (status.analyzer.state === "ready") return true;
+    if (status.analyzer.state === "failed" || status.analyzer.state === "unavailable") {
+      return false;
+    }
+    setProgress({ kind: "installing", phase: "loading", done: 0, total: 0 });
+    await new Promise((resolve) => window.setTimeout(resolve, INSTALL_POLL_MS));
   }
 }
 

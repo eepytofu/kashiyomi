@@ -41,13 +41,6 @@ export function nativeInit(dictPath: string, resourceDir: string): void {
   dispatch({ cmd: "init", dictPath, resourceDir });
 }
 
-/** Load a different dictionary in place of the one already in memory. */
-export function nativeReload(dictPath: string, resourceDir: string): boolean {
-  const response = dispatch({ cmd: "reload", dictPath, resourceDir });
-  if (!response || response.status === "error") return false;
-  return (response.data as { started?: boolean }).started === true;
-}
-
 export type InstallResult = { ok: true; started: boolean } | { ok: false; error: string };
 
 /** What the worker thread is doing, or how it finished. */

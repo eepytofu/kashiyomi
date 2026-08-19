@@ -1,10 +1,14 @@
 // Where the Sudachi dictionary comes from, and what to do when that fails.
 
-/** The package on PyPI. One edition, so this is a constant rather than a lookup. */
-const PACKAGE = "SudachiDict-core";
+export type DictionaryEdition = "core" | "full";
 
-/** Where the dictionary sits inside the wheel. */
-export const DICTIONARY_MEMBER = "sudachidict_core/resources/system.dic";
+/** Core is first because it is the first-run and recovery default. */
+export const DICTIONARY_EDITIONS = ["core", "full"] as const;
+
+/** Where the dictionary sits inside the publisher's wheel. */
+export function dictionaryMember(edition: DictionaryEdition): string {
+  return `sudachidict_${edition}/resources/system.dic`;
+}
 
 /** Where PyPI serves the bytes, as opposed to the metadata. */
 const PYTHONHOSTED = "https://files.pythonhosted.org";
@@ -14,6 +18,7 @@ const PYPI = "https://pypi.org/pypi";
 const MIRROR = "https://pypi.tuna.tsinghua.edu.cn/simple";
 
 export type DictionaryRelease = {
+  readonly edition: DictionaryEdition;
   /** SudachiDict release date, e.g. "20260723". */
   readonly version: string;
   readonly url: string;
@@ -48,10 +53,15 @@ export type MetadataSource = { readonly url: string; readonly kind: MetadataKind
  *
  * Same reasoning as `downloadUrls`: preference, not geography.
  */
-export function metadataSources(): readonly MetadataSource[] {
+export function metadataSources(edition: DictionaryEdition): readonly MetadataSource[] {
+  // Full is deliberately build-pinned. Unlike Core, PyPI does not publish a
+  // self-contained Full wheel; learning a digest from an unrelated runtime
+  // source would weaken the boundary the pin exists to provide.
+  if (edition === "full") return [];
+  const packageName = `SudachiDict-${edition}`;
   return [
-    { url: `${PYPI}/${PACKAGE}/json`, kind: "pypi" },
-    { url: `${MIRROR}/${PACKAGE.toLowerCase()}/`, kind: "simple" },
+    { url: `${PYPI}/${packageName}/json`, kind: "pypi" },
+    { url: `${MIRROR}/${packageName.toLowerCase()}/`, kind: "simple" },
   ];
 }
 
@@ -61,7 +71,11 @@ export const SIMPLE_INDEX_ACCEPT = "application/vnd.pypi.simple.v1+json";
 const WHEEL = /^sudachidict_core-(\d{8})-/;
 
 /** Read PyPI's own JSON API response. */
-export function parsePypiRelease(body: unknown): DictionaryRelease | undefined {
+export function parsePypiRelease(
+  edition: DictionaryEdition,
+  body: unknown,
+): DictionaryRelease | undefined {
+  if (edition !== "core") return undefined;
   const root = body as { info?: { version?: unknown }; urls?: readonly unknown[] };
   const version = typeof root?.info?.version === "string" ? root.info.version : undefined;
   if (version === undefined || !Array.isArray(root.urls)) return undefined;
@@ -73,14 +87,18 @@ export function parsePypiRelease(body: unknown): DictionaryRelease | undefined {
       digests?: { sha256?: unknown };
     };
     if (file.packagetype !== "bdist_wheel") continue;
-    const release = buildRelease(version, file.url, file.size, file.digests?.sha256);
+    const release = buildRelease(edition, version, file.url, file.size, file.digests?.sha256);
     if (release) return release;
   }
   return undefined;
 }
 
 /** Read a PEP 691 JSON simple index, which is what the mirrors serve. */
-export function parseSimpleIndexRelease(body: unknown): DictionaryRelease | undefined {
+export function parseSimpleIndexRelease(
+  edition: DictionaryEdition,
+  body: unknown,
+): DictionaryRelease | undefined {
+  if (edition !== "core") return undefined;
   const files = (body as { files?: readonly unknown[] })?.files;
   if (!Array.isArray(files)) return undefined;
   let best: DictionaryRelease | undefined;
@@ -94,13 +112,14 @@ export function parseSimpleIndexRelease(body: unknown): DictionaryRelease | unde
     if (typeof file.filename !== "string") continue;
     const match = WHEEL.exec(file.filename);
     if (!match) continue;
-    const release = buildRelease(match[1]!, file.url, file.size, file.hashes?.sha256);
+    const release = buildRelease(edition, match[1]!, file.url, file.size, file.hashes?.sha256);
     if (release && (best === undefined || release.version > best.version)) best = release;
   }
   return best;
 }
 
 function buildRelease(
+  edition: DictionaryEdition,
   version: string,
   url: unknown,
   size: unknown,
@@ -111,7 +130,7 @@ function buildRelease(
   if (typeof url !== "string" || url === "") return undefined;
   if (typeof size !== "number" || !Number.isFinite(size) || size <= 0) return undefined;
   if (typeof sha256 !== "string" || !/^[0-9a-f]{64}$/u.test(sha256)) return undefined;
-  return { version, url, sha256, size };
+  return { edition, version, url, sha256, size };
 }
 
 /** Free space an install needs, archive plus its extraction plus a margin. */

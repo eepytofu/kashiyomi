@@ -5,11 +5,14 @@
 export type InstallPhase = "verifying" | "extracting" | "swapping" | "loading";
 
 import type { DictionaryFailure } from "./dictionarySource.ts";
+import { DICTIONARY_EDITIONS, type DictionaryEdition } from "./dictionarySource.ts";
 
 /** What exists, from the two authorities that are not the user. */
 export type DictionaryInventory = {
   /** On disk, per the directory listing. */
   readonly installed: boolean;
+  /** The file currently selected for the analyzer. */
+  readonly edition: DictionaryEdition | undefined;
   /** The release on disk, when the plugin was the one that put it there. */
   readonly version: string | undefined;
   /** The newest release a check has actually seen. */
@@ -35,6 +38,7 @@ export type DictionaryJob =
 
 
 export type DictionarySettings = {
+  readonly dictEdition: DictionaryEdition;
   readonly dictVersion: string | undefined;
   /** Whether the first-run prompt has been answered. */
   readonly dictSetupAnswered: boolean;
@@ -46,9 +50,22 @@ export type DictionarySettings = {
 export function migrateDictionarySettings(raw: unknown): DictionarySettings {
   const source: Record<string, unknown> =
     typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
-  const version = source.dictVersion;
+  const recordedEdition = DICTIONARY_EDITIONS.includes(source.dictEdition as DictionaryEdition)
+    ? (source.dictEdition as DictionaryEdition)
+    : DICTIONARY_EDITIONS.includes(source.dictPreferredEdition as DictionaryEdition)
+      ? (source.dictPreferredEdition as DictionaryEdition)
+      : "core";
+  const versions =
+    typeof source.dictVersions === "object" && source.dictVersions !== null
+      ? (source.dictVersions as Record<string, unknown>)
+      : {};
+  const version =
+    typeof source.dictVersion === "string"
+      ? source.dictVersion
+      : versions[recordedEdition];
   const checkedAt = source.dictCheckedAt;
   return {
+    dictEdition: recordedEdition,
     dictVersion: typeof version === "string" && version !== "" ? version : undefined,
     dictSetupAnswered: source.dictSetupAnswered === true,
     // A timestamp has to be a usable number or absent. NaN and Infinity both
@@ -59,4 +76,12 @@ export function migrateDictionarySettings(raw: unknown): DictionarySettings {
         ? checkedAt
         : undefined,
   };
+}
+
+/** The active edition a successful switch may delete; updates delete nothing. */
+export function supersededEdition(
+  active: DictionaryEdition | undefined,
+  target: DictionaryEdition,
+): DictionaryEdition | undefined {
+  return active !== undefined && active !== target ? active : undefined;
 }

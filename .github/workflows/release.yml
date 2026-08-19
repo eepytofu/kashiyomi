@@ -5,9 +5,8 @@
 # `check.yml` runs cargo on ubuntu, which cannot produce a Windows cdylib, so
 # nothing there satisfies that rule.
 #
-# Deliberately stops at the artefacts. It does not assemble the final .plugin
-# bundle, because what goes inside still depends on an open decision about how
-# the 343 MB Sudachi dictionary ships.
+# Deliberately stops at verified artefacts. The runtime Sudachi dictionary is
+# downloaded separately and must never enter the plugin package.
 name: release
 
 on:
@@ -34,18 +33,31 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run export-pinyin
+      - run: npm run export-jmdict
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - run: npm run build
 
       # The cdylib. NCM loads this at startup and it is the artefact the store
       # rule is about.
       - run: cargo build --release --manifest-path native/Cargo.toml
+      - run: cargo test --manifest-path native/Cargo.toml
+
+      # The manifest names backend.dll; Cargo names the cdylib after the crate.
+      - shell: pwsh
+        run: Copy-Item native/target/release/kashiyomi_backend.dll dist/backend.dll
 
       - uses: actions/upload-artifact@v4
         with:
           name: kashiyomi-windows
           if-no-files-found: error
           path: |
-            native/target/release/backend.dll
+            dist/backend.dll
             dist/main.js
             manifest.json
             assets/sudachi
+            assets/pinyin/complete.json
+            assets/jmdict/readings.json

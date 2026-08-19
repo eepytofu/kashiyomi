@@ -12,7 +12,7 @@ import {
   dictionaryJob,
   dictionaryListenerCount,
   downloadDictionary,
-  dictionaryOnDisk,
+  dictionaryEditionOnDisk,
   planDownload,
   reportInventory,
   resolveRelease,
@@ -41,20 +41,20 @@ async function start(): Promise<void> {
   // Ask the disk, not the settings. The recorded version and the file can
   // disagree (a failed install, a manual delete), and only one of the two can
   // be opened.
-  const installed = await dictionaryOnDisk(paths.dictDir);
+  const installed = await dictionaryEditionOnDisk(paths.dictDir);
   const status = nativeState();
-  log.info(`dictionary on disk: ${installed}`);
+  log.info(`dictionary on disk: ${installed ?? "none"}`);
   log.info("native state:", status.state, status.error ?? "");
   reportInventory(installed);
   if (installed && (status.state === "uninitialized" || status.state === "failed")) {
-    nativeInit(dictionaryPath(paths.dictDir), paths.resourceDir);
+    nativeInit(dictionaryPath(paths.dictDir, installed), paths.resourceDir);
   }
   startAnnotator(paths);
   installCopyHandler();
 
   // First run, and only ever once. Two conditions, both required: the user has
-  if (!getSettings().dictSetupAnswered && !installed) {
-    openDictionarySetup();
+  if (!getSettings().dictSetupAnswered && installed === undefined) {
+    openDictionarySetup({ firstRun: true });
   }
 
   // Debug handle for testing from the console.
@@ -70,19 +70,22 @@ async function start(): Promise<void> {
     // Forget the last update check, so the next settings open asks again.
     forgetDictCheck: forgetDictionaryCheck,
     // The first-run dialog without clicking through to it, which is otherwise
-    setup: () => openDictionarySetup(),
+    setup: (firstRun = false) => openDictionarySetup({ firstRun }),
     // Every dictionary failure state on demand, so the messages can be read in
     simulateDictFailure: (reason?: string) =>
       simulateDictionaryFailure(reason as never),
     // Runs the real fetch → verify → install → reload path against the data
     // directory, so it can be exercised without clicking and without touching a
     // development checkout's own dictionary.
-    downloadDictionary: async () => {
+    downloadDictionary: async (edition: "core" | "full" = "core") => {
       // Deliberately the data directory rather than `paths.dictDir`: under
       const dataDir = `${await betterncm.app.getDataPath()}/kashiyomi`.replace(/\\/gu, "/");
-      const release = await resolveRelease();
+      const release = await resolveRelease(edition);
       const paths = await resolveAssetPaths();
-      return downloadDictionary(planDownload(release.release, dataDir), paths?.resourceDir ?? "");
+      return downloadDictionary(
+        planDownload(release.release, dataDir, dictionaryInventory().edition),
+        paths?.resourceDir ?? "",
+      );
     },
     // Redacted, because this handle is read as routine: the project's own rule
     settings: () => {

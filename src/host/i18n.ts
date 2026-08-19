@@ -42,21 +42,19 @@ const STRINGS = {
     groupWordsDesc: "",
     dictionary: "Japanese dictionary",
     dictNotInstalled: "not installed",
-    // SudachiDict's own README, verbatim. The publisher describes its three
-    // editions in one line each, so the plugin quotes them instead of writing a
+    dictEditionCore: "Core",
+    dictEditionCoreDesc: "Recommended. Basic vocabulary, smaller download and faster startup.",
+    dictEditionFull: "Full",
+    dictEditionFullDesc: "Adds proper names and specialist terms; uses substantially more disk and memory.",
+    dictEditionInUse: "in use",
+    dictManage: "Manage",
+    dictSetUp: "Set up",
     // Shown over the settings that do nothing until a dictionary is installed.
     dictNeededForThese: "Greyed settings need the Japanese dictionary.",
-    // The two things a new install needs a decision about, and nothing else.
-    // Everything else is on by default and works with no setup at all, so
-    // listing it would be telling someone about work they do not have to do.
-    setupWhatItIs:
-      "Adds furigana, romaji, pinyin and AI translation directly to the native lyrics page.",
     setupNeedsDictionary:
       "Only the Japanese dictionary is set up here. AI translation needs your own API key, and everything else is in the settings panel.",
     setupInstalled: "Dictionary installed. Japanese lyrics will show readings from now on.",
     setupDone: "Done",
-    // The countdown is shown, not silent. A dialog that closes on a hidden
-    setupDoneIn: (seconds: number) => `Done (closing in ${seconds})`,
     setupSpace: "needs {needed} free, you have {free}",
     // Not "Later": everything except Japanese readings already works, so
     // deferring the dictionary is continuing rather than postponing the plugin.
@@ -72,6 +70,7 @@ const STRINGS = {
     dictUnpacking: "unpacking",
     dictActivating: "activating",
     dictUpdate: "Update",
+    dictSwitch: "Switch",
     dictUpToDate: "already the newest release",
     dictCheckedJustNow: "checked just now",
     dictUpdateAvailable: "update available",
@@ -176,13 +175,18 @@ const STRINGS = {
     groupWordsDesc: "",
     dictionary: "日语词典",
     dictNotInstalled: "未安装",
+    dictEditionCore: "Core",
+    dictEditionCoreDesc: "推荐。基础词汇，下载更小，启动更快。",
+    dictEditionFull: "Full",
+    dictEditionFullDesc: "增加专有名词和专业词汇；需要更多磁盘与内存。",
+    dictEditionInUse: "使用中",
+    dictManage: "管理",
+    dictSetUp: "设置",
     dictNeededForThese: "灰色的设置需要日语词典。",
-    setupWhatItIs: "直接在网易云自带的歌词上添加振假名、罗马字、拼音和 AI 翻译。",
     setupNeedsDictionary:
       "此处仅设置日语词典。AI 翻译需自备 API key，其余设置均在设置面板中。",
     setupInstalled: "词典已安装，之后日语歌词将显示读音。",
     setupDone: "完成",
-    setupDoneIn: (seconds: number) => `完成（${seconds} 秒后关闭）`,
     setupSpace: "需要 {needed} 可用空间，当前可用 {free}",
     setupLater: "暂时跳过",
     setupClose: "关闭",
@@ -193,6 +197,7 @@ const STRINGS = {
     dictUnpacking: "正在解压",
     dictActivating: "正在启用",
     dictUpdate: "更新",
+    dictSwitch: "切换",
     dictUpToDate: "已是最新版本",
     dictCheckedJustNow: "刚刚检查过",
     dictUpdateAvailable: "有可用更新",
@@ -280,11 +285,6 @@ export function tSongsCached(count: number): string {
   return STRINGS[panelLang()].songsCached(count);
 }
 
-export function tCloseIn(seconds: number): string {
-  return STRINGS[panelLang()].setupDoneIn(seconds);
-}
-
 export function tNoSpace(needed: string): string {
   return STRINGS[panelLang()].dictNoSpace(needed);
 }
-
