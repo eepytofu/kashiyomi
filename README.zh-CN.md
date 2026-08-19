@@ -8,7 +8,7 @@
 
 ## 功能
 
-- 首次运行时可选择 Core（安装后约 217 MB）或 Full（安装后约 360 MB）日语词典，默认选择 Core。两个版本可以同时保留，但同一时间只启用一个；可在 Kashiyomi 设置中切换或移除任一版本。
+- 首次运行时可选择 Core（安装后约 207 MB）或 Full（安装后约 343 MB）日语词典，默认选择 Core。两个版本可以同时保留，但同一时间只启用一个；可在 Kashiyomi 设置中切换或移除任一版本。
 - 词典不会随插件打包，而是在运行时下载并保存在插件目录之外，因此重装 Kashiyomi 会直接复用现有文件。Core 依次尝试 WorksApplications 官方 CloudFront、清华 PyPI 镜像和 PyPI；Full 依次尝试 CloudFront 和 GitHub Releases。只有 Kashiyomi 新版本内置经过审核的新固定版本时才会提示更新，不会实时查询“最新版”。
 - 在日语歌词的汉字上方显示振假名，并在下方显示罗马音。读音由本地的 [sudachi.rs](https://github.com/WorksApplications/sudachi.rs) 和 SudachiDict 生成，无法识别的部分会保留原样。
 - 支持歌词自带的读音提示。例如 `天(そら)` 会显示为 `天`，并使用 `そら` 作为振假名和罗马音。歌词原有读音会用不同颜色标出。
@@ -56,7 +56,7 @@ cd ..
 npm run dev-install
 ```
 
-`npm run fetch-dict` 会下载安装后约 217 MB 的 SudachiDict Core，让开发版本无需经过首次运行下载即可使用；传入 `full` 可下载安装后约 360 MB 的 Full 版本。运行时安装使用上文所述的内置审核清单；开发阶段下载的词典不会进入插件包。`npm run export-pinyin` 会生成 Pinyin Pro 的完整词典文件，`npm run export-jmdict` 会生成用于补全分析器无法给出的读音的 JMdict 读音表（约 7 MB）。
+`npm run fetch-dict` 会下载安装后约 207 MB 的 SudachiDict Core，让开发版本无需经过首次运行下载即可使用；传入 `full` 可下载安装后约 343 MB 的 Full 版本。运行时安装使用上文所述的内置审核清单；开发阶段下载的词典不会进入插件包。`npm run export-pinyin` 会生成 Pinyin Pro 的完整词典文件，`npm run export-jmdict` 会生成用于补全分析器无法给出的读音的 JMdict 读音表（约 7 MB）。
 
 `npm run dev-install` 默认将 Kashiyomi 安装到 `C:\betterncm\plugins_dev\Kashiyomi`。如需使用其他目录：
 
