@@ -103,13 +103,20 @@ pub fn deactivate() {
 }
 
 fn load_dictionary(dict_path: &str, resource_dir: &str) -> Result<JapaneseDictionary, String> {
-    let config = Config::new(
-        None,
-        Some(PathBuf::from(resource_dir)),
+    let config = build_config(dict_path, resource_dir)?;
+    JapaneseDictionary::from_cfg(&config).map_err(|e| format!("dictionary load: {e}"))
+}
+
+fn build_config(dict_path: &str, resource_dir: &str) -> Result<Config, String> {
+    let resource_dir = PathBuf::from(resource_dir);
+    // Without an explicit file, sudachi reads sudachi.json from its own source
+    // checkout on the build machine, a path that exists nowhere else.
+    Config::new(
+        Some(resource_dir.join("sudachi.json")),
+        Some(resource_dir),
         Some(PathBuf::from(dict_path)),
     )
-    .map_err(|e| format!("sudachi config: {e}"))?;
-    JapaneseDictionary::from_cfg(&config).map_err(|e| format!("dictionary load: {e}"))
+    .map_err(|e| format!("sudachi config: {e}"))
 }
 
 pub fn analyze_lines(lines: &[String]) -> Result<Vec<Vec<Token>>, AnalyzeError> {
@@ -215,6 +222,32 @@ fn is_kana_only(text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn config_comes_from_the_shipped_resource_directory() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("kashiyomi-analyzer-config-{nonce}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("sudachi.json"),
+            r#"{"characterDefinitionFile":"shipped-char.def"}"#,
+        )
+        .unwrap();
+        let resources = dir.to_string_lossy().into_owned();
+
+        let config = build_config("unused.dic", &resources).unwrap();
+        assert_eq!(
+            config.character_definition_file,
+            PathBuf::from("shipped-char.def")
+        );
+
+        std::fs::remove_file(dir.join("sudachi.json")).unwrap();
+        assert!(build_config("unused.dic", &resources).is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     /// Requires assets/dict/system_core.dic (npm run fetch-dict).
     /// Run with: cargo test -- --ignored
