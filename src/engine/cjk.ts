@@ -64,6 +64,11 @@ export function normalizeForDetection(line: string): string {
   return line.normalize("NFKC");
 }
 
+/** NFKC, then drop accepted reading hints. Their kana is markup, not the line's script. */
+function textForScript(rawLine: string): string {
+  return projectReadingHints(normalizeForDetection(rawLine)).displayText;
+}
+
 function hanCount(line: string): number {
   let count = 0;
   for (const ch of line) {
@@ -110,8 +115,9 @@ export function resolveDocumentContext(
   let kanaLines = 0;
   let hanOnlyLines = 0;
   for (const line of lines) {
-    if (hasKana(line)) kanaLines += 1;
-    else if (hasHan(line)) hanOnlyLines += 1;
+    const text = textForScript(line);
+    if (hasKana(text)) kanaLines += 1;
+    else if (hasHan(text)) hanOnlyLines += 1;
   }
 
   // Evidence of a *second language* is counted over distinct lines instead. A
@@ -119,21 +125,21 @@ export function resolveDocumentContext(
   let distinctKanaLines = 0;
   let longHanOnlyLines = 0;
   let chineseEvidenceLines = 0;
-  for (const line of new Set(lines)) {
+  for (const rawLine of new Set(lines)) {
+    const line = textForScript(rawLine);
     if (hasKana(line)) {
       distinctKanaLines += 1;
       continue;
     }
     if (!hasHan(line)) continue;
-    const normalized = normalizeForDetection(line);
-    const chinese = looksChinese(normalized);
+    const chinese = looksChinese(line);
     if (chinese) chineseEvidenceLines += 1;
     // A line showing Japanese orthography is evidence of a Japanese song, not
     // of a second language, so it must not count unless it also carries
     // positive Chinese evidence.
     if (
       chinese ||
-      (!hasJapaneseOnlyGlyphs(normalized) && hanCount(normalized) >= HAN_RUN_CHINESE_LENGTH)
+      (!hasJapaneseOnlyGlyphs(line) && hanCount(line) >= HAN_RUN_CHINESE_LENGTH)
     ) {
       longHanOnlyLines += 1;
     }
@@ -164,7 +170,7 @@ export function resolveLineRoute(
       : { branch: doc, bilingual: false, hasTranslations: false };
   // A parenthetical reading hint is markup, not a kana loan. 如果天(そら) is
   // not one: a line-final kana paren with no real context around it is a chant.
-  const line = projectReadingHints(normalizeForDetection(rawLine)).displayText;
+  const line = textForScript(rawLine);
   const kana = hasKana(line);
   const han = hasHan(line);
   if (!kana && !han) return undefined;
@@ -213,11 +219,37 @@ function isEdgeKanaLoan(line: string): boolean {
   return kanaRuns === 1 && !kanaIsInternal && kanaCount < hanCount;
 }
 
-// An opening bracket belongs to the run that follows it. A closing bracket
-// belongs to the run it ends. Splitting the pair across Han and kana is what
-// turned 如果天(そら) into "ru guo tian ( sora)".
+// While an opener is still uncommitted, the text inside it stays with the
+// opener. A closed latin aside (OK) belongs to the Han around it. An opener
+// whose next word is kana belongs to that kana, so the pair is not reversed.
 const OPENING_BRACKET = /[（(「『【《〈〔〖［\[]/u;
 const CLOSING_BRACKET = /[）)」』】》〉〕〗］\]]/u;
+
+function hasUncommittedOpener(text: string): boolean {
+  for (const ch of text) if (OPENING_BRACKET.test(ch)) return true;
+  return false;
+}
+
+function bracketDepth(text: string): number {
+  let depth = 0;
+  for (const ch of text) {
+    if (OPENING_BRACKET.test(ch)) depth += 1;
+    else if (CLOSING_BRACKET.test(ch)) depth -= 1;
+  }
+  return depth;
+}
+
+function interiorScript(text: string): "han" | "kana" | "other" {
+  let han = false;
+  let kana = false;
+  for (const ch of text) {
+    if (HAN_CHAR.test(ch)) han = true;
+    else if (KANA_CHAR.test(ch)) kana = true;
+  }
+  if (han && !kana) return "han";
+  if (kana && !han) return "kana";
+  return "other";
+}
 
 /**
  * The reading row for a mixed line: Mandarin for each Han run, romaji for
@@ -225,11 +257,11 @@ const CLOSING_BRACKET = /[）)」』】》〉〕〗］\]]/u;
  * the run it belongs to. Accepted reading hints are removed first.
  */
 export function projectMixedLineReading(text: string, options: PinyinOptions): string {
-  const line = projectReadingHints(normalizeForDetection(text)).displayText;
+  const line = textForScript(text);
   const parts: string[] = [];
   let kind: "han" | "kana" | undefined;
   let run = "";
-  // Opening brackets, plus any non-script run that has not found a word yet.
+  // An uncommitted opener and the text inside it, or leading non-script text.
   let pending = "";
   const flush = (): void => {
     const script = kind;
@@ -247,11 +279,21 @@ export function projectMixedLineReading(text: string, options: PinyinOptions): s
       continue;
     }
     if (CLOSING_BRACKET.test(ch) || (!HAN_CHAR.test(ch) && !KANA_CHAR.test(ch))) {
-      if (kind === undefined) pending += ch;
+      // The closer and the latin inside an open pair stay with the opener.
+      if (kind === undefined || hasUncommittedOpener(pending)) pending += ch;
       else run += ch;
       continue;
     }
     const script = HAN_CHAR.test(ch) ? "han" : "kana";
+    // A finished latin aside belongs to the run before it, not the next script.
+    const closedAside =
+      hasUncommittedOpener(pending) &&
+      bracketDepth(pending) === 0 &&
+      interiorScript(pending) !== script;
+    if (closedAside && kind !== undefined && kind !== script) {
+      run += pending;
+      pending = "";
+    }
     if (kind !== script) {
       flush();
       kind = script;
@@ -262,6 +304,10 @@ export function projectMixedLineReading(text: string, options: PinyinOptions): s
       pending = "";
     }
     run += ch;
+  }
+  if (kind !== undefined && hasUncommittedOpener(pending)) {
+    run += pending;
+    pending = "";
   }
   flush();
   const tail = pending.trim();

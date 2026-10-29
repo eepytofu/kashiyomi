@@ -72,6 +72,28 @@ test("a quoted edge loan keeps its opening punctuation", () => {
   );
 });
 
+test("a latin aside stays inside its brackets", () => {
+  // Constructed. （OK） is neither kana nor a reading hint.
+  const options = { tones: false, joinWords: false };
+  assert.equal(
+    projectMixedLineReading("如果我（OK）下手太重すみません", options),
+    "ru guo wo (OK) xia shou tai zhong sumimasen",
+  );
+  assert.equal(
+    projectMixedLineReading("如果我下手太重（OK）すみません", options),
+    "ru guo wo xia shou tai zhong (OK) sumimasen",
+  );
+});
+
+test("hint kana does not flip a chinese document", () => {
+  // Constructed. Only the last line has real kana; the glosses are markup.
+  const loan = "如果我下手太重すみません";
+  const lines = ["Hello如果天空(そら)", "（注）如果天空(そら)", loan];
+  const doc = resolveDocumentContext(lines);
+  assert.equal(doc.branch, "chinese");
+  assert.equal(resolveLineRoute(loan, doc), "mixed");
+});
+
 test("an accepted reading hint is not a kana loan", () => {
   // Constructed. The parenthetical is markup, so both lines are Chinese and
   // the reading is the pinyin of what the hint leaves behind.
