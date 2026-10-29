@@ -16,6 +16,7 @@ import {
   parseReadingOverrides,
 } from "../engine/readingOverrides.ts";
 import { ensureJmdictReadings } from "./jmdictDict.ts";
+import { projectReadingHints } from "../engine/hints.ts";
 import { romanizeMandarin } from "../engine/pinyin.ts";
 import { hasHan, hasKana } from "../engine/kana.ts";
 import { classifyLines, type ClassifiableLine } from "../engine/lineKinds.ts";
@@ -207,13 +208,18 @@ async function scan(): Promise<void> {
     if (settings.pinyin && assetPaths) {
       await ensurePinyinDict(assetPaths.pinyinDictPath);
       for (const line of chinese) {
-        const reading = romanizeMandarin(line.original, {
+        // The gloss is markup. Read the line it leaves behind, and take it off
+        // the screen when hints are on, or the paren stays beside its pinyin.
+        const stripped = projectReadingHints(line.original).displayText;
+        const shown = settings.readingHints ? stripped : line.original;
+        if (shown !== line.original) line.el.textContent = shown;
+        const reading = romanizeMandarin(stripped, {
           tones: settings.pinyinTones,
           joinWords: settings.pinyinJoinWords,
         });
         for (const row of line.el.querySelectorAll(`.${ROW_CLASS}`)) row.remove();
         if (reading !== "") renderPinyinRow(line.el, reading);
-        markAnnotated(line.el, line.original);
+        markAnnotated(line.el, line.original, shown);
       }
     } else {
       for (const line of chinese) markAnnotated(line.el, line.original);
@@ -224,13 +230,16 @@ async function scan(): Promise<void> {
     if (wantReading) {
       if (settings.pinyin && assetPaths) await ensurePinyinDict(assetPaths.pinyinDictPath);
       for (const line of mixed) {
-        const reading = projectMixedLineReading(line.original, {
+        const stripped = projectReadingHints(line.original).displayText;
+        const shown = settings.readingHints ? stripped : line.original;
+        if (shown !== line.original) line.el.textContent = shown;
+        const reading = projectMixedLineReading(stripped, {
           tones: settings.pinyinTones,
           joinWords: settings.pinyinJoinWords,
         });
         for (const row of line.el.querySelectorAll(`.${ROW_CLASS}`)) row.remove();
         if (reading !== "") renderPinyinRow(line.el, reading);
-        markAnnotated(line.el, line.original);
+        markAnnotated(line.el, line.original, shown);
       }
     } else {
       for (const line of mixed) markAnnotated(line.el, line.original);

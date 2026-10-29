@@ -1,7 +1,9 @@
 // Per-line CJK routing: decide whether a lyric line should get Japanese
 
 import { hasChineseOnlyGlyphs, hasJapaneseOnlyGlyphs } from "./hanForms.ts";
+import { projectReadingHints } from "./hints.ts";
 import { HAN_CHAR, KANA_CHAR, hasHan, hasKana } from "./kana.ts";
+import { toLatinPunctuation } from "./latinPunctuation.ts";
 import { romanizeMandarin, type PinyinOptions } from "./pinyin.ts";
 import { kanaToRomaji } from "./romaji.ts";
 
@@ -160,14 +162,16 @@ export function resolveLineRoute(
     typeof doc === "object" && doc !== null
       ? doc
       : { branch: doc, bilingual: false, hasTranslations: false };
-  const line = normalizeForDetection(rawLine);
+  // A parenthetical reading hint is markup, not a kana loan. 如果天(そら) is
+  // not one: a line-final kana paren with no real context around it is a chant.
+  const line = projectReadingHints(normalizeForDetection(rawLine)).displayText;
   const kana = hasKana(line);
   const han = hasHan(line);
   if (!kana && !han) return undefined;
   // A Chinese song sometimes ends a Mandarin line with one short kana loan
-  // (すみません) or an authored kana gloss. That is not a Japanese sentence:
-  // the Han is read as Mandarin and the kana as romaji. Kana between Han, a
-  // second kana run, or as much kana as Han is still a Japanese line.
+  // (すみません). That is not a Japanese sentence: the Han is read as
+  // Mandarin and the kana as romaji. Kana between Han, a second kana run,
+  // or as much kana as Han is still a Japanese line.
   if (kana && han && context.branch === "chinese" && isEdgeKanaLoan(line)) return "mixed";
   if (kana) return "japanese";
   // In a song the player is translating into Chinese, whether this line got a
@@ -209,34 +213,61 @@ function isEdgeKanaLoan(line: string): boolean {
   return kanaRuns === 1 && !kanaIsInternal && kanaCount < hanCount;
 }
 
-type ReadingRunKind = "han" | "kana" | "other";
+// An opening bracket belongs to the run that follows it. A closing bracket
+// belongs to the run it ends. Splitting the pair across Han and kana is what
+// turned 如果天(そら) into "ru guo tian ( sora)".
+const OPENING_BRACKET = /[（(「『【《〈〔〖［\[]/u;
+const CLOSING_BRACKET = /[）)」』】》〉〕〗］\]]/u;
 
 /**
  * The reading row for a mixed line: Mandarin for each Han run, romaji for
- * each kana run. Punctuation stays with the run before it.
+ * each kana run. Leading punctuation is kept, and each bracket stays with
+ * the run it belongs to. Accepted reading hints are removed first.
  */
 export function projectMixedLineReading(text: string, options: PinyinOptions): string {
-  const line = normalizeForDetection(text);
+  const line = projectReadingHints(normalizeForDetection(text)).displayText;
   const parts: string[] = [];
-  let kind: ReadingRunKind | undefined;
+  let kind: "han" | "kana" | undefined;
   let run = "";
+  // Opening brackets, plus any non-script run that has not found a word yet.
+  let pending = "";
   const flush = (): void => {
-    const trimmed = run.trim();
+    const script = kind;
+    const value = run.trim();
+    kind = undefined;
     run = "";
-    if (trimmed === "" || kind === undefined || kind === "other") return;
-    const reading = kind === "han" ? romanizeMandarin(trimmed, options) : kanaToRomaji(trimmed);
-    if (reading.trim() !== "") parts.push(reading.trim());
+    if (script === undefined || value === "") return;
+    const reading = script === "han" ? romanizeMandarin(value, options) : kanaToRomaji(value);
+    const trimmed = reading.trim();
+    if (trimmed !== "") parts.push(trimmed);
   };
   for (const ch of line) {
-    const next: ReadingRunKind = HAN_CHAR.test(ch) ? "han" : KANA_CHAR.test(ch) ? "kana" : "other";
-    if (next === "other") {
-      run += ch;
+    if (OPENING_BRACKET.test(ch)) {
+      pending += ch;
       continue;
     }
-    if (kind !== next) flush();
-    kind = next;
+    if (CLOSING_BRACKET.test(ch) || (!HAN_CHAR.test(ch) && !KANA_CHAR.test(ch))) {
+      if (kind === undefined) pending += ch;
+      else run += ch;
+      continue;
+    }
+    const script = HAN_CHAR.test(ch) ? "han" : "kana";
+    if (kind !== script) {
+      flush();
+      kind = script;
+      run = pending;
+      pending = "";
+    } else if (pending !== "") {
+      run += pending;
+      pending = "";
+    }
     run += ch;
   }
   flush();
+  const tail = pending.trim();
+  if (tail !== "") {
+    const literal = toLatinPunctuation(tail);
+    if (literal !== "") parts.push(literal);
+  }
   return parts.join(" ");
 }

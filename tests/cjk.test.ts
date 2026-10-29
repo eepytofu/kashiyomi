@@ -49,11 +49,41 @@ test("a short edge kana loan in a chinese document is mixed", () => {
   const line = "如果我下手太重すみません";
   assert.equal(resolveLineRoute(line, "chinese"), "mixed");
   assert.equal(resolveLineRoute("如果 我 下手 太重 すみません", "chinese"), "mixed");
-  // Constructed authored gloss: the kana sits in parentheses at the end.
+  // Constructed. The kana sits in parentheses at the end, and the hint is rejected as a chant.
   assert.equal(resolveLineRoute("如果天(そら)", "chinese"), "mixed");
+  // The paren is a rejected chant, so it stays, and both brackets stay on the kana.
+  assert.equal(
+    projectMixedLineReading("如果天(そら)", { tones: false, joinWords: false }),
+    "ru guo tian (sora)",
+  );
   assert.equal(
     projectMixedLineReading(line, { tones: false, joinWords: false }),
     "ru guo wo xia shou tai zhong sumimasen",
+  );
+});
+
+test("a quoted edge loan keeps its opening punctuation", () => {
+  // Constructed. The quote is not part of either script run.
+  const line = "「如果我下手太重」すみません";
+  assert.equal(resolveLineRoute(line, "chinese"), "mixed");
+  assert.equal(
+    projectMixedLineReading(line, { tones: false, joinWords: false }),
+    "\" ru guo wo xia shou tai zhong\" sumimasen",
+  );
+});
+
+test("an accepted reading hint is not a kana loan", () => {
+  // Constructed. The parenthetical is markup, so both lines are Chinese and
+  // the reading is the pinyin of what the hint leaves behind.
+  assert.equal(resolveLineRoute("Hello如果天空(そら)", "chinese"), "chinese");
+  assert.equal(resolveLineRoute("（注）如果天空(そら)", "chinese"), "chinese");
+  assert.equal(
+    projectMixedLineReading("（注）如果天空(そら)", { tones: false, joinWords: false }),
+    "(zhu) ru guo tian kong",
+  );
+  assert.equal(
+    projectMixedLineReading("Hello如果天空(そら)", { tones: false, joinWords: false }),
+    "Hello ru guo tian kong",
   );
 });
 
