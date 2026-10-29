@@ -12,7 +12,7 @@ import {
 
 test("shinjitai forms are japanese-only", () => {
   // Chinese writes these differently in both scripts: 戦/战/戰, 桜/樱/櫻.
-  for (const ch of ["戦", "桜", "芸", "沢", "駅", "検"]) {
+  for (const ch of ["戦", "桜", "沢", "駅", "検"]) {
     assert.equal(hasJapaneseOnlyGlyphs(ch), true, ch);
   }
 });
@@ -31,6 +31,14 @@ test("隣 is japanese-only even though opencc will not convert it back", () => {
   assert.equal(hasJapaneseOnlyGlyphs("隣"), true);
   assert.equal(toJapaneseGlyphs("邻"), "隣");
   assert.equal(toJapaneseGlyphs("鄰"), "隣");
+});
+
+test("forms chinese also uses are not japanese evidence", () => {
+  // 芸 is the shinjitai of 藝 and the 芸 of 芸芸. 腺 is 腺体. 弁 is 弁言.
+  // None of them decides a kana-free line.
+  for (const ch of ["芸", "腺", "弁"]) {
+    assert.equal(hasJapaneseOnlyGlyphs(ch), false, ch);
+  }
 });
 
 test("characters chinese also writes are not japanese evidence", () => {

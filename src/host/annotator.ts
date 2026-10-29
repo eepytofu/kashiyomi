@@ -3,6 +3,7 @@
 // Everything that knows NCM's markup lives in lyricDom.ts.
 
 import {
+  projectMixedLineReading,
   resolveDocumentContext,
   resolveLineRoute,
   type LineTranslationState,
@@ -154,11 +155,15 @@ async function scan(): Promise<void> {
 
   const japanese: JapaneseWork[] = [];
   const chinese: PendingLine[] = [];
+  const mixed: PendingLine[] = [];
   for (const line of pending) {
     const route = resolveLineRoute(line.original, docContext, line.translation);
     if (route === "japanese") {
       line.el.setAttribute("lang", "ja");
       japanese.push({ line, ...prepareJapaneseLine(line.original, settings) });
+    } else if (route === "mixed") {
+      line.el.setAttribute("lang", "zh");
+      mixed.push(line);
     } else if (route === "chinese" && hasHan(line.original)) {
       line.el.setAttribute("lang", "zh");
       chinese.push(line);
@@ -183,6 +188,9 @@ async function scan(): Promise<void> {
     }
     if (chinese.length > 0) {
       log.debug(`lines routed chinese: ${JSON.stringify(chinese.map((l) => l.original))}`);
+    }
+    if (mixed.length > 0) {
+      log.debug(`lines routed mixed: ${JSON.stringify(mixed.map((l) => l.original))}`);
     }
   }
 
@@ -209,6 +217,23 @@ async function scan(): Promise<void> {
       }
     } else {
       for (const line of chinese) markAnnotated(line.el, line.original);
+    }
+  }
+  if (mixed.length > 0) {
+    const wantReading = settings.pinyin || settings.romaji || settings.furigana;
+    if (wantReading) {
+      if (settings.pinyin && assetPaths) await ensurePinyinDict(assetPaths.pinyinDictPath);
+      for (const line of mixed) {
+        const reading = projectMixedLineReading(line.original, {
+          tones: settings.pinyinTones,
+          joinWords: settings.pinyinJoinWords,
+        });
+        for (const row of line.el.querySelectorAll(`.${ROW_CLASS}`)) row.remove();
+        if (reading !== "") renderPinyinRow(line.el, reading);
+        markAnnotated(line.el, line.original);
+      }
+    } else {
+      for (const line of mixed) markAnnotated(line.el, line.original);
     }
   }
   // Something was annotated this pass; the observer will fire again and the

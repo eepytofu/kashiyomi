@@ -1,10 +1,12 @@
 // Per-line CJK routing: decide whether a lyric line should get Japanese
 
 import { hasChineseOnlyGlyphs, hasJapaneseOnlyGlyphs } from "./hanForms.ts";
-import { HAN_CHAR, hasHan, hasKana } from "./kana.ts";
+import { HAN_CHAR, KANA_CHAR, hasHan, hasKana } from "./kana.ts";
+import { romanizeMandarin, type PinyinOptions } from "./pinyin.ts";
+import { kanaToRomaji } from "./romaji.ts";
 
 export type CjkDocumentBranch = "japanese" | "chinese" | undefined;
-export type CjkLineRoute = "japanese" | "chinese" | undefined;
+export type CjkLineRoute = "japanese" | "chinese" | "mixed" | undefined;
 
 export type CjkDocumentContext = {
   readonly branch: CjkDocumentBranch;
@@ -162,6 +164,11 @@ export function resolveLineRoute(
   const kana = hasKana(line);
   const han = hasHan(line);
   if (!kana && !han) return undefined;
+  // A Chinese song sometimes ends a Mandarin line with one short kana loan
+  // (すみません) or an authored kana gloss. That is not a Japanese sentence:
+  // the Han is read as Mandarin and the kana as romaji. Kana between Han, a
+  // second kana run, or as much kana as Han is still a Japanese line.
+  if (kana && han && context.branch === "chinese" && isEdgeKanaLoan(line)) return "mixed";
   if (kana) return "japanese";
   // In a song the player is translating into Chinese, whether this line got a
   if (context.hasTranslations && translation === "translated") return "japanese";
@@ -170,4 +177,66 @@ export function resolveLineRoute(
   if (hasJapaneseOnlyGlyphs(line)) return "japanese";
   if (context.bilingual && hanCount(line) >= HAN_RUN_CHINESE_LENGTH) return "chinese";
   return context.branch ?? "chinese";
+}
+
+/**
+ * True when the only kana is one run at the start or the end, and there is
+ * less of it than Han. Spaces and punctuation do not break the run. Han does.
+ */
+function isEdgeKanaLoan(line: string): boolean {
+  let kanaCount = 0;
+  let hanCount = 0;
+  let kanaRuns = 0;
+  let inKanaRun = false;
+  let first: "han" | "kana" | undefined;
+  let last: "han" | "kana" | undefined;
+  for (const ch of line) {
+    if (KANA_CHAR.test(ch)) {
+      kanaCount += 1;
+      if (!inKanaRun) kanaRuns += 1;
+      inKanaRun = true;
+      first ??= "kana";
+      last = "kana";
+    } else if (HAN_CHAR.test(ch)) {
+      hanCount += 1;
+      inKanaRun = false;
+      first ??= "han";
+      last = "han";
+    }
+  }
+  if (kanaCount === 0 || hanCount === 0) return false;
+  const kanaIsInternal = first === "han" && last === "han";
+  return kanaRuns === 1 && !kanaIsInternal && kanaCount < hanCount;
+}
+
+type ReadingRunKind = "han" | "kana" | "other";
+
+/**
+ * The reading row for a mixed line: Mandarin for each Han run, romaji for
+ * each kana run. Punctuation stays with the run before it.
+ */
+export function projectMixedLineReading(text: string, options: PinyinOptions): string {
+  const line = normalizeForDetection(text);
+  const parts: string[] = [];
+  let kind: ReadingRunKind | undefined;
+  let run = "";
+  const flush = (): void => {
+    const trimmed = run.trim();
+    run = "";
+    if (trimmed === "" || kind === undefined || kind === "other") return;
+    const reading = kind === "han" ? romanizeMandarin(trimmed, options) : kanaToRomaji(trimmed);
+    if (reading.trim() !== "") parts.push(reading.trim());
+  };
+  for (const ch of line) {
+    const next: ReadingRunKind = HAN_CHAR.test(ch) ? "han" : KANA_CHAR.test(ch) ? "kana" : "other";
+    if (next === "other") {
+      run += ch;
+      continue;
+    }
+    if (kind !== next) flush();
+    kind = next;
+    run += ch;
+  }
+  flush();
+  return parts.join(" ");
 }

@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
+  projectMixedLineReading,
   resolveDocumentBranch,
   resolveDocumentContext,
   resolveLineRoute,
@@ -41,6 +42,40 @@ test("a small japanese island does not flip a chinese document", () => {
 
 test("kana in a line forces the japanese route", () => {
   assert.equal(resolveLineRoute("だんだん剥がれてく Fake のゴールド", "chinese"), "japanese");
+});
+
+test("a short edge kana loan in a chinese document is mixed", () => {
+  // Constructed. One kana run at the end, shorter than the Han.
+  const line = "如果我下手太重すみません";
+  assert.equal(resolveLineRoute(line, "chinese"), "mixed");
+  assert.equal(resolveLineRoute("如果 我 下手 太重 すみません", "chinese"), "mixed");
+  // Constructed authored gloss: the kana sits in parentheses at the end.
+  assert.equal(resolveLineRoute("如果天(そら)", "chinese"), "mixed");
+  assert.equal(
+    projectMixedLineReading(line, { tones: false, joinWords: false }),
+    "ru guo wo xia shou tai zhong sumimasen",
+  );
+});
+
+test("grammatical japanese in a chinese document stays japanese", () => {
+  // Constructed. Kana between Han, or more kana than Han, is a Japanese line.
+  assert.equal(resolveLineRoute("本当にすみません", "chinese"), "japanese");
+  assert.equal(resolveLineRoute("神戸の風吹き運ぶ花の香", "chinese"), "japanese");
+  assert.equal(resolveLineRoute("如果我下手太重すみません", "japanese"), "japanese");
+});
+
+test("shared han forms follow the document instead of forcing japanese", () => {
+  // Constructed. 芸, 腺, and 弁 are the only Japanese-looking characters.
+  assert.equal(resolveLineRoute("困天地芸芸衆生", "chinese"), "chinese");
+  assert.equal(resolveLineRoute("甲状腺功能正常", "chinese"), "chinese");
+  assert.equal(resolveLineRoute("弁言", "chinese"), "chinese");
+  assert.equal(resolveLineRoute("困天地芸芸衆生", "japanese"), "japanese");
+  assert.equal(resolveLineRoute("甲状腺功能正常", "japanese"), "japanese");
+  assert.equal(resolveLineRoute("弁言", "japanese"), "japanese");
+  // 戦 is still distinctive, including inside a Chinese document.
+  assert.equal(resolveLineRoute("反戦記録", "chinese"), "japanese");
+  // Already Chinese from other glyphs. 于 is simplified.
+  assert.equal(resolveLineRoute("弁言附于卷首", "chinese"), "chinese");
 });
 
 test("han-only lines follow the document branch", () => {

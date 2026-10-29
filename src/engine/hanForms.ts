@@ -45,13 +45,15 @@ export function hasChineseOnlyGlyphs(line: string): boolean {
  * not use at all.
  */
 // Audited against OpenCC on 2026-08-03 rather than trusted as typed. An entry
+// 芸, 腺, and 弁 are absent on purpose. Each is an ordinary Chinese word too
+// (芸芸, 腺体, 弁言), so none of them can decide a kana-free line by itself.
 const JAPANESE_ONLY_KANJI = new Set([
   ...(
-    "戦伝転芸覚実対沢帰単変続読駅験廃髪桜楽薬塩満検険剣権観応圧総経絵浄拡" +
+    "戦伝転覚実対沢帰単変続読駅験廃髪桜楽薬塩満検険剣権観応圧総経絵浄拡" +
     "児図団囲壊焼犠関闘顕歯売栄営蛍労覧豊悪乗証歳処価仮気辺髄渋巻専従" +
-    "縦奨繊荘蔵臓滝択逓鉄弐弁黙訳揺様謡頼竜緑隣霊齢暦錬"
+    "縦奨繊荘蔵臓滝択逓鉄弐黙訳揺様謡頼竜緑隣霊齢暦錬"
   ),
-  ...("働込峠畑辻匂凪雫枠榊麿躾塀笹咲栃搾腺"),
+  ...("働込峠畑辻匂凪雫枠榊麿躾塀笹咲栃搾"),
 ]);
 
 /**
