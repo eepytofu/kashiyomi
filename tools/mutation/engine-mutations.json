@@ -423,7 +423,7 @@
     "id": "hanForms/drop-kokuji",
     "file": "src/engine/hanForms.ts",
     "what": "kokuji dropped from the japanese-only set",
-    "find": "  ...(\"働込峠畑辻匂凪雫枠榊麿躾塀笹咲栃搾\"),"
+    "find": "  ...(\"働込峠畑辻匂凪雫枠榊麿躾塀笹咲栃搾\"),",
     "replace": "  ...(\"\"),"
   },
   {

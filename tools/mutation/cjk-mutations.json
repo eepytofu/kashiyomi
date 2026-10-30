@@ -38,15 +38,15 @@
     "id": "dedupe-removed",
     "file": "src/engine/cjk.ts",
     "what": "evidence counted per occurrence again (the 千本桜 bug)",
-    "find": "  for (const line of new Set(lines)) {",
-    "replace": "  for (const line of lines) {"
+    "find": "  for (const rawLine of new Set(lines)) {",
+    "replace": "  for (const rawLine of lines) {"
   },
   {
     "id": "jp-glyph-guard-removed-doc",
     "file": "src/engine/cjk.ts",
     "what": "japanese orthography no longer disqualifies a line as second-language evidence",
-    "find": "      (!hasJapaneseOnlyGlyphs(normalized) && hanCount(normalized) >= HAN_RUN_CHINESE_LENGTH)",
-    "replace": "      (hanCount(normalized) >= HAN_RUN_CHINESE_LENGTH)"
+    "find": "      (!hasJapaneseOnlyGlyphs(line) && hanCount(line) >= HAN_RUN_CHINESE_LENGTH)",
+    "replace": "      (hanCount(line) >= HAN_RUN_CHINESE_LENGTH)"
   },
   {
     "id": "looksChinese-false",
