@@ -2,6 +2,7 @@
 // to read the text a line came from, how to record that we handled it, and
 // how to see the player's own translation row.
 
+import type { TranslationMeta } from "../engine/aiTranslation.ts";
 import type { CjkDocumentBranch, LineTranslationState } from "../engine/cjk.ts";
 import { hasHan, hasKana } from "../engine/kana.ts";
 import { scriptForFont, type ScriptLang } from "../engine/scriptLang.ts";
@@ -25,6 +26,17 @@ export function findLineElements(): HTMLElement[] {
     }
   }
   return [];
+}
+
+// Title and artist from the lyric page header (NCM 3.1.42 test ids). Either may
+// be missing; the translation prompt then simply leaves it out.
+export function readTrackMeta(): TranslationMeta {
+  const titleOf = (selector: string): string | undefined =>
+    document.querySelector<HTMLElement>(selector)?.title.trim() || undefined;
+  return {
+    title: titleOf('[data-testid="tid_tracktitle_container"] .title[title]'),
+    artist: titleOf('[data-testid="tid_tracktitle_artist"] [title]'),
+  };
 }
 
 // Reads the line's text with our own markup (reading rows, rt readings)

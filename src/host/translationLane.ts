@@ -2,6 +2,7 @@
 
 import { shouldDisplayTranslation } from "../engine/aiTranslation.ts";
 import { labelScript, targetLangScript } from "../engine/scriptLang.ts";
+import { readTrackMeta } from "./lyricDom.ts";
 import { ROW_CLASS } from "./render.ts";
 import { getSettings } from "./settings.ts";
 import { translateSong, translationConfigured } from "./translator.ts";
@@ -61,8 +62,9 @@ export function maybeTranslate(
   txAbort?.abort();
   const controller = new AbortController();
   txAbort = controller;
+  const meta = readTrackMeta();
   void (async () => {
-    const translated = await translateSong(texts, {}, controller.signal);
+    const translated = await translateSong(texts, meta, controller.signal);
     if (!translated || controller.signal.aborted) return;
     txByText.clear();
     for (let i = 0; i < texts.length; i++) {
