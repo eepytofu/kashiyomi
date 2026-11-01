@@ -1,5 +1,5 @@
 // Builds assets/jmdict/readings.json: kanji surface -> its single JMdict reading.
-// Usage: node tools/export-jmdict-readings.mjs [--force]
+// Usage: node tools/export-jmdict-readings.mjs [--force] [--tag <release tag>]
 //
 // Analyzer lexicons hold one reading per entry, chosen to make parsing work.
 // JMdict holds every reading a surface has. Only the surfaces where it holds
@@ -7,8 +7,9 @@
 // reading is not a choice between candidates. `src/engine/jmdictReadings.ts`
 // carries the safety argument and the measurements behind it.
 //
-// jmdict-simplified rebuilds daily and stamps the date into the release tag, so
-// like SudachiDict this resolves the newest release rather than pinning one.
+// jmdict-simplified rebuilds daily and stamps the date into the release tag.
+// The export is pinned to JMDICT_TAG so the same checkout builds the same
+// readings; move the pin deliberately (`--tag` tries another release first).
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
 import { Readable } from "node:stream";
@@ -16,7 +17,11 @@ import { pipeline } from "node:stream/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 
-const RELEASES = "https://api.github.com/repos/scriptin/jmdict-simplified/releases/latest";
+const JMDICT_TAG = "3.6.2+20261026175559";
+const tagArg = process.argv.indexOf("--tag");
+const tag = tagArg >= 0 ? process.argv[tagArg + 1] : JMDICT_TAG;
+if (!tag) throw new Error("--tag needs a release tag");
+const RELEASES = `https://api.github.com/repos/scriptin/jmdict-simplified/releases/tags/${encodeURIComponent(tag)}`;
 const outDir = path.resolve(import.meta.dirname, "..", "assets", "jmdict");
 const outFile = path.join(outDir, "readings.json");
 
@@ -30,18 +35,20 @@ if (!process.argv.includes("--force")) {
   } catch {}
 }
 
-const release = await (await fetch(RELEASES, {
+const releaseRes = await fetch(RELEASES, {
   headers: {
     accept: "application/vnd.github+json",
     "user-agent": "kashiyomi-export-jmdict",
     ...(process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}),
   },
-})).json();
+});
+if (!releaseRes.ok) throw new Error(`Release ${tag} not found: HTTP ${releaseRes.status}`);
+const release = await releaseRes.json();
 // The English build carries the same entry set as jmdict-all at a third the
 // size; only the glosses differ, and no gloss is read here. `-common-` is a
 // different thing — a subset of common words — so the pattern excludes it.
 const asset = release.assets.find((a) => /^jmdict-eng-\d.*\.json\.zip$/.test(a.name));
-if (!asset) throw new Error("no jmdict-eng json.zip in the latest release");
+if (!asset) throw new Error(`no jmdict-eng json.zip in release ${tag}`);
 console.log(`Resolved ${release.tag_name} -> ${asset.name}`);
 
 await mkdir(outDir, { recursive: true });
