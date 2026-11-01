@@ -1,4 +1,4 @@
-// Installs the plugin into the local BetterNCM plugins_runtime folder for
+// Installs the plugin into the local BetterNCM plugins_dev folder for
 // testing. Large assets (Sudachi dictionary, pinyin JSON) stay in this
 // checkout; a generated dev-paths.json points the plugin at them.
 import { cp, mkdir, rm, writeFile, access } from "node:fs/promises";

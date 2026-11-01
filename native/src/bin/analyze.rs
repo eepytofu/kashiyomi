@@ -32,7 +32,7 @@ fn main() {
 
     let root = env!("CARGO_MANIFEST_DIR");
     // KASHIYOMI_DICT swaps the dictionary without a rebuild, so the same binary
-    // can read the same lines through full, core and small and the difference
+    // can read the same lines through full and core and the difference
     // is the dictionary rather than anything else.
     let dict = std::env::var("KASHIYOMI_DICT")
         .unwrap_or_else(|_| format!("{root}/../assets/dict/system_core.dic"));

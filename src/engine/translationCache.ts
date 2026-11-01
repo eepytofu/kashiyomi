@@ -1,5 +1,5 @@
-// Translation cache policy: TTL, LRU eviction, and recovery when storage is
-// full. Storage is injected so this is testable without a browser. Pure logic;
+// Translation cache policy: LRU eviction (no expiry) and recovery when storage
+// is full. Storage is injected so this is testable without a browser. Pure logic;
 // no host imports.
 
 export type CacheStorage = {
@@ -9,9 +9,8 @@ export type CacheStorage = {
 };
 
 /**
- * `at` is when the translation was produced and drives expiry; `used` is the
- * last read and drives eviction order. Keeping them apart means reading a
- * cached song does not extend its freshness indefinitely.
+ * `at` is when the translation was produced; `used` is the last read and drives
+ * eviction order (an entry never read falls back to `at`). Entries never expire.
  */
 export type CacheEntry = { at: number; used?: number; lines: string[] };
 type Envelope = { v: 1; entries: Record<string, CacheEntry> };

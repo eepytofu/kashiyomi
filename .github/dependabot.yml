@@ -1,6 +1,6 @@
 # Dependency updates. SudachiDict is not here: it is not a package manager
-# dependency, and `npm run fetch-dict` already resolves the vendor's `-latest-`
-# alias, so it needs no pin to keep current.
+# dependency; its pin lives in dictionary-releases.json and only changes
+# through `npm run pin-dict`.
 #
 # Grouped so a week of patch bumps arrives as one PR rather than six.
 version: 2

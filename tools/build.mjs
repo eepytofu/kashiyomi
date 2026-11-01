@@ -7,7 +7,8 @@ const options = {
   entryPoints: ["src/main.ts"],
   bundle: true,
   format: "iife",
-  // NCM 3.1.37 runs CEF 91 (Chromium 91.0.4472); do not raise without re-checking.
+  // NCM's embedded browser is CEF 91 (Chromium 91.0.4472); do not raise without
+  // re-checking the running host.
   target: ["chrome91"],
   outfile: "dist/main.js",
   logLevel: "info",
