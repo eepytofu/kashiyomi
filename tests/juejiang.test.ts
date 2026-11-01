@@ -4,8 +4,8 @@ import { classifyLines } from "../src/engine/lineKinds.ts";
 import { hasCreditShape, isCreditLine } from "../src/engine/metadata.ts";
 
 /**
- * 倔强 (五月天), fetched 2026-08-13 from NetEase through the user's private
- * external-source Worker. Provenance differs from `baima.test.ts`: that one is
+ * 倔强 (五月天), fetched 2026-08-13 from NetEase through an external lyric source.
+ * Provenance differs from `baima.test.ts`: that one is
  * a DOM capture of the running app, this is provider text, so it proves what
  * NetEase serves rather than what NCM renders.
  *
