@@ -133,8 +133,17 @@ try {
 }
 
 const survived = results.filter((r) => !r.error && !r.crashed && r.failed.length === 0);
-console.log(`\n${results.length} mutations, ${survived.length} SURVIVED`);
+const crashed = results.filter((r) => !r.error && r.crashed);
+console.log(`\n${results.length} mutations, ${survived.length} SURVIVED, ${crashed.length} CRASH`);
 for (const s of survived) console.log(`  SURVIVED  ${s.id} — ${s.what}`);
+
+// A crash means the test runner never reported, so the mutation was neither
+// killed nor survived; a clean-looking summary must not hide it.
+if (crashed.length > 0) {
+  console.error(`\n${crashed.length} mutation(s) crashed the test run:`);
+  for (const c of crashed) console.error(`  CRASH  ${c.id} — ${c.what}`);
+  process.exitCode = 1;
+}
 
 // A mutation whose pattern no longer matches has stopped testing anything, and
 // the summary above would still read "0 SURVIVED". Editing the source it
