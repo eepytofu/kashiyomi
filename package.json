@@ -17,6 +17,8 @@
     "mutate": "node tools/mutation/run.mjs tools/mutation/cjk-mutations.json && node tools/mutation/run.mjs tools/mutation/engine-mutations.json",
     "capture": "node tools/capture/lyrics.mjs",
     "bench": "node tools/bench.mjs",
+    "bench:live": "node tools/bench-live.mjs",
+    "bench:track": "node tools/bench-track-change.mjs",
     "pin-dict": "node tools/pin-dictionary.mjs",
     "fetch-dict": "node tools/fetch-dictionaries.mjs",
     "export-pinyin": "node tools/export-pinyin-dict.mjs",
