@@ -10,8 +10,8 @@
 // jmdict-simplified rebuilds daily and stamps the date into the release tag.
 // The export is pinned to JMDICT_TAG so the same checkout builds the same
 // readings; move the pin deliberately (`--tag` tries another release first).
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { createWriteStream } from "node:fs";
+import { mkdir, readFile, rm, stat, writeFile, readdir } from "node:fs/promises";
+import { createWriteStream, existsSync } from "node:fs";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { execFileSync } from "node:child_process";
@@ -24,6 +24,15 @@ if (!tag) throw new Error("--tag needs a release tag");
 const RELEASES = `https://api.github.com/repos/scriptin/jmdict-simplified/releases/tags/${encodeURIComponent(tag)}`;
 const outDir = path.resolve(import.meta.dirname, "..", "assets", "jmdict");
 const outFile = path.join(outDir, "readings.json");
+
+/** Windows: prefer System32 bsdtar (reads zip); Git Bash PATH may put GNU tar first. */
+function tarBin() {
+  if (process.platform === "win32") {
+    const sys = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe");
+    if (existsSync(sys)) return sys;
+  }
+  return "tar";
+}
 
 if (!process.argv.includes("--force")) {
   try {
@@ -58,16 +67,14 @@ const res = await fetch(asset.browser_download_url);
 if (!res.ok || !res.body) throw new Error(`Download failed: HTTP ${res.status}`);
 await pipeline(Readable.fromWeb(res.body), createWriteStream(zipPath));
 
-execFileSync("powershell", [
-  "-NoProfile",
-  "-Command",
-  `Expand-Archive -LiteralPath "${zipPath}" -DestinationPath "${extractDir}" -Force`,
-]);
-const inner = execFileSync("powershell", [
-  "-NoProfile",
-  "-Command",
-  `(Get-ChildItem -LiteralPath "${extractDir}" -Filter *.json | Select-Object -First 1).FullName`,
-]).toString().trim();
+await rm(extractDir, { recursive: true, force: true });
+await mkdir(extractDir, { recursive: true });
+execFileSync(tarBin(), ["-xf", zipPath, "-C", extractDir]);
+const jsonName = (await readdir(extractDir, { recursive: true })).find(
+  (f) => typeof f === "string" && f.endsWith(".json"),
+);
+if (!jsonName) throw new Error(`no .json in extracted ${asset.name}`);
+const inner = path.join(extractDir, jsonName);
 
 const { words } = JSON.parse(await readFile(inner, "utf8"));
 
