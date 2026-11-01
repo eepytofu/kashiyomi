@@ -1,6 +1,6 @@
-// Console logging with one prefix, gated by the debug setting. Everything is
-// also mirrored to a log file in the BetterNCM data folder so problems can be
-// diagnosed without the in-app console.
+// Console logging with one prefix. Everything is also mirrored to a log file
+// in the BetterNCM data folder so problems can be diagnosed without the in-app
+// console. The debug setting gates DEBUG lines in both places.
 
 import { getSettings } from "./settings.ts";
 
@@ -36,13 +36,18 @@ function scheduleFlush(): void {
   }, 800);
 }
 
+/** Where the log file lives: `kashiyomi.log` in BetterNCM's data folder. */
+export async function getLogFilePath(): Promise<string> {
+  if (!logFilePath) {
+    const dataPath = await betterncm.app.getDataPath();
+    logFilePath = `${dataPath}/kashiyomi.log`;
+  }
+  return logFilePath;
+}
+
 async function flush(): Promise<void> {
   try {
-    if (!logFilePath) {
-      const dataPath = await betterncm.app.getDataPath();
-      logFilePath = `${dataPath}/kashiyomi.log`;
-    }
-    await betterncm.fs.writeFileText(logFilePath, buffer.join("\n") + "\n");
+    await betterncm.fs.writeFileText(await getLogFilePath(), buffer.join("\n") + "\n");
   } catch {
     // File logging is best-effort; the console still has everything.
   }
@@ -58,7 +63,8 @@ export const log = {
     record("WARN", args);
   },
   debug(...args: unknown[]): void {
-    if (getSettings().debug) console.log(PREFIX, ...args);
+    if (!getSettings().debug) return;
+    console.log(PREFIX, ...args);
     record("DEBUG", args);
   },
 };

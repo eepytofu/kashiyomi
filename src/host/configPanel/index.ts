@@ -14,6 +14,7 @@ import { PANEL_CSS } from "./css.ts";
 import { UI_ROOT_CLASS, ensureSharedStyles } from "../uiStyles.ts";
 import { dictionaryAvailable, onDictionaryChange } from "../dictionary.ts";
 import { dictionaryRow } from "./dictionaryRow.ts";
+import { getLogFilePath } from "../log.ts";
 import { onPanelTeardown, teardownPanel } from "./lifecycle.ts";
 import { buildPreviewCard } from "./preview.ts";
 import {
@@ -527,7 +528,12 @@ function buildAboutCard(column: HTMLElement): void {
 
   const logPath = document.createElement("div");
   logPath.className = "kc-muted";
-  logPath.textContent = `${t("aboutLog")}: C:\\betterncm\\kashiyomi.log`;
+  logPath.textContent = `${t("aboutLog")}: kashiyomi.log`;
+  void getLogFilePath()
+    .then((file) => {
+      logPath.textContent = `${t("aboutLog")}: ${file.replace(/\//gu, "\\")}`;
+    })
+    .catch(() => {});
   box.appendChild(logPath);
 
   column.appendChild(box);
